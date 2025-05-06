@@ -14,7 +14,7 @@ export function Breadcrumbs({ className }: BreadcrumbsProps) {
   const pathname = usePathname()
 
   // Skip rendering breadcrumbs on the main admin page
-  if (pathname === "/admin") {
+  if (pathname === "/superadmin") {
     return null
   }
 
@@ -43,7 +43,7 @@ export function Breadcrumbs({ className }: BreadcrumbsProps) {
     >
       <ol className="flex items-center space-x-1">
         <li>
-          <Link href="/admin" className="flex items-center hover:text-foreground">
+          <Link href="/superadmin" className="flex items-center hover:text-foreground">
             <Home className="h-4 w-4" />
             <span className="sr-only">Home</span>
           </Link>

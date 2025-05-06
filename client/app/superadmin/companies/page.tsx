@@ -180,7 +180,7 @@ export default function CompaniesPage() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link href={`/admin/companies/${company.id}`} className="flex w-full items-center">
+            <Link href={`/superadmin/companies/${company.id}`} className="flex w-full items-center">
               <Eye className="mr-2 h-4 w-4" />
               View Details
             </Link>
@@ -257,7 +257,7 @@ export default function CompaniesPage() {
           <p className="text-muted-foreground">Manage all companies registered on the SparrowX platform.</p>
         </div>
         <Button asChild className="mt-2 sm:mt-0">
-          <Link href="/admin/companies/create">
+          <Link href="/superadmin/companies/create">
             <Plus className="mr-2 h-4 w-4" />
             Create Company
           </Link>
@@ -289,7 +289,7 @@ export default function CompaniesPage() {
           <ResponsiveTable
             data={sortedCompanies}
             columns={columns}
-            onRowClick={(company) => (window.location.href = `/admin/companies/${company.id}`)}
+            onRowClick={(company) => (window.location.href = `/superadmin/companies/${company.id}`)}
           />
         </CardContent>
       </Card>

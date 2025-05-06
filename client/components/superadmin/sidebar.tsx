@@ -29,68 +29,71 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     title: "Companies",
-    href: "/admin/companies",
+    href: "/superadmin/companies",
     icon: Building2,
     submenu: [
-      { title: "All Companies", href: "/admin/companies" },
-      { title: "Create Company", href: "/admin/companies/create" },
+      { title: "All Companies", href: "/superadmin/companies" },
+      { title: "Create Company", href: "/superadmin/companies/create" },
     ],
   },
   {
     title: "Users",
-    href: "/admin/users",
+    href: "/superadmin/users",
     icon: Users,
     submenu: [
-      { title: "Admins", href: "/admin/users/admins" },
-      { title: "Invitations", href: "/admin/users/invitations" },
+      { title: "Admins", href: "/superadmin/users/admins" },
+      { title: "Invitations", href: "/superadmin/users/invitations" },
     ],
   },
   {
     title: "Fees & Billing",
-    href: "/admin/billing",
+    href: "/superadmin/billing",
     icon: DollarSign,
     submenu: [
-      { title: "Global Fee Templates", href: "/admin/billing/templates" },
-      { title: "Billing Reports", href: "/admin/billing/reports", comingSoon: true },
-      { title: "Payment Gateways", href: "/admin/billing/gateways", comingSoon: true },
+      { title: "Global Fee Templates", href: "/superadmin/billing/templates" },
+      { title: "Billing Reports", href: "/superadmin/billing/reports", comingSoon: true },
+      { title: "Payment Gateways", href: "/superadmin/billing/gateways", comingSoon: true },
     ],
   },
   {
     title: "Metrics",
-    href: "/admin/metrics",
+    href: "/superadmin/metrics",
     icon: BarChart3,
     submenu: [
-      { title: "Platform Overview", href: "/admin/metrics", comingSoon: true },
-      { title: "Company Breakdown", href: "/admin/metrics/companies", comingSoon: true },
-      { title: "User Analytics", href: "/admin/metrics/users", comingSoon: true },
+      { title: "Platform Overview", href: "/superadmin/metrics", comingSoon: true },
+      { title: "Company Breakdown", href: "/superadmin/metrics/companies", comingSoon: true },
+      { title: "User Analytics", href: "/superadmin/metrics/users", comingSoon: true },
     ],
     comingSoon: true,
   },
   {
     title: "System Logs",
-    href: "/admin/logs",
+    href: "/superadmin/logs",
     icon: ScrollText,
     submenu: [
-      { title: "Audit Logs", href: "/admin/logs/audit", comingSoon: true },
-      { title: "Webhook Events", href: "/admin/logs/webhooks", comingSoon: true },
-      { title: "Error Logs", href: "/admin/logs/errors", comingSoon: true },
+      { title: "Audit Logs", href: "/superadmin/logs/audit", comingSoon: true },
+      { title: "Webhook Events", href: "/superadmin/logs/webhooks", comingSoon: true },
+      { title: "Error Logs", href: "/superadmin/logs/errors", comingSoon: true },
     ],
     comingSoon: true,
   },
   {
     title: "Settings",
-    href: "/admin/settings",
+    href: "/superadmin/settings",
     icon: Settings,
     submenu: [
-      { title: "Auth0 Config", href: "/admin/settings/auth0", comingSoon: true },
-      { title: "Platform Branding", href: "/admin/settings/branding", comingSoon: true },
-      { title: "Environment Info", href: "/admin/settings/environment", comingSoon: true },
+
+      { title: "Menu", href: "/superadmin/settings", comingSoon: false},
+      { title: "Profile", href: "/superadmin/settings/profile", comingSoon: false },
+      { title: "Auth0 Config", href: "/superadmin/settings/auth0", comingSoon: true },
+      { title: "Platform Branding", href: "/superadmin/settings/branding", comingSoon: true },
+      { title: "Environment Info", href: "/superadmin/settings/environment", comingSoon: true },
     ],
-    comingSoon: true,
+    comingSoon: false,
   },
 ]
 
-export function AdminSidebar() {
+export function SuperAdminSidebar() {
   const pathname = usePathname()
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -173,7 +176,7 @@ export function AdminSidebar() {
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0">
         <div className="flex h-16 items-center border-b px-4">
-          <Link href="/admin" className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
+          <Link href="/superadmin" className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
             <span className="text-xl font-bold">SparrowX Admin</span>
           </Link>
           <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setSidebarOpen(false)}>
@@ -240,7 +243,7 @@ export function AdminSidebar() {
       <div className="sticky top-0 z-20 flex h-16 items-center border-b bg-background px-4 lg:hidden">
         <MobileSidebar />
         <div className="ml-2 flex-1 text-center sm:text-left">
-          <Link href="/admin" className="inline-flex items-center">
+          <Link href="/superadmin" className="inline-flex items-center">
             <span className="text-xl font-bold"></span>
           </Link>
         </div>

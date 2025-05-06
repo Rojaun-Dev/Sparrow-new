@@ -3,18 +3,18 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "../globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AdminHeader } from "@/components/admin/header"
-import { AdminSidebar } from "@/components/admin/sidebar"
+import { SuperAdminHeader } from "@/components/superadmin/header"
+import { SuperAdminSidebar } from "@/components/superadmin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SparrowX Admin Dashboard",
+  title: "SparrowX Super Admin Dashboard",
   description: "Super Admin Dashboard for SparrowX Package Forwarding Platform",
 }
 
-export default function AdminLayout({
+export default function SuperAdminLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
@@ -24,11 +24,11 @@ export default function AdminLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <div className="flex min-h-screen flex-col">
-            <AdminHeader />
+            <SuperAdminHeader />
             <div className="flex flex-1">
-              <AdminSidebar />
+              <SuperAdminSidebar />
               <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">
-                <Breadcrumbs className="mb-4" homeHref="/admin" homeLabel="Dashboard" rootPath="/admin" />
+                <Breadcrumbs className="mb-4" homeHref="/superadmin" homeLabel="Dashboard" rootPath="/superadmin" />
                 {children}
               </main>
             </div>

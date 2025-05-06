@@ -18,13 +18,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
-export function AdminHeader() {
+export function SuperAdminHeader() {
   const { setTheme } = useTheme()
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
       <div className="flex items-center gap-2">
-        <Link href="/admin" className="flex items-center gap-2">
+        <Link href="/superadmin" className="flex items-center gap-2">
           <Image src="/placeholder.svg?key=e5zuj" alt="SparrowX Logo" width={32} height={32} className="h-8 w-8" />
           <span className="hidden text-xl font-bold md:inline-block">Super Admin Portal</span>
         </Link>

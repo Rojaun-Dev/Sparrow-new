@@ -142,7 +142,7 @@ export default function CreateCompanyPage() {
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button variant="outline" asChild>
-            <Link href="/admin/companies">Cancel</Link>
+            <Link href="/superadmin/companies">Cancel</Link>
           </Button>
           {!isSuccess && (
             <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>
@@ -158,7 +158,7 @@ export default function CreateCompanyPage() {
           )}
           {isSuccess && (
             <Button asChild>
-              <Link href="/admin/companies">Back to Companies</Link>
+              <Link href="/superadmin/companies">Back to Companies</Link>
             </Button>
           )}
         </CardFooter>
