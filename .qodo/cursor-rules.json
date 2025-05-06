@@ -1,0 +1,97 @@
+{
+  "rules": [
+    {
+      "name": "JavaScript Standard",
+      "pattern": "*.js",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "formatOnType": true,
+      "trimTrailingWhitespace": true,
+      "insertFinalNewline": true
+    },
+    {
+      "name": "TypeScript Standard",
+      "pattern": "*.ts",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "formatOnType": true,
+      "trimTrailingWhitespace": true,
+      "insertFinalNewline": true
+    },
+    {
+      "name": "React Components",
+      "pattern": "*.tsx",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "formatOnType": true,
+      "trimTrailingWhitespace": true,
+      "insertFinalNewline": true
+    },
+    {
+      "name": "CSS/SCSS Files",
+      "pattern": "*.{css,scss}",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "trimTrailingWhitespace": true
+    },
+    {
+      "name": "HTML Files",
+      "pattern": "*.html",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "trimTrailingWhitespace": true
+    },
+    {
+      "name": "JSON Files",
+      "pattern": "*.json",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true
+    },
+    {
+      "name": "Markdown Files",
+      "pattern": "*.md",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "trimTrailingWhitespace": false,
+      "insertFinalNewline": true
+    },
+    {
+      "name": "Configuration Files",
+      "pattern": "*.{yml,yaml,toml}",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "trimTrailingWhitespace": true
+    },
+    {
+      "name": "Python Files",
+      "pattern": "*.py",
+      "tabSize": 4,
+      "insertSpaces": true,
+      "formatOnSave": true,
+      "trimTrailingWhitespace": true,
+      "insertFinalNewline": true
+    }
+  ],
+  "excludedFolders": [
+    "node_modules",
+    "dist",
+    "build",
+    ".git",
+    "coverage"
+  ],
+  "lineEnding": "auto",
+  "defaultSettings": {
+    "tabSize": 2,
+    "insertSpaces": true,
+    "formatOnSave": true,
+    "trimTrailingWhitespace": true,
+    "insertFinalNewline": true
+  }
+} 

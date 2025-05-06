@@ -1,0 +1,221 @@
+"use client"
+
+import Link from "next/link"
+import Image from "next/image"
+import { useState } from "react"
+import { ArrowRight, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
+import { cn } from "@/lib/utils"
+
+// Update the import to use the correct path
+import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
+
+export default function LoginPage() {
+  const [showPassword, setShowPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Initialize form with React Hook Form and Zod resolver
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: false,
+    },
+    mode: "onChange", // Enable validation as fields change
+  })
+
+  // Form submission handler
+  async function onSubmit(data: LoginFormValues) {
+    setIsSubmitting(true)
+    console.log("Form submitted:", data)
+
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+
+    // In a real implementation, this would call an authentication API
+    setIsSubmitting(false)
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Left side - Branding */}
+      <div className="flex flex-col justify-between bg-primary p-8 text-white md:w-1/2 lg:p-12">
+        <div>
+          <div className="mb-8 w-48">
+            <Image
+              src="/placeholder.svg?key=e5zuj"
+              alt="SparrowX Logo"
+              width={180}
+              height={60}
+              className="h-auto w-full"
+            />
+          </div>
+          <h1 className="mb-6 text-3xl font-bold md:text-4xl lg:text-5xl">
+            Welcome to <span className="text-primary-foreground">SparrowX</span>
+          </h1>
+          <p className="mb-6 max-w-md text-lg text-primary-foreground/90">
+            Your trusted package forwarding service. Login to track your shipments, manage pre-alerts, and more.
+          </p>
+        </div>
+        <div className="hidden md:block">
+          <p className="text-sm text-primary-foreground/70">
+            © {new Date().getFullYear()} SparrowX. All rights reserved.
+          </p>
+        </div>
+      </div>
+
+      {/* Right side - Login Form */}
+      <div className="flex flex-1 flex-col items-center justify-center p-8 md:w-1/2 lg:p-12">
+        <div className="w-full max-w-md space-y-8">
+          <div className="space-y-2 text-center">
+            <h2 className="text-2xl font-bold tracking-tight">Login to your account</h2>
+            <p className="text-sm text-muted-foreground">Enter your email and password to access your dashboard</p>
+          </div>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <div className="relative">
+                      <FormControl>
+                        <Input
+                          placeholder="name@company.com"
+                          {...field}
+                          type="email"
+                          autoComplete="email"
+                          className={cn(
+                            "pr-10",
+                            form.formState.dirtyFields.email &&
+                              !form.formState.errors.email &&
+                              "border-green-500 focus-visible:ring-green-500",
+                            form.formState.errors.email && "border-red-500 focus-visible:ring-red-500",
+                          )}
+                        />
+                      </FormControl>
+                      {form.formState.dirtyFields.email && !form.formState.errors.email && (
+                        <Check className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-green-500" />
+                      )}
+                      {form.formState.errors.email && (
+                        <AlertCircle className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+                      )}
+                    </div>
+                    <FormMessage className="flex items-center gap-1 text-red-500">
+                      {form.formState.errors.email && <AlertCircle className="h-3.5 w-3.5" />}
+                      {form.formState.errors.email?.message}
+                    </FormMessage>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Password</FormLabel>
+                      <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+                        Forgot your password?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <FormControl>
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          {...field}
+                          autoComplete="current-password"
+                          className={cn(
+                            "pr-10",
+                            field.value &&
+                              field.value.length >= 8 &&
+                              !form.formState.errors.password &&
+                              "border-green-500 focus-visible:ring-green-500",
+                            form.formState.errors.password && "border-red-500 focus-visible:ring-red-500",
+                          )}
+                        />
+                      </FormControl>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    <FormMessage className="flex items-center gap-1 text-red-500">
+                      {form.formState.errors.password && <AlertCircle className="h-3.5 w-3.5" />}
+                      {form.formState.errors.password?.message}
+                    </FormMessage>
+
+                    <FormFieldFeedback
+                      isDirty={!!field.value}
+                      isValid={field.value && field.value.length >= 8}
+                      errorMessage={
+                        field.value && field.value.length > 0 && field.value.length < 8
+                          ? "Password must be at least 8 characters"
+                          : undefined
+                      }
+                      successMessage="Password meets requirements"
+                    />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="rememberMe"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-sm font-normal">Remember me for 30 days</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
+                {isSubmitting ? (
+                  <>
+                    <span className="animate-pulse">Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
+
+          <div className="text-center text-sm">
+            Don't have an account?{" "}
+            <Link href="/register" className="text-primary font-medium hover:underline">
+              Sign up
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-8 text-center text-xs text-muted-foreground md:hidden">
+          © {new Date().getFullYear()} SparrowX. All rights reserved.
+        </div>
+      </div>
+    </div>
+  )
+}
