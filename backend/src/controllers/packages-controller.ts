@@ -23,6 +23,7 @@ export class PackagesController {
       return ApiResponse.success(res, packages);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -37,6 +38,7 @@ export class PackagesController {
       return ApiResponse.success(res, pkg);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -51,6 +53,7 @@ export class PackagesController {
       return ApiResponse.success(res, packages);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -65,6 +68,7 @@ export class PackagesController {
       return ApiResponse.success(res, packages);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -86,6 +90,7 @@ export class PackagesController {
       return ApiResponse.success(res, pkg, 'Package created successfully', 201);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -108,6 +113,7 @@ export class PackagesController {
       return ApiResponse.success(res, pkg, 'Package updated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -122,6 +128,7 @@ export class PackagesController {
       return ApiResponse.success(res, null, 'Package deleted successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -131,7 +138,11 @@ export class PackagesController {
   searchPackages = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-      const searchParams = req.query;
+      // Create a new object for manipulation
+      const searchParams: Record<string, any> = {};
+      
+      // Copy properties from req.query
+      Object.assign(searchParams, req.query);
       
       // Convert numeric query parameters
       if (searchParams.page) {
@@ -151,10 +162,11 @@ export class PackagesController {
         searchParams.receivedDateTo = new Date(searchParams.receivedDateTo as string);
       }
       
-      const result = await this.service.searchPackages(companyId, searchParams as any);
+      const result = await this.service.searchPackages(companyId, searchParams);
       return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 } 

@@ -6,6 +6,9 @@ import { and, eq } from 'drizzle-orm';
 import logger from '../../utils/logger';
 import { randomUUID } from 'crypto';
 
+// Define package status type
+type PackageStatus = 'pre_alert' | 'received' | 'processed' | 'ready_for_pickup' | 'delivered';
+
 /**
  * Generate a unique tracking ID
  */
@@ -62,7 +65,7 @@ export async function seedPackages(db: NodePgDatabase<any>) {
           const weight = parseFloat((Math.random() * 20 + 1).toFixed(2)); // 1-21 pounds
           const declaredValue = parseFloat((Math.random() * 500 + 50).toFixed(2)); // $50-$550
           
-          const statusOptions = ['pre_alert', 'received', 'processed', 'ready_for_pickup', 'delivered'];
+          const statusOptions: PackageStatus[] = ['pre_alert', 'received', 'processed', 'ready_for_pickup', 'delivered'];
           const randomStatus = statusOptions[Math.floor(Math.random() * statusOptions.length)];
           
           // Generate dates based on status (earlier statuses have earlier dates)
@@ -73,28 +76,32 @@ export async function seedPackages(db: NodePgDatabase<any>) {
           const processingDate = new Date(receivedDate);
           processingDate.setDate(processingDate.getDate() + 1); // 1 day after receiving
           
-          await db.insert(packages).values({
-            companyId: company.id,
+          // Package data
+          const packageData = {
             userId: customer.id,
+            companyId: company.id,
             trackingNumber: `SHIP${Math.floor(Math.random() * 10000000)}US`,
             internalTrackingId: generateTrackingId(),
             status: randomStatus,
             description: `Package ${i+1} for ${customer.firstName} ${customer.lastName}`,
-            weight: weight,
+            weight: weight.toString(),
             dimensions: { length: 12, width: 8, height: 6 },
-            declaredValue: declaredValue,
+            declaredValue: declaredValue.toString(),
             senderInfo: {
               name: 'Online Store',
               address: '123 Seller St, Miami, FL',
               phone: '+1-305-555-0000',
             },
-            receivedDate: randomStatus !== 'pre_alert' ? receivedDate.toISOString() : null,
+            receivedDate: randomStatus !== 'pre_alert' ? receivedDate : null,
             processingDate: ['processed', 'ready_for_pickup', 'delivered'].includes(randomStatus) 
-              ? processingDate.toISOString() 
+              ? processingDate 
               : null,
             photos: [`https://example.com/packages/${company.subdomain}/${i+1}.jpg`],
             notes: `Sample package ${i+1}`,
-          });
+          };
+          
+          // Include all required and optional fields in the proper format
+          await db.insert(packages).values(packageData);
         }
       }
     }

@@ -1,7 +1,6 @@
 import { SQL, and, eq, desc, asc, like, isNull, gte, lte, sql } from 'drizzle-orm';
-import { BaseRepository } from './base-repository';
 import { preAlerts, preAlertStatusEnum } from '../db/schema/pre-alerts';
-import { db } from '../db';
+import { BaseRepository } from './base-repository';
 
 export class PreAlertsRepository extends BaseRepository<typeof preAlerts> {
   constructor() {

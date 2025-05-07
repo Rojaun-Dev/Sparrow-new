@@ -12,12 +12,13 @@ export class CompaniesController {
   /**
    * Get all companies (super admin only)
    */
-  getAllCompanies = async (req: Request, res: Response, next: NextFunction) => {
+  getAllCompanies = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const companies = await this.service.getAllCompanies();
       return ApiResponse.success(res, companies);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -31,6 +32,7 @@ export class CompaniesController {
       return ApiResponse.success(res, company);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -50,6 +52,7 @@ export class CompaniesController {
       return ApiResponse.success(res, company, 'Company created successfully', 201);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -71,6 +74,7 @@ export class CompaniesController {
       return ApiResponse.success(res, company, 'Company updated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -84,6 +88,7 @@ export class CompaniesController {
       return ApiResponse.success(res, null, 'Company deleted successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 } 

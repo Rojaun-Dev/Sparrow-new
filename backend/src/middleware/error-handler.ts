@@ -7,7 +7,7 @@ export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   // Convert to AppError if not already
   const appError = err instanceof AppError

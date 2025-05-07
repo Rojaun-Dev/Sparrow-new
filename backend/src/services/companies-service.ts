@@ -97,18 +97,16 @@ export class CompaniesService {
   }
 
   /**
-   * Delete a company by ID (super admin only)
+   * Delete a company
    */
   async deleteCompany(id: string) {
-    // Check if company exists
-    const company = await this.repository.findById(id);
+    // Verify company exists
+    const company = await this.getCompanyById(id);
+    
     if (!company) {
       throw new Error('Company not found');
     }
     
-    // In a real implementation, this would need to handle all related data
-    // and potentially integrate with Auth0 to delete organization
-    
-    return this.repository.delete(id, ""); // Empty string as we don't need company isolation here
+    return this.repository.delete(id);
   }
 } 

@@ -1,6 +1,13 @@
 import { BaseRepository } from '../repositories/base-repository';
+import { PgTable } from 'drizzle-orm/pg-core';
 
-export class BaseService<T> {
+// Import the TableWithCompanyId interface from the repository
+import type { TableWithCompanyId } from '../repositories/base-repository';
+
+/**
+ * Base service class that handles common operations with company isolation
+ */
+export class BaseService<T extends PgTable<any> & TableWithCompanyId> {
   protected repository: BaseRepository<T>;
 
   constructor(repository: BaseRepository<T>) {
@@ -10,7 +17,7 @@ export class BaseService<T> {
   /**
    * Get all records with company isolation
    */
-  async getAll(companyId: string) {
+  async getAll(companyId: string): Promise<any[]> {
     return this.repository.findAll(companyId);
   }
 

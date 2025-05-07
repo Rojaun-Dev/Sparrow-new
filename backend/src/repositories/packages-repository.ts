@@ -1,7 +1,6 @@
 import { SQL, and, eq, desc, asc, like, gte, lte, sql } from 'drizzle-orm';
-import { BaseRepository } from './base-repository';
 import { packages, packageStatusEnum } from '../db/schema/packages';
-import { db } from '../db';
+import { BaseRepository } from './base-repository';
 
 export class PackagesRepository extends BaseRepository<typeof packages> {
   constructor() {

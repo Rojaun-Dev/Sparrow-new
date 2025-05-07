@@ -23,6 +23,7 @@ export class UsersController {
       return ApiResponse.success(res, users);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -37,6 +38,7 @@ export class UsersController {
       return ApiResponse.success(res, user);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -58,6 +60,7 @@ export class UsersController {
       return ApiResponse.success(res, user, 'User created successfully', 201);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -80,6 +83,7 @@ export class UsersController {
       return ApiResponse.success(res, user, 'User updated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -94,6 +98,7 @@ export class UsersController {
       return ApiResponse.success(res, null, 'User deactivated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -108,6 +113,7 @@ export class UsersController {
       return ApiResponse.success(res, null, 'User reactivated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -122,6 +128,7 @@ export class UsersController {
       return ApiResponse.success(res, users);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 } 

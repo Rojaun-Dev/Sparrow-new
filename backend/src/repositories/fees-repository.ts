@@ -1,7 +1,6 @@
-import { SQL, and, eq } from 'drizzle-orm';
-import { BaseRepository } from './base-repository';
+import { and, eq } from 'drizzle-orm';
 import { fees } from '../db/schema/fees';
-import { db } from '../db';
+import { BaseRepository } from './base-repository';
 
 export class FeesRepository extends BaseRepository<typeof fees> {
   constructor() {
@@ -17,7 +16,7 @@ export class FeesRepository extends BaseRepository<typeof fees> {
       .from(this.table)
       .where(
         and(
-          eq(this.table.code, code),
+          eq(this.table.code as any, code),
           eq(this.table.companyId, companyId)
         )
       )
@@ -35,7 +34,7 @@ export class FeesRepository extends BaseRepository<typeof fees> {
       .from(this.table)
       .where(
         and(
-          eq(this.table.feeType, feeType),
+          eq(this.table.feeType as any, feeType),
           eq(this.table.companyId, companyId)
         )
       );
@@ -50,7 +49,7 @@ export class FeesRepository extends BaseRepository<typeof fees> {
       .from(this.table)
       .where(
         and(
-          eq(this.table.isActive, true),
+          eq(this.table.isActive as any, true),
           eq(this.table.companyId, companyId)
         )
       );

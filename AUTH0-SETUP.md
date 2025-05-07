@@ -46,6 +46,12 @@ AUTH0_AUDIENCE='your-api-identifier'
 AUTH0_SCOPE='openid profile email'
 
 # Database configuration
+# You can find this information using the pg CLI with commands like:
+# - Connection info: \conninfo
+# - List databases: \l
+# - List users: \du
+# - Current database: SELECT current_database();
+# - Host and port are typically in your connection string or psql command
 DB_HOST='localhost'
 DB_PORT='5432'
 DB_NAME='sparrowx'

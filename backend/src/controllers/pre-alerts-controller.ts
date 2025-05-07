@@ -23,6 +23,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlerts);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -37,6 +38,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlert);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -51,6 +53,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlerts);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -65,6 +68,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlerts);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -78,6 +82,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlerts);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -99,6 +104,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlert, 'Pre-alert created successfully', 201);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -121,6 +127,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlert, 'Pre-alert updated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -135,6 +142,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, preAlert, 'Pre-alert cancelled successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -149,6 +157,7 @@ export class PreAlertsController {
       return ApiResponse.success(res, null, 'Pre-alert deleted successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -158,7 +167,11 @@ export class PreAlertsController {
   searchPreAlerts = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-      const searchParams = req.query;
+      // Create a new object for manipulation
+      const searchParams: Record<string, any> = {};
+      
+      // Copy properties from req.query
+      Object.assign(searchParams, req.query);
       
       // Convert numeric query parameters
       if (searchParams.page) {
@@ -178,10 +191,11 @@ export class PreAlertsController {
         searchParams.estimatedArrivalTo = new Date(searchParams.estimatedArrivalTo as string);
       }
       
-      const result = await this.service.searchPreAlerts(companyId, searchParams as any);
+      const result = await this.service.searchPreAlerts(companyId, searchParams);
       return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 } 

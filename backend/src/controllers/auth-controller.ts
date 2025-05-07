@@ -6,7 +6,7 @@ export class AuthController {
    * Handle user login
    * Note: Auth0 handles the actual authentication, but this can be used for additional processing
    */
-  async login(req: Request, res: Response, next: NextFunction) {
+  async login(_req: Request, res: Response, next: NextFunction) {
     try {
       // This is just a placeholder - in a real implementation, this might:
       // 1. Proxy to Auth0 authentication
@@ -15,13 +15,14 @@ export class AuthController {
       return ApiResponse.error(res, 'Login is handled by Auth0 on the client side', 501);
     } catch (error) {
       next(error);
+      return undefined;
     }
   }
 
   /**
    * Handle user registration/signup
    */
-  async signup(req: Request, res: Response, next: NextFunction) {
+  async signup(_req: Request, res: Response, next: NextFunction) {
     try {
       // This would handle:
       // 1. User registration in Auth0
@@ -30,13 +31,14 @@ export class AuthController {
       return ApiResponse.error(res, 'Signup is handled by Auth0 on the client side', 501);
     } catch (error) {
       next(error);
+      return undefined;
     }
   }
 
   /**
    * Refresh JWT token
    */
-  async refreshToken(req: Request, res: Response, next: NextFunction) {
+  async refreshToken(_req: Request, res: Response, next: NextFunction) {
     try {
       // This would:
       // 1. Verify refresh token
@@ -45,6 +47,7 @@ export class AuthController {
       return ApiResponse.error(res, 'Token refresh is handled by Auth0 on the client side', 501);
     } catch (error) {
       next(error);
+      return undefined;
     }
   }
 
@@ -71,6 +74,7 @@ export class AuthController {
       });
     } catch (error) {
       next(error);
+      return undefined;
     }
   }
 } 

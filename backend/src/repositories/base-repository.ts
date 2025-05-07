@@ -3,8 +3,15 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { db } from '../db';
 
-export class BaseRepository<T extends PgTable> {
-  protected db: NodePgDatabase;
+// Define a type for tables that have companyId
+export interface TableWithCompanyId {
+  id: any;
+  companyId: any;
+  updatedAt?: any;
+}
+
+export class BaseRepository<T extends PgTable<any> & TableWithCompanyId> {
+  protected db: NodePgDatabase<any>;
   protected table: T;
 
   constructor(table: T) {
@@ -15,10 +22,10 @@ export class BaseRepository<T extends PgTable> {
   /**
    * Find all records with company isolation
    */
-  async findAll(companyId: string, conditions?: SQL<unknown>) {
+  async findAll(companyId: string, conditions?: SQL<unknown>): Promise<any[]> {
     const where = conditions
-      ? and(eq(this.table.companyId as any, companyId), conditions)
-      : eq(this.table.companyId as any, companyId);
+      ? and(eq(this.table.companyId, companyId), conditions)
+      : eq(this.table.companyId, companyId);
     
     return this.db.select().from(this.table).where(where);
   }
@@ -26,19 +33,19 @@ export class BaseRepository<T extends PgTable> {
   /**
    * Find a record by ID with company isolation
    */
-  async findById(id: string, companyId: string) {
+  async findById(id: string, companyId: string): Promise<Record<string, any> | null> {
     const result = await this.db
       .select()
       .from(this.table)
       .where(
         and(
-          eq(this.table.id as any, id),
-          eq(this.table.companyId as any, companyId)
+          eq(this.table.id, id),
+          eq(this.table.companyId, companyId)
         )
       )
       .limit(1);
     
-    return result.length > 0 ? result[0] : null;
+    return Array.isArray(result) && result.length > 0 ? result[0] : null;
   }
 
   /**
@@ -51,7 +58,7 @@ export class BaseRepository<T extends PgTable> {
     };
     
     const result = await this.db.insert(this.table).values(dataWithCompany).returning();
-    return result[0];
+    return Array.isArray(result) && result.length > 0 ? result[0] : null;
   }
 
   /**
@@ -66,13 +73,13 @@ export class BaseRepository<T extends PgTable> {
       })
       .where(
         and(
-          eq(this.table.id as any, id),
-          eq(this.table.companyId as any, companyId)
+          eq(this.table.id, id),
+          eq(this.table.companyId, companyId)
         )
       )
       .returning();
     
-    return result.length > 0 ? result[0] : null;
+    return Array.isArray(result) && result.length > 0 ? result[0] : null;
   }
 
   /**
@@ -83,8 +90,8 @@ export class BaseRepository<T extends PgTable> {
       .delete(this.table)
       .where(
         and(
-          eq(this.table.id as any, id),
-          eq(this.table.companyId as any, companyId)
+          eq(this.table.id, id),
+          eq(this.table.companyId, companyId)
         )
       );
   }

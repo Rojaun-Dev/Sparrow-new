@@ -4,7 +4,7 @@ import { PreAlertsRepository } from '../repositories/pre-alerts-repository';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
 import { packageStatusEnum } from '../db/schema/packages';
-import { generateTrackingId } from '../utils/tracking-generator';
+import { randomUUID } from 'crypto';
 
 // Validation schema for package creation
 export const createPackageSchema = z.object({
@@ -107,7 +107,7 @@ export class PackagesService {
     
     // Generate internal tracking ID if not provided
     if (!validatedData.internalTrackingId) {
-      validatedData.internalTrackingId = await generateTrackingId(companyId);
+      validatedData.internalTrackingId = await this.generateTrackingId();
     } else {
       // Check if internal tracking ID is unique
       const existingPackage = await this.packagesRepository.findByInternalTrackingId(
@@ -157,13 +157,28 @@ export class PackagesService {
       companyId
     );
     
-    // Match pre-alert to the package if needed
-    if (preAlert && (preAlert.status === 'pending' || !preAlert.packageId)) {
-      await this.preAlertsRepository.matchToPackage(
-        preAlert.id,
-        newPackage.id,
-        companyId
-      );
+    // Update pre-alert status if package was created successfully
+    if (newPackage) {
+      // Link the pre-alert to this package
+      if (preAlert) {
+        await this.preAlertsRepository.matchToPackage(
+          preAlert.id,
+          newPackage.id,
+          companyId
+        );
+      }
+      
+      // If new data is provided for dimensions or sender, update the package
+      if (data.dimensions || data.senderInfo) {
+        await this.updatePackage(
+          newPackage.id,
+          {
+            dimensions: data.dimensions,
+            senderInfo: data.senderInfo,
+          },
+          companyId
+        );
+      }
     }
     
     return newPackage;
@@ -235,5 +250,114 @@ export class PackagesService {
     }
   ) {
     return this.packagesRepository.search(companyId, searchParams);
+  }
+
+  /**
+   * Generate a unique tracking ID
+   */
+  private generateTrackingId(): string {
+    // Create a unique identifier for the package
+    const prefix = 'SPX';
+    const randomDigits = Math.floor(10000 + Math.random() * 90000); // 5-digit random number
+    const suffix = randomUUID().substring(0, 4).toUpperCase();
+    
+    return `${prefix}${randomDigits}${suffix}`;
+  }
+
+  /**
+   * Create a package with pre-alert data
+   */
+  async createPackageFromPreAlert(preAlertId: string, companyId: string, data: any) {
+    // Get the pre-alert
+    const preAlert = await this.preAlertsRepository.findById(preAlertId, companyId);
+    
+    if (!preAlert) {
+      throw new Error("Pre-alert not found");
+    }
+    
+    // Now TypeScript knows preAlert is not null, but we'll make a local copy to be sure
+    const preAlertData = preAlert;
+    
+    // Create a new package using pre-alert data and additional data
+    const newPackage = await this.packagesRepository.create({
+      userId: preAlertData.userId,
+      companyId: companyId,
+      trackingNumber: preAlertData.trackingNumber,
+      internalTrackingId: this.generateTrackingId(),
+      status: 'received',
+      description: data.description || preAlertData.description,
+      weight: data.weight || preAlertData.estimatedWeight,
+      dimensions: data.dimensions || null,
+      declaredValue: data.declaredValue || '0',
+      receivedDate: new Date().toISOString(),
+      photos: data.photos || [],
+      notes: data.notes || `Created from pre-alert ${preAlertData.trackingNumber}`,
+    }, companyId);
+    
+    // Update pre-alert status if package was created successfully
+    if (newPackage) {
+      // Double-check that preAlert is not null for TypeScript
+      if (preAlertData) {
+        // Link the pre-alert to this package
+        await this.preAlertsRepository.matchToPackage(
+          preAlertData.id,
+          newPackage.id,
+          companyId
+        );
+      }
+      
+      // If new data is provided for dimensions or sender, update the package
+      if (data.dimensions || data.senderInfo) {
+        await this.updatePackage(
+          newPackage.id,
+          {
+            dimensions: data.dimensions,
+            senderInfo: data.senderInfo,
+          },
+          companyId
+        );
+      }
+    }
+    
+    return newPackage;
+  }
+
+  /**
+   * Match a pre-alert to a package
+   */
+  async matchPreAlertToPackage(preAlertId: string, packageId: string, companyId: string) {
+    // Get both the pre-alert and package to make sure they exist
+    const preAlert = await this.preAlertsRepository.findById(preAlertId, companyId);
+    
+    if (!preAlert) {
+      throw new Error("Pre-alert not found");
+    }
+    
+    // Check if the pre-alert is already matched to a package
+    if (preAlert.packageId) {
+      throw new Error("Pre-alert is already matched to a package");
+    }
+    
+    const pkg = await this.packagesRepository.findById(packageId, companyId);
+    
+    if (!pkg) {
+      throw new Error("Package not found");
+    }
+    
+    // TypeScript is not tracking the null check above, so we need to check again
+    if (preAlert) {
+      // Update the pre-alert with the package ID
+      await this.preAlertsRepository.matchToPackage(
+        preAlert.id,
+        pkg.id,
+        companyId
+      );
+    }
+    
+    return {
+      message: "Pre-alert matched to package successfully",
+      preAlert,
+      package: pkg
+    };
   }
 } 

@@ -1,7 +1,6 @@
 import { SQL, and, eq } from 'drizzle-orm';
-import { BaseRepository } from './base-repository';
 import { users, userRoleEnum } from '../db/schema/users';
-import { db } from '../db';
+import { BaseRepository } from './base-repository';
 
 export class UsersRepository extends BaseRepository<typeof users> {
   constructor() {

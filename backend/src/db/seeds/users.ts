@@ -1,7 +1,6 @@
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users } from '../schema/users';
 import { companies } from '../schema/companies';
-import { eq } from 'drizzle-orm';
 import logger from '../../utils/logger';
 
 /**

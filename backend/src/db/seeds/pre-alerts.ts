@@ -1,9 +1,12 @@
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { preAlerts } from '../schema/pre-alerts';
+import { preAlerts, preAlertStatusEnum } from '../schema/pre-alerts';
 import { users } from '../schema/users';
 import { companies } from '../schema/companies';
 import { and, eq } from 'drizzle-orm';
 import logger from '../../utils/logger';
+
+// Define courier type
+type Courier = 'USPS' | 'FedEx' | 'UPS' | 'DHL' | 'Amazon';
 
 /**
  * Seed pre-alerts table with initial data
@@ -49,19 +52,22 @@ export async function seedPreAlerts(db: NodePgDatabase<any>) {
           const estimatedArrival = new Date();
           estimatedArrival.setDate(estimatedArrival.getDate() + Math.floor(Math.random() * 10) + 1);
           
-          const courierOptions = ['USPS', 'FedEx', 'UPS', 'DHL', 'Amazon'];
+          const courierOptions: Courier[] = ['USPS', 'FedEx', 'UPS', 'DHL', 'Amazon'];
           const randomCourier = courierOptions[Math.floor(Math.random() * courierOptions.length)];
           
-          await db.insert(preAlerts).values({
+          // Pre-alert data
+          const preAlertData = {
             companyId: company.id,
             userId: customer.id,
             trackingNumber: `${randomCourier}${Math.floor(Math.random() * 10000000000)}`,
             courier: randomCourier,
             description: `Pre-alert ${i+1} - ${['Clothing', 'Electronics', 'Books', 'Household items', 'Gifts'][Math.floor(Math.random() * 5)]}`,
-            estimatedWeight: estimatedWeight,
-            estimatedArrival: estimatedArrival.toISOString(),
-            status: 'pending',
-          });
+            estimatedWeight: estimatedWeight.toString(),
+            estimatedArrival: estimatedArrival,
+            status: preAlertStatusEnum.enumValues[0], // Use the first enum value (pending)
+          };
+          
+          await db.insert(preAlerts).values(preAlertData);
         }
       }
     }

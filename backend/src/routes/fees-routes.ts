@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { FeesController } from '../controllers/fees-controller';
-import { checkJwt } from '../middleware/auth';
-import { checkRole } from '../middleware/role';
+import { checkJwt, checkRole } from '../middleware/auth';
 
 const router = Router();
 const controller = new FeesController();

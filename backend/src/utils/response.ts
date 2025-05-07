@@ -64,4 +64,25 @@ export class ApiResponse {
     const errorArr = Array.isArray(errors) ? errors : [errors];
     return this.error(res, 'Validation error', 422, errorArr);
   }
+
+  /**
+   * Send a bad request response
+   */
+  static badRequest(res: Response, message = 'Bad Request') {
+    return this.error(res, message, 400);
+  }
+
+  /**
+   * Send a conflict response
+   */
+  static conflict(res: Response, message = 'Conflict') {
+    return this.error(res, message, 409);
+  }
+
+  /**
+   * Send a created response
+   */
+  static created(res: Response, data: any = null, message = 'Resource created successfully') {
+    return this.success(res, data, message, 201);
+  }
 } 

@@ -23,6 +23,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoices);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -37,6 +38,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoice);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -51,6 +53,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoices);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -65,6 +68,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoices);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -86,6 +90,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoice, 'Invoice created successfully', 201);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -108,6 +113,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoice, 'Invoice updated successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -122,6 +128,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoice, 'Invoice finalized successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -136,6 +143,7 @@ export class InvoicesController {
       return ApiResponse.success(res, invoice, 'Invoice cancelled successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -150,6 +158,7 @@ export class InvoicesController {
       return ApiResponse.success(res, null, 'Invoice deleted successfully');
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 
@@ -159,7 +168,11 @@ export class InvoicesController {
   searchInvoices = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-      const searchParams = req.query;
+      // Create a new object for manipulation
+      const searchParams: Record<string, any> = {};
+      
+      // Copy properties from req.query
+      Object.assign(searchParams, req.query);
       
       // Convert numeric query parameters
       if (searchParams.page) {
@@ -187,10 +200,11 @@ export class InvoicesController {
         searchParams.dueDateTo = new Date(searchParams.dueDateTo as string);
       }
       
-      const result = await this.service.searchInvoices(companyId, searchParams as any);
+      const result = await this.service.searchInvoices(companyId, searchParams);
       return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 } 

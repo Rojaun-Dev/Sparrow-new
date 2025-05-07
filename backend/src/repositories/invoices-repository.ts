@@ -1,7 +1,6 @@
 import { SQL, and, eq, desc, asc, like, gte, lte, sql } from 'drizzle-orm';
 import { BaseRepository } from './base-repository';
 import { invoices, invoiceStatusEnum } from '../db/schema/invoices';
-import { db } from '../db';
 
 export class InvoicesRepository extends BaseRepository<typeof invoices> {
   constructor() {

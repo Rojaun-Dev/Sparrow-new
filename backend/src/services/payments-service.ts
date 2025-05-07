@@ -44,7 +44,7 @@ export class PaymentsService extends BaseService<typeof payments> {
     const validatedData = createPaymentSchema.parse(data);
     
     // Check if the invoice exists and belongs to the given company
-    const invoice = await this.invoicesService.getById(validatedData.invoiceId, companyId);
+    const invoice = await this.invoicesService.getInvoiceById(validatedData.invoiceId, companyId);
     
     // Verify that the invoice is in a valid state for payment
     if (invoice.status !== 'issued' && invoice.status !== 'overdue') {
@@ -59,7 +59,7 @@ export class PaymentsService extends BaseService<typeof payments> {
     }, companyId);
     
     // If payment is marked as completed immediately, update the invoice status
-    if (data.status === 'completed') {
+    if (payment && data.status && data.status === 'completed') {
       await this.completePayment(payment.id, companyId);
     }
     
@@ -97,7 +97,7 @@ export class PaymentsService extends BaseService<typeof payments> {
     }, companyId);
     
     // Get the invoice
-    const invoice = await this.invoicesService.getById(payment.invoiceId, companyId);
+    const invoice = await this.invoicesService.getInvoiceById(payment.invoiceId, companyId);
     
     // Calculate total paid for this invoice
     const allPayments = await this.paymentsRepository.findByInvoiceId(invoice.id, companyId);
@@ -107,7 +107,7 @@ export class PaymentsService extends BaseService<typeof payments> {
     // Check if invoice is fully paid
     if (totalPaid >= parseFloat(invoice.totalAmount.toString())) {
       // Update invoice status to paid
-      await this.invoicesService.update(invoice.id, {
+      await this.invoicesService.updateInvoice(invoice.id, {
         status: 'paid',
       }, companyId);
     }
@@ -135,7 +135,7 @@ export class PaymentsService extends BaseService<typeof payments> {
    */
   async getPaymentsByInvoice(invoiceId: string, companyId: string) {
     // Verify invoice exists and belongs to company
-    await this.invoicesService.getById(invoiceId, companyId);
+    await this.invoicesService.getInvoiceById(invoiceId, companyId);
     
     return this.paymentsRepository.findByInvoiceId(invoiceId, companyId);
   }

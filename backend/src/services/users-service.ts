@@ -1,10 +1,6 @@
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
-import { auth0 } from '../config';
-import { userRoleEnum } from '../db/schema/users';
-import { db } from '../db';
 
 // Validation schema for user creation
 export const createUserSchema = z.object({

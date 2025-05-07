@@ -68,7 +68,7 @@ export class FeesService extends BaseService<typeof fees> {
    * Get fees by type
    */
   async getByType(feeType: string, companyId: string) {
-    if (!feeTypeEnum.enumValues.includes(feeType)) {
+    if (!Object.values(feeTypeEnum.enumValues).includes(feeType as any)) {
       throw new Error(`Invalid fee type: ${feeType}`);
     }
     

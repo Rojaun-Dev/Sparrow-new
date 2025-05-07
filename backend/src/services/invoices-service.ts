@@ -121,8 +121,8 @@ export class InvoicesService {
     }
     
     // Don't allow updates to finalized invoices
-    if (invoice.status !== 'draft' && invoice.status !== 'pending') {
-      throw AppError.badRequest('Cannot update invoices that are not in draft or pending status');
+    if (invoice.status !== 'draft') {
+      throw AppError.badRequest('Cannot update invoices that are not in draft status');
     }
     
     // If changing user, verify the new user exists

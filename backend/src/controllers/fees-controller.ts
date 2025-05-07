@@ -4,6 +4,10 @@ import { feeTypeEnum } from '../db/schema/fees';
 import { ApiResponse } from '../utils/response';
 import { z } from 'zod';
 
+interface AuthRequest extends Request {
+  companyId?: string;
+}
+
 export class FeesController {
   private feesService: FeesService;
 
@@ -14,7 +18,7 @@ export class FeesController {
   /**
    * Get all fees for a company
    */
-  async getAll(req: Request, res: Response) {
+  async getAll(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const fees = await this.feesService.getAll(companyId);
@@ -27,7 +31,7 @@ export class FeesController {
   /**
    * Get active fees for a company
    */
-  async getActive(req: Request, res: Response) {
+  async getActive(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const fees = await this.feesService.getActiveFees(companyId);
@@ -40,12 +44,12 @@ export class FeesController {
   /**
    * Get fees by type
    */
-  async getByType(req: Request, res: Response) {
+  async getByType(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const { type } = req.params;
       
-      if (!type || !feeTypeEnum.enumValues.includes(type)) {
+      if (!type || !feeTypeEnum.enumValues.includes(type as any)) {
         return ApiResponse.badRequest(res, `Invalid fee type. Must be one of: ${feeTypeEnum.enumValues.join(', ')}`);
       }
       
@@ -59,7 +63,7 @@ export class FeesController {
   /**
    * Get fee by ID
    */
-  async getById(req: Request, res: Response) {
+  async getById(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const { id } = req.params;
@@ -78,7 +82,7 @@ export class FeesController {
   /**
    * Create a new fee
    */
-  async create(req: Request, res: Response) {
+  async create(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const feeData = req.body;
@@ -105,7 +109,7 @@ export class FeesController {
   /**
    * Update a fee
    */
-  async update(req: Request, res: Response) {
+  async update(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const { id } = req.params;
@@ -137,7 +141,7 @@ export class FeesController {
   /**
    * Deactivate a fee
    */
-  async deactivate(req: Request, res: Response) {
+  async deactivate(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const { id } = req.params;
@@ -159,7 +163,7 @@ export class FeesController {
   /**
    * Activate a fee
    */
-  async activate(req: Request, res: Response) {
+  async activate(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const { id } = req.params;
@@ -181,7 +185,7 @@ export class FeesController {
   /**
    * Delete a fee (permanent)
    */
-  async delete(req: Request, res: Response) {
+  async delete(req: AuthRequest, res: Response) {
     try {
       const companyId = req.companyId!;
       const { id } = req.params;
