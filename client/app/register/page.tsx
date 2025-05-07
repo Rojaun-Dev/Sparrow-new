@@ -42,11 +42,13 @@ export default function RegisterPage() {
     setIsSubmitting(true)
     console.log("Form submitted:", data)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    // In a real implementation, this would call an authentication API
-    setIsSubmitting(false)
+    try {
+      // Redirect to Auth0 registration
+      window.location.href = "/auth/register"
+    } catch (error) {
+      console.error("Registration error:", error)
+      setIsSubmitting(false)
+    }
   }
 
   // Check if password meets all requirements
@@ -440,13 +442,31 @@ export default function RegisterPage() {
                   </>
                 ) : (
                   <>
-                    Create account
+                    Create Account
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
             </form>
           </Form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <a 
+              href="/auth/register" 
+              className="flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            >
+              Sign up with Auth0
+            </a>
+          </div>
 
           <div className="text-center text-sm">
             Already have an account?{" "}

@@ -1,0 +1,45 @@
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import path from 'path';
+import { database } from '../config';
+import logger from '../utils/logger';
+
+async function runMigrations() {
+  logger.info('Running migrations...');
+  
+  // Create a PostgreSQL connection
+  const pool = new Pool({
+    host: database.host,
+    port: database.port,
+    database: database.name,
+    user: database.user,
+    password: database.password,
+  });
+  
+  const db = drizzle(pool);
+  
+  // Run migrations
+  try {
+    await migrate(db, {
+      migrationsFolder: path.join(__dirname, 'migrations'),
+    });
+    logger.info('Migrations completed successfully');
+  } catch (error) {
+    logger.error(error, 'Error during migration');
+    process.exit(1);
+  }
+  
+  // Close the pool
+  await pool.end();
+}
+
+// Run migrations when the script is executed directly
+if (require.main === module) {
+  runMigrations().catch((err) => {
+    logger.error(err, 'Migration failed');
+    process.exit(1);
+  });
+}
+
+export { runMigrations }; 

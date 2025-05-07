@@ -1,0 +1,28 @@
+import { pgTable, uuid, text, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import { companies } from './companies';
+
+// Define the user role enum
+export const userRoleEnum = pgEnum('user_role', [
+  'customer',
+  'admin_l1',
+  'admin_l2',
+  'super_admin'
+]);
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, {
+    onDelete: 'cascade', // When a company is deleted, delete all of its users
+  }),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash'), // Auth0 stores credentials, this field can mirror if needed
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  phone: text('phone'),
+  address: text('address'),
+  role: userRoleEnum('role').notNull().default('customer'),
+  auth0Id: text('auth0_id').notNull().unique(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}); 

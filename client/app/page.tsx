@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
 import { cn } from "@/lib/utils"
+import { LoginButton } from "@/components/auth/login-button"
 
 // Update the import to use the correct path
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -37,11 +38,13 @@ export default function LoginPage() {
     setIsSubmitting(true)
     console.log("Form submitted:", data)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    // In a real implementation, this would call an authentication API
-    setIsSubmitting(false)
+    try {
+      // Redirect to Auth0 login
+      window.location.href = "/auth/login"
+    } catch (error) {
+      console.error("Login error:", error)
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -203,6 +206,19 @@ export default function LoginPage() {
               </Button>
             </form>
           </Form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <LoginButton />
+          </div>
 
           <div className="text-center text-sm">
             Don't have an account?{" "}

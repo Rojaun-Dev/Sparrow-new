@@ -1,0 +1,196 @@
+import { Request, Response, NextFunction } from 'express';
+import { InvoicesService, createInvoiceSchema, updateInvoiceSchema } from '../services/invoices-service';
+import { ApiResponse } from '../utils/response';
+
+interface AuthRequest extends Request {
+  companyId?: string;
+}
+
+export class InvoicesController {
+  private service: InvoicesService;
+
+  constructor() {
+    this.service = new InvoicesService();
+  }
+
+  /**
+   * Get all invoices for a company
+   */
+  getAllInvoices = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const invoices = await this.service.getAllInvoices(companyId);
+      return ApiResponse.success(res, invoices);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Get an invoice by ID
+   */
+  getInvoiceById = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      const invoice = await this.service.getInvoiceById(id, companyId);
+      return ApiResponse.success(res, invoice);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Get invoices by user ID
+   */
+  getInvoicesByUserId = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const companyId = req.companyId as string;
+      const invoices = await this.service.getInvoicesByUserId(userId, companyId);
+      return ApiResponse.success(res, invoices);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Get invoices by status
+   */
+  getInvoicesByStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { status } = req.params;
+      const companyId = req.companyId as string;
+      const invoices = await this.service.getInvoicesByStatus(status, companyId);
+      return ApiResponse.success(res, invoices);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Create a new invoice
+   */
+  createInvoice = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      
+      // Validate request body
+      try {
+        createInvoiceSchema.parse(req.body);
+      } catch (error) {
+        return ApiResponse.validationError(res, error);
+      }
+
+      const invoice = await this.service.createInvoice(req.body, companyId);
+      return ApiResponse.success(res, invoice, 'Invoice created successfully', 201);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Update an invoice
+   */
+  updateInvoice = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+
+      // Validate request body
+      try {
+        updateInvoiceSchema.parse(req.body);
+      } catch (error) {
+        return ApiResponse.validationError(res, error);
+      }
+
+      const invoice = await this.service.updateInvoice(id, req.body, companyId);
+      return ApiResponse.success(res, invoice, 'Invoice updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Finalize an invoice
+   */
+  finalizeInvoice = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      const invoice = await this.service.finalizeInvoice(id, companyId);
+      return ApiResponse.success(res, invoice, 'Invoice finalized successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Cancel an invoice
+   */
+  cancelInvoice = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      const invoice = await this.service.cancelInvoice(id, companyId);
+      return ApiResponse.success(res, invoice, 'Invoice cancelled successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Delete an invoice
+   */
+  deleteInvoice = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      await this.service.deleteInvoice(id, companyId);
+      return ApiResponse.success(res, null, 'Invoice deleted successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Search invoices with filters
+   */
+  searchInvoices = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const searchParams = req.query;
+      
+      // Convert numeric query parameters
+      if (searchParams.page) {
+        searchParams.page = Number(searchParams.page);
+      }
+      
+      if (searchParams.pageSize) {
+        searchParams.pageSize = Number(searchParams.pageSize);
+      }
+      
+      // Convert date query parameters
+      if (searchParams.issueDateFrom) {
+        searchParams.issueDateFrom = new Date(searchParams.issueDateFrom as string);
+      }
+      
+      if (searchParams.issueDateTo) {
+        searchParams.issueDateTo = new Date(searchParams.issueDateTo as string);
+      }
+
+      if (searchParams.dueDateFrom) {
+        searchParams.dueDateFrom = new Date(searchParams.dueDateFrom as string);
+      }
+      
+      if (searchParams.dueDateTo) {
+        searchParams.dueDateTo = new Date(searchParams.dueDateTo as string);
+      }
+      
+      const result = await this.service.searchInvoices(companyId, searchParams as any);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  };
+} 
