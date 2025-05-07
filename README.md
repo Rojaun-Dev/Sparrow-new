@@ -1,5 +1,75 @@
 # SparrowX Project
 
+This is a multi-tenant SaaS solution for Jamaican package-forwarding companies.
+
+## Environment Configuration
+
+This project uses shared environment variables for both the client and backend. 
+The environment files should be placed at the root of the project.
+
+### Setting Up Environment Files
+
+1. Create a `.env` or `.env.local` file in the root directory of the project.
+2. Use the following template for your environment variables:
+
+```
+# Auth0 configuration
+AUTH0_SECRET=your-generated-secret
+APP_BASE_URL=http://localhost:3000
+AUTH0_DOMAIN=your-tenant-domain.auth0.com
+AUTH0_CLIENT_ID=your-client-id
+AUTH0_CLIENT_SECRET=your-client-secret
+AUTH0_AUDIENCE=your-api-identifier
+AUTH0_SCOPE=openid profile email
+
+# Database configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=sparrowx
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# Server configuration
+PORT=4000
+NODE_ENV=development
+
+# Client configuration
+NEXT_PUBLIC_API_URL=http://localhost:4000/api
+```
+
+3. Generate a secure AUTH0_SECRET using:
+```
+openssl rand -hex 32
+```
+
+## Project Structure
+
+- `client/` - Next.js front-end application
+- `backend/` - Express.js API server
+
+## Development
+
+To run the project in development mode:
+
+1. Start the backend:
+```
+cd backend
+npm run dev
+```
+
+2. Start the client:
+```
+cd client
+npm run dev
+```
+
+## Configuration Details
+
+Both the client and backend have been configured to look for .env files in the parent directory:
+
+- The backend's configuration is in `backend/src/config/index.ts`
+- The client's configuration is in `client/next.config.mjs` and `client/lib/env.js`
+
 ## Project Overview
 
 SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwarding companies. It provides an API-driven backend and a Next.js-based frontend portal for both customers and employees, with data isolation, role-based access control, and dynamic company branding.

@@ -1,3 +1,6 @@
+// Import debug script first to check environment variables
+import './debug-env';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

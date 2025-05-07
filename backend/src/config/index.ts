@@ -1,8 +1,10 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables from the parent directory's .env.local file
+// Load environment variables from parent directory's .env files
+// Update paths to correctly point to the root directory where .env.local is located
 dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env'), override: false });
 
 // Server configuration
 export const server = {
