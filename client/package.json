@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "node scripts/server.js dev",
+    "build": "node scripts/server.js build",
+    "start": "node scripts/server.js start",
+    "lint": "next lint",
+    "env:check": "node scripts/load-env.js",
+    "setup": "node scripts/setup-env.js"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.5.1",

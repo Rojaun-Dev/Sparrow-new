@@ -1,0 +1,3 @@
+# Allow .env files to be indexed by Cursor even if ignored by git
+!.env
+!.env.local

@@ -49,7 +49,42 @@ openssl rand -hex 32
 
 ## Development
 
+You can run all scripts from the project root directory.
+
 To run the project in development mode:
+
+```bash
+# Start both client and backend simultaneously
+npm run dev
+
+# Or start them individually
+npm run dev:client
+npm run dev:backend
+```
+
+Other available commands:
+
+```bash
+# Build both packages
+npm run build
+
+# Start the production builds
+npm run start
+
+# Run linting
+npm run lint
+
+# Run tests
+npm run test
+
+# Database operations
+npm run db:migrate
+npm run db:seed
+npm run db:setup
+npm run db:studio
+```
+
+Alternatively, you can still run commands from individual packages:
 
 1. Start the backend:
 ```

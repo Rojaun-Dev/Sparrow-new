@@ -1,7 +1,7 @@
+// Environment loading (Must be first import)
+import "@/lib/env";
 // Debug script to verify env variables (remove in production)
 import "@/lib/debug-env";
-// Environment loading
-import "@/lib/env";
 import type React from "react"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"

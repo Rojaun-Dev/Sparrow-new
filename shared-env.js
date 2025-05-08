@@ -1,4 +1,5 @@
 require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: '.env', override: false });
 
 // Export shared environment variables
 module.exports = {
@@ -24,4 +25,4 @@ module.exports = {
     port: parseInt(process.env.PORT || '4000'),
     env: process.env.NODE_ENV || 'development',
   },
-}; 
+};
