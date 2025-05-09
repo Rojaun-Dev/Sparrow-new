@@ -96,6 +96,10 @@ This will start the server with hot-reloading at `http://localhost:4000`.
   npm run db:studio
   ```
 
+For detailed information on database migrations, seeding, and best practices:
+
+- [Database Management Guide](../docs/DATABASE.md)
+
 ## API Documentation
 
 The API follows a RESTful design and provides endpoints for:
@@ -118,6 +122,12 @@ Authorization: Bearer <token>
 ### Multi-Tenancy
 
 Each request must include a company context, which is automatically extracted from the JWT token. All data operations are automatically scoped to the company context of the authenticated user.
+
+## Database Schema Documentation
+
+For a comprehensive reference of the database schema, including table structures, relationships, and the role-based access control system, please see:
+
+- [Database Schema Documentation](./SCHEMA_DOCUMENTATION.md)
 
 ## Testing
 

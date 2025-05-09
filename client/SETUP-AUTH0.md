@@ -1,6 +1,16 @@
 # Fix Auth0 Setup Issues
 
-If you're experiencing issues with Auth0 authentication, follow these simple steps to fix them:
+## Navigation
+
+- [Documentation Hub](../docs/README.md)
+- [Main Project README](../README.md)
+- [Auth0 Setup Instructions](../AUTH0-SETUP.md)
+- [Auth0 Implementation Guide](./AUTH0-README.md)
+- [Auth0 Integration with Next.js](./AUTH0-INTEGRATION.md)
+
+## Overview
+
+This document provides quick fixes for common Auth0 setup issues. For complete setup instructions, please refer to the [Auth0 Setup Instructions](../AUTH0-SETUP.md).
 
 ## Quick Fix Steps
 

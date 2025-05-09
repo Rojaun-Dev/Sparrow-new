@@ -1,6 +1,27 @@
 # Auth0 Setup Instructions
 
-This document provides instructions for setting up Auth0 authentication in this project.
+## Navigation
+
+- [Documentation Hub](./docs/README.md)
+- [Main Project README](./README.md)
+- [Environment Setup Guide](./ENVIRONMENT-SETUP.md)
+
+## Table of Contents
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Setup Steps](#setup-steps)
+  - [Create an Auth0 Application](#1-create-an-auth0-application)
+  - [Configure Application Settings](#2-configure-application-settings)
+  - [Configure Environment Variables](#3-configure-environment-variables)
+  - [API Authorization (Optional)](#4-api-authorization-optional)
+  - [Testing Your Setup](#5-testing-your-setup)
+- [Troubleshooting](#troubleshooting)
+- [Additional Resources](#additional-resources)
+- [Related Documents](#related-documents)
+
+## Overview
+
+This document provides instructions for setting up Auth0 authentication in the SparrowX project. It covers the basic setup process from creating an Auth0 account to configuring your application.
 
 ## Prerequisites
 
@@ -33,7 +54,7 @@ This document provides instructions for setting up Auth0 authentication in this 
 
 ### 3. Configure Environment Variables
 
-1. Create a `.env.local` file in the root directory with the following variables:
+1. Create a `.env.local` file in the project root directory (not in the client directory) with the following variables:
 
 ```
 # Auth0 configuration
@@ -52,11 +73,6 @@ AUTH0_SCOPE='openid profile email'
 # - List users: \du
 # - Current database: SELECT current_database();
 # - Host and port are typically in your connection string or psql command
-DB_HOST='localhost'
-DB_PORT='5432'
-DB_NAME='sparrowx'
-DB_USER='postgres'
-DB_PASSWORD='postgres'
 
 # Server configuration
 PORT='4000'
@@ -65,8 +81,14 @@ NODE_ENV='development'
 
 2. Generate a random secret for AUTH0_SECRET by running:
 
-```
+```bash
 node scripts/generate-auth0-secret.js
+```
+
+Alternatively, you can use OpenSSL to generate a secure secret:
+
+```bash
+openssl rand -hex 32
 ```
 
 ### 4. API Authorization (Optional)
@@ -81,7 +103,7 @@ If you want to protect backend API routes:
 
 1. Start the frontend and backend servers:
 
-```
+```bash
 # In one terminal (frontend)
 cd client
 npm run dev
@@ -100,8 +122,15 @@ npm run dev
 - **Callback URL Errors**: Ensure your callback URL in Auth0 settings exactly matches your application's callback URL.
 - **CORS Issues**: Verify that your Auth0 application has the correct Allowed Web Origins.
 - **Token Validation Errors**: Ensure AUTH0_AUDIENCE and AUTH0_DOMAIN match between frontend and backend.
+- **Environment Variable Issues**: Make sure the `.env.local` file is in the project root directory, not in the client directory.
 
 ## Additional Resources
 
 - [Auth0 Next.js SDK Documentation](https://auth0.github.io/nextjs-auth0/modules/index.html)
-- [Auth0 Express SDK Documentation](https://auth0.github.io/express-openid-connect/) 
+- [Auth0 Express SDK Documentation](https://auth0.github.io/express-openid-connect/)
+
+## Related Documents
+
+- [Auth0 Implementation Guide](./client/AUTH0-README.md) - Detailed guide on the Auth0 implementation in the SparrowX application
+- [Auth0 Integration with Next.js](./client/AUTH0-INTEGRATION.md) - Advanced information about how Auth0 is integrated with Next.js
+- [Quick Auth0 Setup Fix](./client/SETUP-AUTH0.md) - Quick fix guide for common Auth0 setup issues 

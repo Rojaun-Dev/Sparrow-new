@@ -1,6 +1,16 @@
 # Auth0 Implementation Guide
 
-This document provides an overview of the Auth0 implementation in the SparrowX application.
+## Navigation
+
+- [Documentation Hub](../docs/README.md)
+- [Main Project README](../README.md)
+- [Auth0 Setup Instructions](../AUTH0-SETUP.md)
+- [Auth0 Integration with Next.js](./AUTH0-INTEGRATION.md)
+- [Quick Auth0 Setup Fix](./SETUP-AUTH0.md)
+
+## Overview
+
+This document provides an overview of the Auth0 implementation in the SparrowX application. For initial setup instructions, please refer to the [Auth0 Setup Instructions](../AUTH0-SETUP.md).
 
 ## Configuration
 
@@ -12,7 +22,7 @@ Auth0 integration is configured in the following files:
 
 ## Environment Variables
 
-Ensure you have the following environment variables in your `.env.local` file:
+Ensure you have the following environment variables in your `.env.local` file in the project root directory (not in the client directory):
 
 ```
 # Auth0 configuration
@@ -26,7 +36,7 @@ AUTH0_SCOPE='openid profile email' # Adjust scopes as needed
 ```
 
 You can generate a secure secret using:
-```
+```bash
 openssl rand -hex 32
 ```
 

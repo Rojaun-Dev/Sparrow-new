@@ -36,7 +36,7 @@ export async function seedUsers(db: NodePgDatabase<any>) {
     
     // Create sample users for each company
     for (const [subdomain, companyId] of companyMap.entries()) {
-      // Admin L2 (super admin)
+      // Admin L2 
       await db.insert(users).values({
         companyId,
         email: `admin@${subdomain}.com`,

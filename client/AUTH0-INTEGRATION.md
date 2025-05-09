@@ -1,6 +1,16 @@
 # Auth0 Integration with Next.js
 
-This document explains how the Auth0 integration is set up in this project to ensure proper loading of environment variables before initializing the Auth0 client.
+## Navigation
+
+- [Documentation Hub](../docs/README.md)
+- [Main Project README](../README.md)
+- [Auth0 Setup Instructions](../AUTH0-SETUP.md)
+- [Auth0 Implementation Guide](./AUTH0-README.md)
+- [Quick Auth0 Setup Fix](./SETUP-AUTH0.md)
+
+## Overview
+
+This document explains how the Auth0 integration is set up in this project to ensure proper loading of environment variables before initializing the Auth0 client. For basic setup instructions, please refer to the [Auth0 Setup Instructions](../AUTH0-SETUP.md).
 
 ## Quick Start
 

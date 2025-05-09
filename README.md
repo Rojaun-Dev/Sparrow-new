@@ -194,12 +194,15 @@ For detailed development rules and guidelines, see [SparrowX Development Rules](
 
 ## Documentation
 
+- [Documentation Hub](./docs/README.md): Central hub for all project documentation
 - [Technical Specifications](./Technical-Specification.md): Detailed system architecture, data models, and implementation details
 - [Environment Setup Guide](./ENVIRONMENT-SETUP.md): Comprehensive guide to environment variables and configuration
 - [Auth0 Integration](./client/AUTH0-INTEGRATION.md): Guide for Auth0 authentication setup
 - [Build Error Fixes](./BUILD-ERROR-FIXES.md): Explanation of recent environment variable and build error fixes
 - [API Documentation](./api-docs/): REST API reference and usage examples
 - [Development Setup](./docs/development-setup.md): Instructions for setting up the development environment
+- [Database Schema Documentation](./backend/SCHEMA_DOCUMENTATION.md): Comprehensive database schema reference with table structures and relationships
+- [Database Management Guide](./docs/DATABASE.md): Complete guide to database migrations, seeding, and best practices
 
 ## Project Roadmap
 
@@ -207,16 +210,11 @@ For detailed development rules and guidelines, see [SparrowX Development Rules](
 - Basic package tracking
 - Simple invoicing
 - Customer portal
+- Integration with Magaya
 
 ### Phase 2
 - Advanced reporting
-- Integration with major shipping carriers
 - Mobile application
-
-### Phase 3
-- Machine learning for package processing
-- Predictive analytics
-- International expansion
 
 ## Cursor Rules
 
