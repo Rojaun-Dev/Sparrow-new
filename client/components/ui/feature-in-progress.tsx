@@ -1,3 +1,5 @@
+'use client'
+
 import type React from "react"
 import { Construction } from "lucide-react"
 import { cn } from "@/lib/utils"

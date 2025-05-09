@@ -69,12 +69,25 @@ if (!isEdgeRuntime) {
   }
 }
 
-// Log some important environment variables (safe to do in any environment)
-console.log('AUTH0_DOMAIN:', process.env.AUTH0_DOMAIN);
-console.log('AUTH0_CLIENT_ID:', process.env.AUTH0_CLIENT_ID);
-console.log('APP_BASE_URL:', process.env.APP_BASE_URL);
-console.log('AUTH0_SECRET:', process.env.AUTH0_SECRET ? '[SECRET EXISTS]' : '[SECRET MISSING]');
-console.log('AUTH0_CLIENT_SECRET:', process.env.AUTH0_CLIENT_SECRET ? '[SECRET EXISTS]' : '[SECRET MISSING]');
+// Only try to access environment variables that are safe to access anywhere
+const safeEnvAccess = () => {
+  try {
+    // Only log environment variables that are safe to expose and needed for debugging
+    const envStatus = {
+      AUTH0_DOMAIN: typeof process !== 'undefined' && process.env.AUTH0_DOMAIN ? '[SET]' : '[NOT_SET]',
+      AUTH0_CLIENT_ID: typeof process !== 'undefined' && process.env.AUTH0_CLIENT_ID ? '[SET]' : '[NOT_SET]',
+      APP_BASE_URL: typeof process !== 'undefined' && process.env.APP_BASE_URL ? '[SET]' : '[NOT_SET]',
+      AUTH0_AUDIENCE: typeof process !== 'undefined' && process.env.AUTH0_AUDIENCE ? '[SET]' : '[NOT_SET]',
+    };
+    
+    console.log('Environment Status:', envStatus);
+  } catch (error) {
+    console.error('Error accessing environment variables:', error.message);
+  }
+};
+
+// Execute the safe environment access function
+safeEnvAccess();
 
 // Export nothing, this is just for debugging
 export default {}; 

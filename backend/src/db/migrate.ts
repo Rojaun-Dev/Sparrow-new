@@ -16,6 +16,7 @@ async function runMigrations() {
     user: database.user,
     password: database.password,
   });
+  console.log(pool);
   
   const db = drizzle(pool);
   

@@ -4,23 +4,23 @@ import path from 'path';
 // Load environment variables from parent directory's .env files
 // Update paths to correctly point to the root directory where .env.local is located
 dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
-dotenv.config({ path: path.resolve(__dirname, '../../../.env'), override: false });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env'), override: true });
 
 // Server configuration
 export const server = {
-  port: parseInt(process.env.PORT || '4000'),
-  env: process.env.NODE_ENV || 'development',
-  isDev: (process.env.NODE_ENV || 'development') === 'development',
+  port: process.env.API_PORT ,
+  env: process.env.NODE_ENV ,
+  isDev: process.env.NODE_ENV  === 'development',
   isProd: process.env.NODE_ENV === 'production',
 };
 
 // Database configuration
 export const database = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  name: process.env.DB_NAME || 'sparrowx',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  host: process.env.DB_HOST ,
+  port: parseInt(process.env.DB_PORT as string) ,
+  name: process.env.DB_NAME  ,
+  user: process.env.DB_USER ,
+  password: process.env.DB_PASSWORD,
 };
 
 // Auth0 configuration
