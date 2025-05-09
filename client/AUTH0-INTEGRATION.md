@@ -36,23 +36,24 @@ The Auth0 client is lazy-loaded to ensure that all environment variables are pro
 ### Key Components
 
 1. **Lazy-loaded Auth0 Client** (`lib/auth0.ts`):
-   - Auth0 client is only initialized when first needed
-   - Environment variables are verified when client is created
-   - Singleton pattern ensures only one client instance exists
+   - Auth0 client is only initialized when first needed, not at import time
+   - Environment variables are safely accessed through a utility function
+   - This prevents build-time errors when AUTH0 variables aren't available during static rendering
 
-2. **Environment Variable Loader** (`scripts/load-env.js`):
-   - Detects project root location
-   - Loads environment variables from `.env.local` and `.env` files in the project root
-   - Verifies critical Auth0-related environment variables
+2. **Environment Variable Loader** (`next.config.mjs`):
+   - Automatically detects and loads environment variables from the project root location
+   - Processes multiple environment files (`.env`, `.env.local`, `.env.development`, etc.)
+   - Makes selected environment variables available to client-side code via Next.js configuration
 
-3. **Server Wrapper** (`scripts/server.js`):
-   - Ensures environment variables are loaded before server starts
-   - Forwards commands to Next.js (dev, build, start)
-   - Provides consistent startup process
+3. **Safe Environment Variable Access** (`lib/env.js`):
+   - Provides a safe way to access environment variables in any execution context
+   - Handles browser, server, and edge runtime environments appropriately
+   - Falls back to default values when variables aren't available
 
-4. **Client-side Helpers** (`lib/auth0-client.ts`):
-   - Provides hooks and utilities for client-side authentication
-   - Simplifies authentication state management in components
+4. **Dynamic Rendering Configuration**:
+   - Protected pages use `export const dynamic = 'force-dynamic'`
+   - This prevents static optimization for routes that need Auth0
+   - Avoids build-time errors when Auth0 client tries to initialize during static rendering
 
 ## Required Environment Variables
 
@@ -73,10 +74,10 @@ AUTH0_AUDIENCE=https://your-api-identifier/ (optional, for API access)
 ### Server-side Authentication
 
 ```typescript
-import { getAuth0 } from './lib/auth0';
+import { getAuth0Client } from './lib/auth0';
 
-// Get the Auth0 client instance
-const auth0 = getAuth0();
+// Get the Auth0 client instance (lazy-loaded)
+const auth0 = getAuth0Client();
 
 // Use the client for authentication operations
 const session = await auth0.getSession(req, res);
@@ -106,6 +107,18 @@ function MyComponent() {
 }
 ```
 
+### Protected Pages
+
+For pages that require authentication, you should add the dynamic rendering directive:
+
+```typescript
+// This prevents static optimization
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+// Your component code...
+```
+
 ## Running the Application
 
 Use the provided npm scripts to run the application:
@@ -132,10 +145,15 @@ If you encounter issues with Auth0 authentication:
 
 2. Run `npm run env:check` to verify environment variables are loaded correctly
 
-3. If you see errors about missing environment variables:
-   - Run `npm run setup` to create the `.env.local` file in the project root
-   - Make sure to update the Auth0 Client Secret in the file
+3. If you see errors about missing environment variables during build:
+   - Make sure all protected pages use `export const dynamic = 'force-dynamic'`
+   - Check that Auth0 client is being lazy-loaded, not initialized at import time
+   - Verify environment variables are being loaded from the root directory
 
-4. Check browser console for any error messages
+4. If you see errors about process.env being undefined:
+   - Use the safe environment variable access utility from `lib/env.js`
+   - Replace direct access to `process.env.VAR_NAME` with `safeGetEnv('VAR_NAME')`
 
-5. Verify Auth0 tenant configuration matches your application settings 
+5. Check browser console for any error messages
+
+6. Verify Auth0 tenant configuration matches your application settings 

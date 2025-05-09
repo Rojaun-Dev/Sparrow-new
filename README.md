@@ -5,7 +5,7 @@ This is a multi-tenant SaaS solution for Jamaican package-forwarding companies.
 ## Environment Configuration
 
 This project uses shared environment variables for both the client and backend. 
-The environment files should be placed at the root of the project.
+The environment files are loaded from the root of the project for both applications.
 
 ### Setting Up Environment Files
 
@@ -33,7 +33,7 @@ DB_PASSWORD=postgres
 PORT=4000
 NODE_ENV=development
 
-# Client configuration
+# Client configuration - prefix with NEXT_PUBLIC_ to expose to browser
 NEXT_PUBLIC_API_URL=http://localhost:4000/api
 ```
 
@@ -41,6 +41,28 @@ NEXT_PUBLIC_API_URL=http://localhost:4000/api
 ```
 openssl rand -hex 32
 ```
+
+### Environment Variable Loading
+
+- **Root Location**: All environment files (`.env`, `.env.local`, `.env.development`, etc.) should be placed in the root directory of the project.
+- **Next.js Client**: Environment variables are loaded in the following order:
+  1. The `next.config.mjs` loads variables from the root's `.env*` files at build time
+  2. Variables prefixed with `NEXT_PUBLIC_` are automatically exposed to browser code
+  3. Selected Auth0 variables are explicitly shared with the client via the `env` property in `next.config.mjs`
+  4. A safe environment access utility (`client/lib/env.js`) is provided to safely access variables in different contexts
+
+- **Auth0 Configuration**: Auth0 client is lazily initialized to prevent build-time errors, only loading when methods are actually called.
+
+- **Static vs Dynamic Rendering**: For authentication-protected pages, static optimization is disabled using the `dynamic = 'force-dynamic'` directive to prevent build-time errors related to missing environment variables.
+
+### Environment-Specific Files
+
+The system will load environment files in the following order, with later files taking precedence:
+
+1. `.env` (base defaults)
+2. `.env.environment` (e.g., `.env.development`, `.env.production`)
+3. `.env.local` (local overrides, not committed to git)
+4. `.env.environment.local` (e.g., `.env.development.local`)
 
 ## Project Structure
 
@@ -173,6 +195,9 @@ For detailed development rules and guidelines, see [SparrowX Development Rules](
 ## Documentation
 
 - [Technical Specifications](./Technical-Specification.md): Detailed system architecture, data models, and implementation details
+- [Environment Setup Guide](./ENVIRONMENT-SETUP.md): Comprehensive guide to environment variables and configuration
+- [Auth0 Integration](./client/AUTH0-INTEGRATION.md): Guide for Auth0 authentication setup
+- [Build Error Fixes](./BUILD-ERROR-FIXES.md): Explanation of recent environment variable and build error fixes
 - [API Documentation](./api-docs/): REST API reference and usage examples
 - [Development Setup](./docs/development-setup.md): Instructions for setting up the development environment
 
