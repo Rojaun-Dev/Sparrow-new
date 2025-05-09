@@ -16,7 +16,21 @@ async function runMigrations() {
     user: database.user,
     password: database.password,
   });
-  console.log(pool);
+  
+  // Ensure schema exists before running migrations
+  try {
+    const client = await pool.connect();
+    try {
+      // Create the public schema if it doesn't exist
+      await client.query('CREATE SCHEMA IF NOT EXISTS public');
+      logger.info('Ensured public schema exists');
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error(error, 'Error creating schema');
+    process.exit(1);
+  }
   
   const db = drizzle(pool);
   
