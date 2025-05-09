@@ -20,6 +20,17 @@ export async function seedCompanies(db: NodePgDatabase<any>) {
     // Create sample companies
     await db.insert(companies).values([
       {
+        name: 'SparrowX',
+        subdomain: 'sparrow',
+        images: { logo: 'https://example.com/logo-sparrow.png' },
+        address: 'SparrowX Headquarters, Kingston, Jamaica',
+        phone: '+1-876-555-0000',
+        locations: ['Kingston', 'Corporate'],
+        email: 'admin@sparrowx.com',
+        website: 'https://sparrowx.com',
+        bankInfo: 'National Commercial Bank, Acct #: 11223344',
+      },
+      {
         name: 'Package Express',
         subdomain: 'express',
         images: { logo: 'https://example.com/logo-express.png' },

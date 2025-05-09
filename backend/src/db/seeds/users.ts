@@ -2,6 +2,10 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users } from '../schema/users';
 import { companies } from '../schema/companies';
 import logger from '../../utils/logger';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 /**
  * Seed users table with initial data
@@ -32,6 +36,28 @@ export async function seedUsers(db: NodePgDatabase<any>) {
     const companyMap = new Map();
     companyRecords.forEach(company => {
       companyMap.set(company.subdomain, company.id);
+    });
+    
+    // Create a super admin for Sparrow platform
+    // Use environment variables for dev/test credentials
+    const superAdminEmail = process.env.DEV_EMAIL || 'super.admin@sparrowx.com';
+    const superAdminAuthId = process.env.DEV_AUTH0_ID || 'auth0|super-admin-sparrow';
+    const superAdminPhone = process.env.DEV_PHONE || '+1-876-555-0000';
+    
+    // Get the ID of the first company (assuming this is the Sparrow company)
+    // Or you could add a specific "sparrow" company in companies.ts
+    const firstCompanyId = companyRecords[0].id;
+    
+    // Add super admin user
+    await db.insert(users).values({
+      companyId: firstCompanyId,
+      email: superAdminEmail,
+      firstName: 'dev00',
+      lastName: 'Admin',
+      role: 'super_admin',
+      auth0Id: superAdminAuthId,
+      phone: superAdminPhone,
+      address: 'Sparrow HQ Address',
     });
     
     // Create sample users for each company
