@@ -1,75 +1,52 @@
-// Skip processing in Edge Runtime
+// Environment variable utility
 const isEdgeRuntime = typeof process !== 'undefined' && process.env.NEXT_RUNTIME === 'edge';
+const isBrowser = typeof window !== 'undefined';
 
-// Only run in Node.js environment, not in Edge Runtime or browser
-if (!isEdgeRuntime && typeof process !== 'undefined' && typeof window === 'undefined') {
-  try {
-    // Dynamic imports are safer in different environments
-    const { config } = require('dotenv');
-    const path = require('path');
-    const fs = require('fs');
-    
-    // Helper function to find the project root (where the .env files should be)
-    function findProjectRoot(startDir) {
-      try {
-        // First, try to find by splitting the path - most reliable for this specific project
-        const parts = startDir.split(path.sep);
-        const clientIndex = parts.findIndex(part => part === 'client');
-        
-        if (clientIndex !== -1) {
-          // We're in the client directory, go up one level
-          return parts.slice(0, clientIndex).join(path.sep);
-        }
-        
-        // Fallback approach - try up to 3 parent directories
-        let currentDir = startDir;
-        const MAX_LEVELS = 3;
-        
-        for (let i = 0; i < MAX_LEVELS; i++) {
-          // Check if .env files exist in this directory
-          if (fs.existsSync(path.join(currentDir, '.env')) || 
-                fs.existsSync(path.join(currentDir, '.env.local'))) {
-            return currentDir;
-          }
-          
-          // Check for package.json with a client directory
-          if (fs.existsSync(path.join(currentDir, 'package.json')) && 
-              fs.existsSync(path.join(currentDir, 'client'))) {
-            return currentDir;
-          }
-          
-          // Move up one directory
-          const parentDir = path.resolve(currentDir, '..');
-          if (parentDir === currentDir) break; // Stop if we can't go up anymore
-          currentDir = parentDir;
-        }
-        
-        // Last resort - return current directory
-        return startDir;
-      } catch (error) {
-        console.error('Error finding project root:', error.message);
-        return startDir;
-      }
-    }
-
-    // Find the project root directory
-    const projectRoot = findProjectRoot(process.cwd());
-
-    // Set paths for .env files relative to the project root
-    const envLocalPath = path.join(projectRoot, '.env.local');
-    const envPath = path.join(projectRoot, '.env');
-
-    // Load .env.local first (higher priority)
-    config({ path: envLocalPath });
-    // Then load .env (lower priority, won't override existing vars)
-    config({ path: envPath, override: false });
-
-    console.log('Project root detected at:', projectRoot);
-    console.log('Looking for .env.local at:', envLocalPath);
-    console.log('Looking for .env at:', envPath);
-  } catch (error) {
-    console.error('Error loading environment variables:', error.message);
+/**
+ * Safe environment variable accessor
+ * Handles edge cases where process.env might be undefined
+ * 
+ * @param {string} key - Environment variable key
+ * @param {string} defaultValue - Default value if not found
+ * @returns {string} - Environment variable value or default
+ */
+export function safeGetEnv(key, defaultValue = '') {
+  // In browser context, we need to handle differently
+  if (isBrowser) {
+    // In the browser, we can only access NEXT_PUBLIC_ variables 
+    // or variables exposed via next.config.js env property
+    return typeof window !== 'undefined' && 
+           typeof window.__NEXT_DATA__ !== 'undefined' && 
+           window.__NEXT_DATA__.env && 
+           window.__NEXT_DATA__.env[key] 
+      ? window.__NEXT_DATA__.env[key] 
+      : defaultValue;
   }
+  
+  // In Edge Runtime or if process.env is undefined
+  if (isEdgeRuntime || typeof process === 'undefined' || !process.env) {
+    return defaultValue;
+  }
+  
+  // Normal server-side context
+  return process.env[key] || defaultValue;
 }
 
-// This file doesn't export anything, it just runs the config function to load env vars
+// Export common environment variables with defaults
+export const AUTH0_DOMAIN = safeGetEnv('AUTH0_DOMAIN', 'dev-y0gfi2gnw0g6qjyp.us.auth0.com');
+export const AUTH0_CLIENT_ID = safeGetEnv('AUTH0_CLIENT_ID', '41JW3LRc87U1RHYBtNWb7eEGiBa5213o');
+export const AUTH0_AUDIENCE = safeGetEnv('AUTH0_AUDIENCE', 'https://api.sparrowx.com');
+export const APP_BASE_URL = safeGetEnv('APP_BASE_URL', 'http://localhost:3000');
+
+// Public getter to avoid potential destructuring issues
+export function getEnv(key, defaultValue = '') {
+  return safeGetEnv(key, defaultValue);
+}
+
+export default {
+  AUTH0_DOMAIN,
+  AUTH0_CLIENT_ID,
+  AUTH0_AUDIENCE,
+  APP_BASE_URL,
+  getEnv
+};

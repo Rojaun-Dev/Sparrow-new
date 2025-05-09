@@ -46,6 +46,10 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog"
 
+// Config to prevent static optimization
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Mock data for packages
 const PACKAGES = [
   {

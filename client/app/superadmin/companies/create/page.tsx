@@ -1,5 +1,9 @@
 "use client"
 
+// Config to prevent static optimization
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"

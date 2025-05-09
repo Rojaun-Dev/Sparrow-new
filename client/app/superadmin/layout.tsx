@@ -7,6 +7,10 @@ import { SuperAdminHeader } from "@/components/superadmin/header"
 import { SuperAdminSidebar } from "@/components/superadmin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 
+// Config to prevent static optimization
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {

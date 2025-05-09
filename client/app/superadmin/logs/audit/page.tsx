@@ -1,6 +1,10 @@
 import { ClipboardList } from "lucide-react"
 import { FeatureInProgress } from "@/components/ui/feature-in-progress"
 
+// Config to prevent static optimization
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default function AuditLogsPage() {
   return (
     <div className="flex flex-col gap-6">
