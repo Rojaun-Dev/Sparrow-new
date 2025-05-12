@@ -9,6 +9,28 @@ import logger from '../../utils/logger';
 type Courier = 'USPS' | 'FedEx' | 'UPS' | 'DHL' | 'Amazon';
 
 /**
+ * Generate courier-specific tracking number format
+ */
+function generateTrackingNumber(courier: Courier, companySubdomain: string): string {
+  const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
+  
+  switch (courier) {
+    case 'USPS':
+      return `9400${randomDigits.toString().substring(0, 12)}US`;
+    case 'FedEx':
+      return `${companySubdomain.toUpperCase().substring(0, 3)}${randomDigits.toString().substring(0, 12)}`;
+    case 'UPS':
+      return `1Z${companySubdomain.toUpperCase().substring(0, 3)}${randomDigits.toString().substring(0, 10)}`;
+    case 'DHL':
+      return `${randomDigits.toString().substring(0, 10)}`;
+    case 'Amazon':
+      return `TBA${randomDigits.toString().substring(0, 10)}`;
+    default:
+      return `${courier}${randomDigits}`;
+  }
+}
+
+/**
  * Seed pre-alerts table with initial data
  */
 export async function seedPreAlerts(db: NodePgDatabase<any>) {
@@ -26,12 +48,16 @@ export async function seedPreAlerts(db: NodePgDatabase<any>) {
     // Get companies
     const companyRecords = await db.select({
       id: companies.id,
+      subdomain: companies.subdomain,
+      name: companies.name,
     }).from(companies);
     
     // For each company, get its customers
     for (const company of companyRecords) {
       const customerUsers = await db.select({
         id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
       })
       .from(users)
       .where(
@@ -55,13 +81,16 @@ export async function seedPreAlerts(db: NodePgDatabase<any>) {
           const courierOptions: Courier[] = ['USPS', 'FedEx', 'UPS', 'DHL', 'Amazon'];
           const randomCourier = courierOptions[Math.floor(Math.random() * courierOptions.length)];
           
-          // Pre-alert data
+          const productTypes = ['Clothing', 'Electronics', 'Books', 'Household items', 'Gifts'];
+          const randomProduct = productTypes[Math.floor(Math.random() * productTypes.length)];
+          
+          // Pre-alert data with explicit company ID
           const preAlertData = {
             companyId: company.id,
             userId: customer.id,
-            trackingNumber: `${randomCourier}${Math.floor(Math.random() * 10000000000)}`,
+            trackingNumber: generateTrackingNumber(randomCourier, company.subdomain),
             courier: randomCourier,
-            description: `Pre-alert ${i+1} - ${['Clothing', 'Electronics', 'Books', 'Household items', 'Gifts'][Math.floor(Math.random() * 5)]}`,
+            description: `${customer.firstName}'s ${randomProduct} - Pre-alert ${i+1} for ${company.name}`,
             estimatedWeight: estimatedWeight.toString(),
             estimatedArrival: estimatedArrival,
             status: preAlertStatusEnum.enumValues[0], // Use the first enum value (pending)

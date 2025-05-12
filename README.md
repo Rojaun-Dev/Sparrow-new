@@ -13,14 +13,9 @@ The environment files are loaded from the root of the project for both applicati
 2. Use the following template for your environment variables:
 
 ```
-# Auth0 configuration
-AUTH0_SECRET=your-generated-secret
+# JWT configuration (DEPRECATED AUTH0 configuration has been removed)
+JWT_SECRET=your-generated-secret
 APP_BASE_URL=http://localhost:3000
-AUTH0_DOMAIN=your-tenant-domain.auth0.com
-AUTH0_CLIENT_ID=your-client-id
-AUTH0_CLIENT_SECRET=your-client-secret
-AUTH0_AUDIENCE=your-api-identifier
-AUTH0_SCOPE=openid profile email
 
 # Database configuration
 DB_HOST=localhost
@@ -37,7 +32,7 @@ NODE_ENV=development
 NEXT_PUBLIC_API_URL=http://localhost:4000/api
 ```
 
-3. Generate a secure AUTH0_SECRET using:
+3. Generate a secure JWT_SECRET using:
 ```
 openssl rand -hex 32
 ```
@@ -48,10 +43,10 @@ openssl rand -hex 32
 - **Next.js Client**: Environment variables are loaded in the following order:
   1. The `next.config.mjs` loads variables from the root's `.env*` files at build time
   2. Variables prefixed with `NEXT_PUBLIC_` are automatically exposed to browser code
-  3. Selected Auth0 variables are explicitly shared with the client via the `env` property in `next.config.mjs`
+  3. Selected JWT variables are explicitly shared with the client via the `env` property in `next.config.mjs`
   4. A safe environment access utility (`client/lib/env.js`) is provided to safely access variables in different contexts
 
-- **Auth0 Configuration**: Auth0 client is lazily initialized to prevent build-time errors, only loading when methods are actually called.
+- **JWT Authentication**: JWT authentication is used for secure API access (DEPRECATED: AUTH0 has been removed in favor of JWT authentication).
 
 - **Static vs Dynamic Rendering**: For authentication-protected pages, static optimization is disabled using the `dynamic = 'force-dynamic'` directive to prevent build-time errors related to missing environment variables.
 
@@ -160,11 +155,16 @@ The project is organized into the following main directories:
   - UUID primary keys
 
 - **Authentication**: 
-  - Auth0 with Organizations for multi-tenancy
+  - JWT authentication with role-based access control
   - RBAC with Customer, Admin L1, and Admin L2 roles
   - JWT token verification
 
-- **Deployment**: 
+- **Development Deployment**: 
+  - Render for api/backend hosting (FREE =D shitty cold start handling though)
+  - Render with postgresdb for db hosting
+  - Vercel for frontend hosting
+
+- **Production Deployment**: 
   - AWS EC2 for backend services
   - Vercel for frontend hosting
   - Redis for caching
@@ -190,18 +190,15 @@ We follow a structured branch strategy:
 - Feature branches: `feature/feature-name`
 - Bug fix branches: `bugfix/bug-name`
 
-For detailed development rules and guidelines, see [SparrowX Development Rules](./SparrowX-Development-Rules.md).
+For detailed development rules and guidelines, see [SparrowX Development Rules](./docs/SparrowX-Development-Rules.md).
 
 ## Documentation
 
-- [Documentation Hub](./docs/README.md): Central hub for all project documentation
-- [Technical Specifications](./Technical-Specification.md): Detailed system architecture, data models, and implementation details
-- [Environment Setup Guide](./ENVIRONMENT-SETUP.md): Comprehensive guide to environment variables and configuration
-- [Auth0 Integration](./client/AUTH0-INTEGRATION.md): Guide for Auth0 authentication setup
-- [Build Error Fixes](./BUILD-ERROR-FIXES.md): Explanation of recent environment variable and build error fixes
+- [Technical Specifications](./docs/Technical-Specification.md): Detailed system architecture, data models, and implementation details
+- [Environment Setup Guide](./docs/ENVIRONMENT-SETUP.md): Comprehensive guide to environment variables and configuration
+- [Build Error Fixes](./docs/BUILD-ERROR-FIXES.md): Explanation of recent environment variable and build error fixes
 - [API Documentation](./api-docs/): REST API reference and usage examples
-- [Development Setup](./docs/development-setup.md): Instructions for setting up the development environment
-- [Database Schema Documentation](./backend/SCHEMA_DOCUMENTATION.md): Comprehensive database schema reference with table structures and relationships
+- [Database Schema Documentation](./docs/SCHEMA_DOCUMENTATION.md): Comprehensive database schema reference with table structures and relationships
 - [Database Management Guide](./docs/DATABASE.md): Complete guide to database migrations, seeding, and best practices
 
 ## Project Roadmap

@@ -10,11 +10,18 @@ import { randomUUID } from 'crypto';
 type PackageStatus = 'pre_alert' | 'received' | 'processed' | 'ready_for_pickup' | 'delivered';
 
 /**
- * Generate a unique tracking ID
+ * Generate a unique tracking ID with company-specific prefix
  */
-function generateTrackingId(): string {
-  // Create a unique identifier for the package
-  const prefix = 'SPX';
+function generateTrackingId(companySubdomain: string): string {
+  // Create a unique identifier for the package with company-specific prefix
+  const prefixMap: { [key: string]: string } = {
+    'sparrow': 'SPX',
+    'express': 'EXP',
+    'shipitfast': 'SIF',
+    'jampack': 'JMP'
+  };
+  
+  const prefix = prefixMap[companySubdomain] || 'PKG';
   const randomDigits = Math.floor(10000 + Math.random() * 90000); // 5-digit random number
   const suffix = randomUUID().substring(0, 4).toUpperCase();
   
@@ -40,6 +47,7 @@ export async function seedPackages(db: NodePgDatabase<any>) {
     const companyRecords = await db.select({
       id: companies.id,
       subdomain: companies.subdomain,
+      name: companies.name,
     }).from(companies);
     
     // For each company, get its customers
@@ -76,12 +84,12 @@ export async function seedPackages(db: NodePgDatabase<any>) {
           const processingDate = new Date(receivedDate);
           processingDate.setDate(processingDate.getDate() + 1); // 1 day after receiving
           
-          // Package data
+          // Package data with explicit company ID
           const packageData = {
             userId: customer.id,
             companyId: company.id,
             trackingNumber: `SHIP${Math.floor(Math.random() * 10000000)}US`,
-            internalTrackingId: generateTrackingId(),
+            internalTrackingId: generateTrackingId(company.subdomain),
             status: randomStatus,
             description: `Package ${i+1} for ${customer.firstName} ${customer.lastName}`,
             weight: weight.toString(),
@@ -97,7 +105,7 @@ export async function seedPackages(db: NodePgDatabase<any>) {
               ? processingDate 
               : null,
             photos: [`https://example.com/packages/${company.subdomain}/${i+1}.jpg`],
-            notes: `Sample package ${i+1}`,
+            notes: `Sample package ${i+1} for ${company.name}`,
           };
           
           // Include all required and optional fields in the proper format

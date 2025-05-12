@@ -7,6 +7,7 @@ import logger from '../utils/logger';
 import { seedCompanies } from './seeds/companies';
 import { seedUsers } from './seeds/users';
 import { seedCompanySettings } from './seeds/company-settings';
+import { seedFees } from './seeds/fees';
 import { seedPackages } from './seeds/packages';
 import { seedPreAlerts } from './seeds/pre-alerts';
 import { seedInvoices } from './seeds/invoices';
@@ -25,6 +26,10 @@ async function seedDatabase() {
     database: database.name,
     user: database.user,
     password: database.password,
+    connectionString: database.connectionString,
+  ssl: {
+    rejectUnauthorized: false, // Necessary for Render's SSL
+  },
   });
   
   const db = drizzle(pool);
@@ -42,6 +47,10 @@ async function seedDatabase() {
     // Company settings depend on companies
     await seedCompanySettings(db);
     logger.info('Company settings seeded successfully');
+    
+    // Fees depend on companies
+    await seedFees(db);
+    logger.info('Fees seeded successfully');
     
     // Packages depend on companies and users
     await seedPackages(db);

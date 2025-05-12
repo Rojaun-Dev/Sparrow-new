@@ -2,10 +2,8 @@
 
 ## Navigation
 
-- [Documentation Hub](./README.md)
 - [Main Project README](../README.md)
-- [Backend README](../backend/README.md)
-- [Database Schema Documentation](../backend/SCHEMA_DOCUMENTATION.md)
+- [Database Schema Documentation](./SCHEMA_DOCUMENTATION.md)
 
 ## Table of Contents
 
@@ -27,7 +25,7 @@
 
 ## Overview
 
-The SparrowX platform uses PostgreSQL with Drizzle ORM for database management. This guide covers how to work with the database schema, run migrations, and seed data for development and testing purposes. For detailed information about the database schema structure, tables and relationships, please refer to the [Database Schema Documentation](../backend/SCHEMA_DOCUMENTATION.md).
+The SparrowX platform uses PostgreSQL with Drizzle ORM for database management. This guide covers how to work with the database schema, run migrations, and seed data for development and testing purposes. For detailed information about the database schema structure, tables and relationships, please refer to the [Database Schema Documentation](./SCHEMA_DOCUMENTATION.md).
 
 ## Database Architecture
 
@@ -38,7 +36,7 @@ The database follows a multi-tenant architecture where:
 - UUID primary keys are used across all tables
 - Timestamp fields track record creation and updates
 
-For a detailed view of the database schema, tables, and relationships, see the [Database Schema Documentation](../backend/SCHEMA_DOCUMENTATION.md).
+For a detailed view of the database schema, tables, and relationships, see the [Database Schema Documentation](./SCHEMA_DOCUMENTATION.md).
 
 ## Schema Management
 

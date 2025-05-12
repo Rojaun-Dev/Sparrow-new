@@ -1,12 +1,31 @@
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { payments } from '../schema/payments';
 import { invoices } from '../schema/invoices';
+import { companies } from '../schema/companies';
 import { eq } from 'drizzle-orm';
 import logger from '../../utils/logger';
 
 // Define payment method type
 type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check';
 type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+/**
+ * Generate company-specific transaction ID
+ */
+function generateTransactionId(companySubdomain: string, method: PaymentMethod): string {
+  const prefixMap: { [key: string]: string } = {
+    'sparrow': 'SPX',
+    'express': 'EXP',
+    'shipitfast': 'SIF',
+    'jampack': 'JMP'
+  };
+  
+  const prefix = prefixMap[companySubdomain] || 'TXN';
+  const methodCode = method === 'credit_card' ? 'CC' : method === 'bank_transfer' ? 'BT' : 'OT';
+  const randomDigits = Math.floor(10000 + Math.random() * 90000);
+  
+  return `${prefix}-${methodCode}-${randomDigits}`;
+}
 
 /**
  * Seed payments table with initial data
@@ -23,6 +42,19 @@ export async function seedPayments(db: NodePgDatabase<any>) {
       return;
     }
     
+    // Get all companies for reference
+    const companyRecords = await db.select({
+      id: companies.id,
+      subdomain: companies.subdomain,
+      name: companies.name,
+    }).from(companies);
+    
+    // Create a map of companies for easy lookup
+    const companyMap = new Map();
+    companyRecords.forEach(company => {
+      companyMap.set(company.id, company);
+    });
+    
     // Get all paid invoices
     const paidInvoices = await db.select({
       id: invoices.id,
@@ -36,6 +68,14 @@ export async function seedPayments(db: NodePgDatabase<any>) {
     
     // Create a payment for each paid invoice
     for (const invoice of paidInvoices) {
+      // Get company information
+      const company = companyMap.get(invoice.companyId);
+      
+      if (!company) {
+        logger.warn(`Company not found for invoice ${invoice.id}, skipping payment`);
+        continue;
+      }
+      
       // Payment date is 1-3 days after invoice issue date
       let issueDate: Date;
       
@@ -57,10 +97,10 @@ export async function seedPayments(db: NodePgDatabase<any>) {
       
       // Transaction ID for credit card and bank transfer
       const transactionId = randomMethod !== 'cash' 
-        ? `TXN-${Math.floor(Math.random() * 1000000)}` 
+        ? generateTransactionId(company.subdomain, randomMethod)
         : null;
       
-      // Payment data
+      // Payment data with explicit company ID
       const paymentData = {
         companyId: invoice.companyId,
         invoiceId: invoice.id,
@@ -70,7 +110,7 @@ export async function seedPayments(db: NodePgDatabase<any>) {
         status: 'completed' as PaymentStatus,
         transactionId: transactionId,
         paymentDate: new Date(paymentDate),
-        notes: `Payment for invoice received via ${randomMethod}`,
+        notes: `Payment for invoice received via ${randomMethod} for ${company.name}`,
       };
       
       await db.insert(payments).values(paymentData);
@@ -88,7 +128,15 @@ export async function seedPayments(db: NodePgDatabase<any>) {
     .limit(2);
     
     for (const invoice of issuedInvoices) {
-      // Pending payment data
+      // Get company information
+      const company = companyMap.get(invoice.companyId);
+      
+      if (!company) {
+        logger.warn(`Company not found for invoice ${invoice.id}, skipping payment`);
+        continue;
+      }
+      
+      // Pending payment data with explicit company ID
       const pendingPaymentData = {
         companyId: invoice.companyId,
         invoiceId: invoice.id,
@@ -96,9 +144,9 @@ export async function seedPayments(db: NodePgDatabase<any>) {
         amount: invoice.totalAmount,
         paymentMethod: 'bank_transfer' as PaymentMethod,
         status: 'pending' as PaymentStatus,
-        transactionId: `PENDING-${Math.floor(Math.random() * 1000000)}`,
+        transactionId: generateTransactionId(company.subdomain, 'bank_transfer'),
         paymentDate: new Date(),
-        notes: 'Bank transfer initiated, awaiting confirmation',
+        notes: `Bank transfer initiated for ${company.name}, awaiting confirmation`,
       };
       
       await db.insert(payments).values(pendingPaymentData);

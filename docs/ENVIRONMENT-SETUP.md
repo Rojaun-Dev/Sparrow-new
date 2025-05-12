@@ -27,14 +27,13 @@ The environment loading in the Next.js client application has been enhanced to r
    - Loads `.env`, `.env.local`, `.env.{environment}`, and `.env.{environment}.local`
    - Explicitly exposes selected variables to the client via the `env` property
 
-2. **Lazy-loaded Auth0 Client**: 
-   - Auth0 client is now initialized on-demand rather than at import time
-   - This prevents errors during build-time when environment variables may not be available
-   - The client is initialized only when methods are actually called
+2. **JWT Authentication**: 
+   - JWT authentication is used for secure API access
+   - This replaces the previously used Auth0 authentication (DEPRECATED)
 
 3. **Dynamic Rendering**: 
    - Protected pages are configured with `export const dynamic = 'force-dynamic'`
-   - This prevents static optimization for routes that need Auth0
+   - This prevents static optimization for routes that need authentication
    - Avoids build-time errors related to missing environment variables during static generation
 
 ### Safe Environment Access
@@ -58,15 +57,10 @@ This utility handles different runtime contexts:
 
 The following environment variables are required for the application to function properly:
 
-### Auth0 Configuration
+### JWT Authentication Configuration (DEPRECATED: previously Auth0 Configuration)
 ```
-AUTH0_DOMAIN=your-tenant.region.auth0.com
-AUTH0_CLIENT_ID=your-client-id
-AUTH0_CLIENT_SECRET=your-client-secret
+JWT_SECRET=a-long-random-string
 APP_BASE_URL=http://localhost:3000 (or your production URL)
-AUTH0_SECRET=a-long-random-string
-AUTH0_SCOPE=openid profile email (optional)
-AUTH0_AUDIENCE=https://your-api-identifier/ (optional, for API access)
 ```
 
 ### Database Configuration
@@ -96,10 +90,7 @@ For environment variables to be accessible in browser code, they must be:
 1. Prefixed with `NEXT_PUBLIC_`, or
 2. Explicitly added to the `env` object in `next.config.mjs`
 
-The following Auth0 variables are automatically made available to the client:
-- `AUTH0_DOMAIN`
-- `AUTH0_CLIENT_ID`
-- `AUTH0_AUDIENCE`
+The following JWT variables are automatically made available to the client:
 - `APP_BASE_URL`
 
 ## Setup Script
@@ -112,7 +103,7 @@ npm run setup
 
 This script:
 1. Creates a `.env.local` file in the project root
-2. Generates a secure random value for `AUTH0_SECRET`
+2. Generates a secure random value for `JWT_SECRET`
 3. Adds default values for required environment variables
 
 ## Environment Files Priority
@@ -133,7 +124,6 @@ Common issues and solutions:
 If you encounter errors about missing environment variables during build:
 
 - Make sure all protected pages use `export const dynamic = 'force-dynamic'`
-- Check that Auth0 client is being lazy-loaded with `getAuth0Client()`
 - Verify environment files are in the project root, not in the client directory
 
 ### Access to process.env is Undefined
@@ -147,5 +137,5 @@ If you see errors about `process.env` being undefined:
 ### Build-Time vs. Runtime Environment Access
 
 - Some environment variables are only available at runtime, not during static build
-- Auth0-related code should be wrapped in runtime-only components/functions
+- Authentication-related code should be wrapped in runtime-only components/functions
 - Pages with authentication should use `dynamic = 'force-dynamic'` to ensure runtime rendering 

@@ -5,7 +5,7 @@
 - [Documentation Hub](../docs/README.md)
 - [Main Project README](../README.md)
 - [Backend README](./README.md)
-- [Database Management Guide](../docs/DATABASE.md)
+- [Database Management Guide](./DATABASE.md)
 
 ## Table of Contents
 - [Overview](#overview)
@@ -27,7 +27,7 @@
 
 ## Overview
 
-This document outlines the database schema for the SparrowX shipping platform. The database uses PostgreSQL with Drizzle ORM for schema management. For information on database migrations, seeding, and management, please refer to the [Database Management Guide](../docs/DATABASE.md).
+This document outlines the database schema for the SparrowX shipping platform. The database uses PostgreSQL with Drizzle ORM for schema management. For information on database migrations, seeding, and management, please refer to the [Database Management Guide](./DATABASE.md).
 
 ## Core Schema Structure
 
@@ -40,22 +40,21 @@ The users table stores user account information with the following fields:
 | id            | UUID                   | Primary key, automatically generated                                        |
 | companyId     | UUID                   | Foreign key to companies table, with cascade delete                         |
 | email         | Text                   | Unique email address for user (not null)                                    |
-| passwordHash  | Text                   | Optional password hash (when using Auth0, this may not be needed)           |
+| passwordHash  | Text                   | Password hash for JWT authentication                                        |
 | firstName     | Text                   | User's first name (not null)                                                |
 | lastName      | Text                   | User's last name (not null)                                                 |
 | phone         | Text                   | User's phone number                                                         |
 | address       | Text                   | User's address                                                              |
 | role          | Enum                   | User role: 'customer', 'admin_l1', 'admin_l2', 'super_admin'               |
-| auth0Id       | Text                   | Unique identifier from Auth0 authentication system (not null)               |
+| authId        | Text                   | User authentication identifier (DEPRECATED: previously auth0Id)             |
 | isActive      | Boolean                | User account status, defaults to true                                       |
 | createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
 
-**Notes on auth0Id**:
-- The `auth0Id` field stores the unique identifier provided by Auth0 authentication service
-- This identifier follows the format `provider|user_id` (e.g., `auth0|user-123`)
-- It's used to link users in your database with their Auth0 identity
-- Auth0 handles authentication, while your database stores application data
+**Notes on authId**:
+- The `authId` field was previously used to store the Auth0 identifier (DEPRECATED)
+- Now used for JWT authentication identifier if needed
+- Authentication is now managed directly by the application using JWT
 
 ### Companies Table
 
@@ -241,8 +240,10 @@ The RBAC system follows the principle of least privilege, where users are grante
 
 ## Authentication System
 
-The system uses Auth0 for identity management and authentication:
+The system uses JWT (JSON Web Tokens) for identity management and authentication:
 
-- **Auth0Id**: Each user has a unique Auth0Id in the format `provider|user_id`
-- **Authentication Flow**: Users authenticate through Auth0, which provides a JWT token for API access
-- **Authorization**: The system checks the user's role and company affiliation to determine access permissions 
+- **JWT Authentication**: Each user is authenticated using JWT tokens
+- **Authentication Flow**: Users authenticate through the application login, which provides a JWT token for API access
+- **Authorization**: The system checks the user's role and company affiliation stored in the JWT to determine access permissions
+
+> **Note**: Previously, the system used Auth0 for authentication (DEPRECATED). All Auth0 references have been removed in favor of JWT authentication. 

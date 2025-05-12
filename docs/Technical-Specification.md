@@ -4,15 +4,15 @@
 SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwarding companies. It provides an API-driven backend and a Next.js-based frontend portal for both customers and employees, with data isolation, role-based access control, and dynamic company branding.
 
 ## 1. System Architecture
-- **Frontend**: Next.js application using Auth0 for authentication, TailwindCSS (Shadcn) for styling, and React Context for dynamic theming.
-- **Backend**: Express.js API secured by Auth0 JWTs, organized into controllers, services, and repositories.
+- **Frontend**: Next.js application using JWT for authentication (DEPRECATED: previously Auth0), TailwindCSS (Shadcn) for styling, and React Context for dynamic theming.
+- **Backend**: Express.js API secured by JWT tokens, organized into controllers, services, and repositories.
 - **Database**: PostgreSQL accessed via Drizzle ORM; single database with shared schema, using company_id for tenant isolation.
-- **Authentication**: Auth0 Organizations and RBAC for user roles (Customer, Admin L1, Admin L2).
+- **Authentication**: JWT-based authentication and RBAC for user roles (Customer, Admin L1, Admin L2).
 - **Validation**: Zod schemas on both frontend and backend for payload validation.
 
 ## 2. Multi-Tenant Strategy
 - **Data Isolation**: Every table includes a company_id foreign key; every query filters by the authenticated tenant's ID.
-- **Auth0 Organizations**: Each tenant is an Auth0 Organization for isolated login/branding. Tokens include company_id and roles claims.
+- **JWT Organizations**: Each tenant is identified in JWT claims. Tokens include company_id and roles claims.
 - **Tenant Context**: Middleware extracts company_id from JWT and sets req.companyId for all routes.
 - **Company Branding**: Dynamic theming based on company settings and assets.
 - **Tenant Provisioning**: Automated setup process to create new tenant environments.
@@ -20,13 +20,13 @@ SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwardin
 ## 3. Authentication & Authorization
 - **Sign-Up / Login**:
   - Customers register via /api/companies/:companyId/customers.
-  - Employees (L2) are invited via Auth0 Management API.
+  - Employees (L2) are invited via admin interface.
 - **Roles**:
   - **Customer**: Access to their own packages, prealerts, invoices.
   - **Admin L1**: Customer and package management, bill generation, payments.
   - **Admin L2**: All L1 rights plus employee management, company settings, fee configuration.
 - **Middleware**: checkJwt verifies JWT, checkRole(role) enforces RBAC.
-- **Password Policies**: Enforced through Auth0, requiring strong passwords and MFA for admins.
+- **Password Policies**: Enforced through application, requiring strong passwords and MFA for admins.
 - **Session Management**: JWT-based with configurable expiration and refresh token rotation.
 
 ## 4. Database Schema & Drizzle Migrations
