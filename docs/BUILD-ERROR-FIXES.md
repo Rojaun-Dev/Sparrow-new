@@ -1,6 +1,8 @@
-# Build Error Fixes - Environment Variables and Auth0
+# Build Error Fixes - Environment Variables and Authentication
 
-This document details the recent (depending on when you're reading this.) fixes for build errors related to environment variables and Auth0 integration in the Next.js client application. I feel like its important to outline this since it mentions my work arounds a solution for getting the environment variables to loaded intime for the rest of the systems being used (namely Auth0).
+This document details the recent (depending on when you're reading this.) fixes for build errors related to environment variables and authentication integration in the Next.js client application. I feel like its important to outline this since it mentions my work arounds a solution for getting the environment variables to loaded intime for the rest of the systems being used.
+
+> **Note**: This document previously referred to Auth0 integration which has been deprecated. The project now uses JWT authentication instead.
 
 ## Problem
 
@@ -18,9 +20,9 @@ Several issues contributed to this problem:
 
 1. **Environment Variables Location**: The application expected environment variables to be in the client directory, but they were actually stored at the project root.
 
-2. **Eager Auth0 Initialization**: The Auth0 client was being initialized at import time rather than lazily when needed, causing errors during static build.
+2. **Eager Authentication Initialization**: The authentication client was being initialized at import time rather than lazily when needed, causing errors during static build.
 
-3. **Static Optimization**: Next.js was attempting to statically optimize pages that required runtime data like environment variables and Auth0 authentication.
+3. **Static Optimization**: Next.js was attempting to statically optimize pages that required runtime data like environment variables and authentication.
 
 4. **Unsafe Environment Access**: Direct access to `process.env` wasn't properly guarded against undefined scenarios.
 
@@ -56,19 +58,19 @@ function loadEnvFromRoot() {
 }
 ```
 
-### 2. Lazy Auth0 Client Initialization
+### 2. Lazy Authentication Client Initialization
 
-Auth0 client is now lazily initialized only when needed, preventing errors during static build:
+Authentication client is now lazily initialized only when needed, preventing errors during static build:
 
 ```javascript
-// lib/auth0.ts
-let _auth0Client: Auth0Client | null = null;
+// lib/auth.ts
+let _authClient = null;
 
-export function getAuth0Client() {
-  if (!_auth0Client) {
-    _auth0Client = createAuth0Client();
+export function getAuthClient() {
+  if (!_authClient) {
+    _authClient = createAuthClient();
   }
-  return _auth0Client;
+  return _authClient;
 }
 ```
 
@@ -107,7 +109,7 @@ export function safeGetEnv(key, defaultValue = '') {
 These changes have successfully resolved the build errors by:
 
 1. Properly loading environment variables from the project root
-2. Preventing Auth0 initialization during static build
+2. Preventing authentication initialization during static build
 3. Forcing dynamic rendering for protected pages
 4. Safely accessing environment variables in all contexts
 
@@ -117,6 +119,6 @@ To avoid similar issues in the future:
 
 1. Place all environment files in the project root directory
 2. Use the safe environment variable access utility for all environment variable access
-3. Make Auth0 and other external service clients lazy-loaded
+3. Make authentication and other external service clients lazy-loaded
 4. Apply the dynamic directive to pages that need authentication or runtime environment variables
 5. Be cautious with environment variables in components that might be statically rendered 
