@@ -35,6 +35,7 @@ export async function seedUsers(db: NodePgDatabase<any>) {
     const companyRecords = await db.select({
       id: companies.id,
       subdomain: companies.subdomain,
+      name: companies.name,
     }).from(companies);
     
     if (companyRecords.length === 0) {
@@ -57,13 +58,16 @@ export async function seedUsers(db: NodePgDatabase<any>) {
     const superAdminPassword = process.env.DEV_PASSWORD || 'SuperAdmin123!';
     const superAdminHash = await hashPassword(superAdminPassword);
     
-    // Get the ID of the first company (assuming this is the Sparrow company)
-    // Or you could add a specific "sparrow" company in companies.ts
-    const firstCompanyId = companyRecords[0].id;
+    // Get the ID of the SparrowX company specifically
+    const sparrowCompanyId = companyMap.get('sparrow');
+    
+    if (!sparrowCompanyId) {
+      throw new Error('SparrowX company not found. Please ensure it exists in the companies seed.');
+    }
     
     // Add super admin user
     await db.insert(users).values({
-      companyId: firstCompanyId,
+      companyId: sparrowCompanyId,
       email: superAdminEmail,
       firstName: 'dev00',
       lastName: 'Admin',
