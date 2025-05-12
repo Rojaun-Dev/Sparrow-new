@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 type AuthContextType = {
@@ -8,29 +8,27 @@ type AuthContextType = {
   isLoading: boolean;
   login: () => void;
   logout: () => void;
-  signup: () => void;
+  register: () => void;
+  error: string | null;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const { user, isLoading, isAuthenticated, login, logout, register, error } = useAuth();
 
-  useEffect(() => {
-    setIsAuthenticated(!!user);
-  }, [user]);
-
-  const login = () => {
-    window.location.href = '/auth/login';
+  // Navigation helpers with simpler interface for components
+  const handleLogin = () => {
+    window.location.href = '/login';
   };
 
-  const logout = () => {
-    window.location.href = '/auth/logout';
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/';
   };
 
-  const signup = () => {
-    window.location.href = '/auth/register';
+  const handleRegister = () => {
+    window.location.href = '/register';
   };
 
   return (
@@ -38,9 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         isAuthenticated,
         isLoading,
-        login,
-        logout,
-        signup
+        login: handleLogin,
+        logout: handleLogout,
+        register: handleRegister,
+        error
       }}
     >
       {children}

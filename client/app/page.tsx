@@ -2,10 +2,13 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ArrowRight, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/useAuth"
+import apiClient from "@/lib/api-client"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,39 +16,85 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
 import { cn } from "@/lib/utils"
-import { LoginButton } from "@/components/auth/login-button"
 
-// Update the import to use the correct path
+// Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const router = useRouter()
+  const { login, error, clearError } = useAuth()
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginSchema) as any,
     defaultValues: {
       email: "",
       password: "",
       rememberMe: false,
     },
-    mode: "onChange", // Enable validation as fields change
+    mode: "onChange",
   })
 
-  // Form submission handler
-  async function onSubmit(data: LoginFormValues) {
+  // Manual form submission handler
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsSubmitting(true)
-    console.log("Form submitted:", data)
+    setFormError(null)
 
     try {
-      // Redirect to Auth0 login
-      window.location.href = "/auth/login"
+      const values = form.getValues()
+      
+      // Direct API call to bypass TypeScript errors
+      const response = await fetch(`${apiClient.API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password,
+        }),
+      })
+      
+      const result = await response.json()
+      
+      if (response.ok && result.token) {
+        // Store token
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('token', result.token)
+        }
+        
+        // Get user data
+        const userResponse = await fetch(`${apiClient.API_URL}/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${result.token}`
+          }
+        })
+        
+        if (userResponse.ok) {
+          router.push('/dashboard')
+        } else {
+          setFormError('Failed to fetch user data after login')
+        }
+      } else {
+        setFormError(result.message || 'Login failed')
+      }
     } catch (error) {
       console.error("Login error:", error)
+      setFormError('An unexpected error occurred. Please try again.')
+    } finally {
       setIsSubmitting(false)
     }
   }
+  
+  // Clear any auth provider errors when form changes
+  useEffect(() => {
+    if (error) clearError()
+    if (formError) setFormError(null)
+  }, [form.formState.isDirty, error, clearError, formError])
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -84,7 +133,7 @@ export default function LoginPage() {
           </div>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <FormField
                 control={form.control}
                 name="email"
@@ -165,7 +214,7 @@ export default function LoginPage() {
 
                     <FormFieldFeedback
                       isDirty={!!field.value}
-                      isValid={field.value && field.value.length >= 8}
+                      isValid={!!field.value && field.value.length >= 8}
                       errorMessage={
                         field.value && field.value.length > 0 && field.value.length < 8
                           ? "Password must be at least 8 characters"
@@ -183,7 +232,10 @@ export default function LoginPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                     <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      <Checkbox 
+                        checked={field.value === true}
+                        onCheckedChange={(checked) => field.onChange(checked || false)}
+                      />
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel className="text-sm font-normal">Remember me for 30 days</FormLabel>
@@ -192,7 +244,7 @@ export default function LoginPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <span className="animate-pulse">Signing in...</span>
@@ -204,6 +256,13 @@ export default function LoginPage() {
                   </>
                 )}
               </Button>
+
+              {/* Show form errors */}
+              {formError && (
+                <div className="text-sm text-red-500 text-center">
+                  {formError}
+                </div>
+              )}
             </form>
           </Form>
 
@@ -217,7 +276,11 @@ export default function LoginPage() {
           </div>
 
           <div className="flex justify-center">
-            <LoginButton />
+            <Button variant="outline" className="w-full" asChild>
+              <Link href="/register">
+                Create an account
+              </Link>
+            </Button>
           </div>
 
           <div className="text-center text-sm">

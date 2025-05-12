@@ -19,7 +19,14 @@ const port = config.server.port;
 
 // Apply middleware
 app.use(helmet()); // Security headers
-app.use(cors()); // CORS handling
+app.use(cors({
+  origin: [
+    'https://localhost:3000/',
+    'https://localhost:4000/',
+    `${config.client.url}/`
+  ].filter(Boolean),
+  credentials: true
+})); // CORS handling with credentials
 app.use(compression()); // Compress responses
 app.use(morgan('dev')); // HTTP request logging
 app.use(express.json()); // Parse JSON bodies

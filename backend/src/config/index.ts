@@ -24,6 +24,14 @@ export const database = {
   connectionString: process.env.DATABASE_URL,
 };
 
+// JWT configuration
+export const jwt = {
+  secret: process.env.JWT_SECRET || 'your-default-jwt-secret-key',
+  expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+  refreshSecret: process.env.JWT_REFRESH_SECRET || 'your-default-jwt-refresh-secret-key',
+  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+};
+
 // Auth0 configuration
 export const auth0 = {
   domain: process.env.AUTH0_DOMAIN || '',
@@ -33,6 +41,9 @@ export const auth0 = {
   apiToken: process.env.AUTH0_API_TOKEN || '',
 };
 
+export const client = {
+  url: process.env.CLIENT_URL || '',
+};
 // Security configuration
 export const security = {
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
@@ -48,7 +59,9 @@ export const logging = {
 export default {
   server,
   database,
+  jwt,
   auth0,
   security,
   logging,
+  client,
 }; 

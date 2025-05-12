@@ -15,13 +15,13 @@ export const users = pgTable('users', {
     onDelete: 'cascade', // When a company is deleted, delete all of its users
   }),
   email: text('email').notNull().unique(),
-  passwordHash: text('password_hash'), // Auth0 stores credentials, this field can mirror if needed
+  passwordHash: text('password_hash'), // For JWT authentication
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
   phone: text('phone'),
   address: text('address'),
   role: userRoleEnum('role').notNull().default('customer'),
-  auth0Id: text('auth0_id').notNull().unique(),
+  auth0Id: text('auth0_id'), // Optional now with JWT implementation
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

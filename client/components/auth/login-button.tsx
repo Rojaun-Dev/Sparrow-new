@@ -3,24 +3,32 @@
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export function LoginButton() {
-  const { user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, logout } = useAuth();
+  const router = useRouter();
 
   if (isLoading) {
     return <Button variant="outline" disabled>Loading...</Button>;
   }
 
-  if (user) {
+  if (isAuthenticated) {
     return (
-      <Link href="/auth/logout" passHref>
-        <Button variant="outline">Logout</Button>
-      </Link>
+      <Button 
+        variant="outline" 
+        onClick={async () => {
+          await logout();
+          router.push('/');
+        }}
+      >
+        Logout
+      </Button>
     );
   }
 
   return (
-    <Link href="/auth/login" passHref>
+    <Link href="/login" passHref>
       <Button>Login</Button>
     </Link>
   );

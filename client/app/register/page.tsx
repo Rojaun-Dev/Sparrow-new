@@ -2,10 +2,12 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ArrowRight, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/useAuth"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +23,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter()
+  const { register, error, clearError } = useAuth()
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<RegistrationFormValues>({
@@ -38,18 +42,35 @@ export default function RegisterPage() {
   })
 
   // Form submission handler
-  async function onSubmit(data: RegistrationFormValues) {
+  const onSubmit = async (data: RegistrationFormValues) => {
     setIsSubmitting(true)
-    console.log("Form submitted:", data)
-
+    
     try {
-      // Redirect to Auth0 registration
-      window.location.href = "/auth/register"
+      const result = await register(data)
+      if (result.success) {
+        // Redirect to login page with success message
+        router.push('/login?registered=true')
+      } else {
+        form.setError("root", { 
+          type: "manual",
+          message: result.message || "Registration failed" 
+        })
+      }
     } catch (error) {
       console.error("Registration error:", error)
+      form.setError("root", { 
+        type: "manual",
+        message: "An unexpected error occurred" 
+      })
+    } finally {
       setIsSubmitting(false)
     }
   }
+  
+  // Clear any auth provider errors when form changes
+  useEffect(() => {
+    if (error) clearError()
+  }, [form.formState.isDirty, error, clearError])
 
   // Check if password meets all requirements
   const passwordValue = form.watch("password")
@@ -408,8 +429,8 @@ export default function RegisterPage() {
                   <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                     <FormControl>
                       <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+                        checked={!!field.value}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
                         className={cn(form.formState.errors.terms && "border-red-500")}
                       />
                     </FormControl>
@@ -435,7 +456,7 @@ export default function RegisterPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <span className="animate-pulse">Creating account...</span>
@@ -447,6 +468,13 @@ export default function RegisterPage() {
                   </>
                 )}
               </Button>
+
+              {/* Show form errors */}
+              {form.formState.errors.root && (
+                <div className="text-sm text-red-500 text-center mt-2">
+                  {form.formState.errors.root.message}
+                </div>
+              )}
             </form>
           </Form>
 
@@ -460,12 +488,11 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex justify-center">
-            <a 
-              href="/auth/register" 
-              className="flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-            >
-              Sign up with Auth0
-            </a>
+            <Button variant="outline" className="w-full" asChild>
+              <Link href="/login">
+                Already have an account? Sign in
+              </Link>
+            </Button>
           </div>
 
           <div className="text-center text-sm">

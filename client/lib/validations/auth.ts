@@ -45,8 +45,11 @@ export const registrationSchema = z
       .regex(/[^a-zA-Z0-9]/, { message: "Password must contain at least one special character" })
       .trim(),
     confirmPassword: z.string({ required_error: "Please confirm your password" }).trim(),
-    terms: z.literal(true, {
-      errorMap: () => ({ message: "You must accept the terms and conditions" }),
+    terms: z.boolean({
+      required_error: "You must accept the terms and conditions",
+      invalid_type_error: "You must accept the terms and conditions",
+    }).refine(val => val === true, {
+      message: "You must accept the terms and conditions",
     }),
   })
   .refine((data) => data.password === data.confirmPassword, {

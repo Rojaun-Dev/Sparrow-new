@@ -1,60 +1,136 @@
-import { apiClient } from './apiClient';
-import { Package, PackageFilterParams, PaginatedResponse } from './types';
+import apiClient from '@/lib/api-client';
+import { Package, PackageFilterParams } from './types';
 
 class PackageService {
-  private baseUrl = '/packages';
-
-  /**
-   * Get all packages with pagination and filtering
-   */
-  async getPackages(params?: PackageFilterParams): Promise<PaginatedResponse<Package>> {
-    return apiClient.get<PaginatedResponse<Package>>(this.baseUrl, { params });
+  // Get all packages with optional filters
+  async getPackages(filters: PackageFilterParams = {}): Promise<Package[]> {
+    const { companyId } = filters;
+    
+    if (!companyId) {
+      throw new Error('Company ID is required to fetch packages');
+    }
+    
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    if (filters.status) queryParams.append('status', filters.status);
+    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy);
+    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
+    if (filters.limit) queryParams.append('limit', filters.limit.toString());
+    if (filters.offset) queryParams.append('offset', filters.offset.toString());
+    
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    
+    const response = await apiClient.customer.getPackages(companyId);
+    return response as Package[];
   }
-
-  /**
-   * Get a single package by ID
-   */
+  
+  // Get packages for the current user
+  async getUserPackages(filters: PackageFilterParams = {}): Promise<Package[]> {
+    // First get user profile to get companyId
+    const userProfile = await apiClient.auth.getProfile();
+    
+    if (!userProfile || !userProfile.companyId) {
+      throw new Error('Unable to fetch user company information');
+    }
+    
+    // Now call getPackages with the companyId
+    return this.getPackages({
+      ...filters,
+      companyId: userProfile.companyId
+    });
+  }
+  
+  // Get a single package by ID
   async getPackage(id: string): Promise<Package> {
-    return apiClient.get<Package>(`${this.baseUrl}/${id}`);
+    // First get user profile to get companyId
+    const userProfile = await apiClient.auth.getProfile();
+    
+    if (!userProfile || !userProfile.companyId) {
+      throw new Error('Unable to fetch user company information');
+    }
+    
+    const response = await fetch(`${apiClient.API_URL}/companies/${userProfile.companyId}/packages/${id}`, {
+      headers: apiClient.getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch package: ${response.statusText}`);
+    }
+    
+    return await response.json();
   }
-
-  /**
-   * Get packages belonging to the current user
-   */
-  async getUserPackages(params?: PackageFilterParams): Promise<PaginatedResponse<Package>> {
-    return apiClient.get<PaginatedResponse<Package>>(`${this.baseUrl}/user`, { params });
-  }
-
-  /**
-   * Get package history/timeline
-   */
+  
+  // Get package timeline events
   async getPackageTimeline(id: string): Promise<any[]> {
-    return apiClient.get<any[]>(`${this.baseUrl}/${id}/timeline`);
+    // First get user profile to get companyId
+    const userProfile = await apiClient.auth.getProfile();
+    
+    if (!userProfile || !userProfile.companyId) {
+      throw new Error('Unable to fetch user company information');
+    }
+    
+    const response = await fetch(`${apiClient.API_URL}/companies/${userProfile.companyId}/packages/${id}/timeline`, {
+      headers: apiClient.getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch package timeline: ${response.statusText}`);
+    }
+    
+    return await response.json();
   }
-
-  /**
-   * Update package status
-   */
+  
+  // Update package status
   async updatePackageStatus(id: string, status: string): Promise<Package> {
-    return apiClient.patch<Package>(`${this.baseUrl}/${id}/status`, { status });
+    // First get user profile to get companyId
+    const userProfile = await apiClient.auth.getProfile();
+    
+    if (!userProfile || !userProfile.companyId) {
+      throw new Error('Unable to fetch user company information');
+    }
+    
+    const response = await fetch(`${apiClient.API_URL}/companies/${userProfile.companyId}/packages/${id}/status`, {
+      method: 'PUT',
+      headers: apiClient.getHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update package status: ${response.statusText}`);
+    }
+    
+    return await response.json();
   }
-
-  /**
-   * Upload package photos
-   */
+  
+  // Upload package photos
   async uploadPackagePhotos(id: string, files: File[]): Promise<Package> {
+    // First get user profile to get companyId
+    const userProfile = await apiClient.auth.getProfile();
+    
+    if (!userProfile || !userProfile.companyId) {
+      throw new Error('Unable to fetch user company information');
+    }
+    
     const formData = new FormData();
-    files.forEach((file, index) => {
-      formData.append(`photos[${index}]`, file);
+    files.forEach(file => {
+      formData.append('photos', file);
     });
-
-    return apiClient.post<Package>(`${this.baseUrl}/${id}/photos`, formData, {
+    
+    const response = await fetch(`${apiClient.API_URL}/companies/${userProfile.companyId}/packages/${id}/photos`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Authorization': `Bearer ${apiClient.getToken()}`,
+        // Don't set Content-Type here, it will be set automatically with the correct boundary
       },
+      body: formData,
     });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to upload package photos: ${response.statusText}`);
+    }
+    
+    return await response.json();
   }
 }
 
-// Export as singleton
 export const packageService = new PackageService(); 

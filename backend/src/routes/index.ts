@@ -10,6 +10,7 @@ import feesRoutes from './fees-routes';
 import billingRoutes from './billing-routes';
 import authRoutes from './auth-routes';
 import statisticsRoutes from './statistics-routes';
+import superadminRoutes from './superadmin-routes';
 import { extractCompanyId } from '../middleware/auth';
 
 const router = express.Router();
@@ -22,6 +23,9 @@ router.use('/auth', authRoutes);
 
 // Statistics routes - not scoped to company, handled inside the controller
 router.use('/statistics', statisticsRoutes);
+
+// Superadmin routes - not scoped to company, superadmin specific
+router.use('/superadmin', superadminRoutes);
 
 // Company routes
 router.use('/companies', companiesRoutes);

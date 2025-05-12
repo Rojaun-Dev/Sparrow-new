@@ -1,6 +1,6 @@
 import express from 'express';
 import { AuthController } from '../controllers/auth-controller';
-// import { checkJwt } from '../middleware/auth';
+import { checkJwt } from '../middleware/auth';
 
 const router = express.Router();
 const controller = new AuthController();
@@ -31,6 +31,20 @@ router.post('/refresh', controller.refreshToken.bind(controller));
  * @desc    Get current user profile
  * @access  Private
  */
-router.get('/me', /*checkJwt,*/ controller.getProfile.bind(controller));
+router.get('/me', checkJwt, controller.getProfile.bind(controller));
+
+/**
+ * @route   PUT /api/auth/profile
+ * @desc    Update current user profile
+ * @access  Private
+ */
+router.put('/profile', checkJwt, controller.updateProfile.bind(controller));
+
+/**
+ * @route   PUT /api/auth/change-password
+ * @desc    Change current user password
+ * @access  Private
+ */
+router.put('/change-password', checkJwt, controller.changePassword.bind(controller));
 
 export default router; 

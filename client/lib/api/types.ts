@@ -156,9 +156,11 @@ export interface PaginationParams {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  offset?: number;
 }
 
 export interface PackageFilterParams extends PaginationParams {
+  companyId?: string;
   status?: PackageStatus;
   search?: string;
   dateFrom?: string;
@@ -167,6 +169,7 @@ export interface PackageFilterParams extends PaginationParams {
 }
 
 export interface PreAlertFilterParams extends PaginationParams {
+  companyId?: string;
   status?: PreAlertStatus;
   search?: string;
   dateFrom?: string;
@@ -174,6 +177,7 @@ export interface PreAlertFilterParams extends PaginationParams {
 }
 
 export interface InvoiceFilterParams extends PaginationParams {
+  companyId?: string;
   status?: InvoiceStatus;
   search?: string;
   dateFrom?: string;
@@ -182,6 +186,7 @@ export interface InvoiceFilterParams extends PaginationParams {
 }
 
 export interface PaymentFilterParams extends PaginationParams {
+  companyId?: string;
   status?: PaymentStatus;
   method?: PaymentMethod;
   search?: string;
