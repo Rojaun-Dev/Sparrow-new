@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { FeesController } from '../controllers/fees-controller';
-import { checkJwt, checkRole } from '../middleware/auth';
+// import { checkJwt, checkRole } from '../middleware/auth';
 
 const router = Router();
 const controller = new FeesController();
@@ -12,7 +12,7 @@ const controller = new FeesController();
  */
 router.get(
   '/',
-  [checkJwt, checkRole(['admin_l1', 'admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l1', 'admin_l2'])],*/
   controller.getAll.bind(controller)
 );
 
@@ -23,7 +23,7 @@ router.get(
  */
 router.get(
   '/active',
-  [checkJwt, checkRole(['admin_l1', 'admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l1', 'admin_l2'])],*/
   controller.getActive.bind(controller)
 );
 
@@ -34,7 +34,7 @@ router.get(
  */
 router.get(
   '/type/:type',
-  [checkJwt, checkRole(['admin_l1', 'admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l1', 'admin_l2'])],*/
   controller.getByType.bind(controller)
 );
 
@@ -45,7 +45,7 @@ router.get(
  */
 router.get(
   '/:id',
-  [checkJwt, checkRole(['admin_l1', 'admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l1', 'admin_l2'])],*/
   controller.getById.bind(controller)
 );
 
@@ -56,7 +56,7 @@ router.get(
  */
 router.post(
   '/',
-  [checkJwt, checkRole(['admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l2'])],*/
   controller.create.bind(controller)
 );
 
@@ -67,7 +67,7 @@ router.post(
  */
 router.put(
   '/:id',
-  [checkJwt, checkRole(['admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l2'])],*/
   controller.update.bind(controller)
 );
 
@@ -78,7 +78,7 @@ router.put(
  */
 router.patch(
   '/:id/deactivate',
-  [checkJwt, checkRole(['admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l2'])],*/
   controller.deactivate.bind(controller)
 );
 
@@ -89,7 +89,7 @@ router.patch(
  */
 router.patch(
   '/:id/activate',
-  [checkJwt, checkRole(['admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l2'])],*/
   controller.activate.bind(controller)
 );
 
@@ -100,7 +100,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  [checkJwt, checkRole(['admin_l2'])],
+  /*[checkJwt, checkRole(['admin_l2'])],*/
   controller.delete.bind(controller)
 );
 
