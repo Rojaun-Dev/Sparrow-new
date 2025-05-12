@@ -28,6 +28,7 @@ export const packages = pgTable('packages', {
   dimensions: jsonb('dimensions').default({}), // { length, width, height }
   declaredValue: decimal('declared_value', { precision: 10, scale: 2 }),
   senderInfo: jsonb('sender_info').default({}),
+  tags: text('tags').array(),
   receivedDate: timestamp('received_date', { withTimezone: true }),
   processingDate: timestamp('processing_date', { withTimezone: true }),
   photos: text('photos').array(),

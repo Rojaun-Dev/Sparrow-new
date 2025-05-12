@@ -7,12 +7,12 @@ SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwardin
 - **Frontend**: Next.js application using JWT for authentication (DEPRECATED: previously Auth0), TailwindCSS (Shadcn) for styling, and React Context for dynamic theming.
 - **Backend**: Express.js API secured by JWT tokens, organized into controllers, services, and repositories.
 - **Database**: PostgreSQL accessed via Drizzle ORM; single database with shared schema, using company_id for tenant isolation.
-- **Authentication**: JWT-based authentication and RBAC for user roles (Customer, Admin L1, Admin L2).
+- **Authentication**: JWT-based authentication and RBAC for user roles (Customer, Admin L1, Admin L2) (DEPRECATED: previously Auth0).
 - **Validation**: Zod schemas on both frontend and backend for payload validation.
 
 ## 2. Multi-Tenant Strategy
 - **Data Isolation**: Every table includes a company_id foreign key; every query filters by the authenticated tenant's ID.
-- **JWT Organizations**: Each tenant is identified in JWT claims. Tokens include company_id and roles claims.
+- **JWT Organizations**: Each tenant is identified in JWT claims. Tokens include company_id and roles claims (DEPRECATED: previously Auth0 Organizations).
 - **Tenant Context**: Middleware extracts company_id from JWT and sets req.companyId for all routes.
 - **Company Branding**: Dynamic theming based on company settings and assets.
 - **Tenant Provisioning**: Automated setup process to create new tenant environments.
@@ -20,7 +20,7 @@ SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwardin
 ## 3. Authentication & Authorization
 - **Sign-Up / Login**:
   - Customers register via /api/companies/:companyId/customers.
-  - Employees (L2) are invited via admin interface.
+  - Employees (L2) are invited via admin interface (DEPRECATED: previously via Auth0 Management API).
 - **Roles**:
   - **Customer**: Access to their own packages, prealerts, invoices.
   - **Admin L1**: Customer and package management, bill generation, payments.
@@ -59,13 +59,13 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
 - **id** (UUID PK): Unique identifier for all user accounts.
 - **company_id** (UUID FK): References tenant to which user belongs.
 - **email** (TEXT): User login email (unique).
-- **password_hash** (TEXT): Hashed password (Auth0 stores credentials; this field can mirror if needed).
+- **password_hash** (TEXT): Bcrypt hashed password for JWT authentication.
 - **first_name** (TEXT): User's first name.
 - **last_name** (TEXT): User's last name.
 - **phone** (TEXT): Contact phone number.
 - **address** (TEXT): Physical address.
 - **role** (ENUM): User role (customer, admin_l1, admin_l2).
-- **auth0_id** (TEXT): Auth0 user identifier.
+- **auth0_id** (TEXT): [DEPRECATED] Auth0 user identifier.
 - **is_active** (BOOLEAN): Account status.
 - **created_at** (TIMESTAMPTZ): Account creation date.
 - **updated_at** (TIMESTAMPTZ): Last update timestamp.
@@ -82,6 +82,7 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
 - **dimensions** (JSONB): Object with dimensions (length, width, height in inches).
 - **declared_value** (DECIMAL): Value declared for customs.
 - **sender_info** (JSONB): Information about the original sender.
+- **tags** (TEXT[]): Array of tags for categorizing and filtering packages.
 - **received_date** (TIMESTAMPTZ): When package was received at warehouse.
 - **processing_date** (TIMESTAMPTZ): When package was processed.
 - **photos** (TEXT[]): Array of photo URLs.
@@ -160,7 +161,7 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
 ## 5. API Endpoints
 
 ### Authentication Endpoints
-- **POST /api/auth/login**: Authenticate user and return JWT
+- **POST /api/auth/login**: Authenticate user and return JWT (DEPRECATED: previously Auth0 JWT verification on all protected routes)
 - **POST /api/auth/signup**: Create new customer account
 - **POST /api/auth/refresh**: Refresh JWT token
 - **GET /api/auth/me**: Get current user profile
@@ -210,6 +211,14 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
 ### Settings Management
 - **GET /api/companies/:companyId/settings**: Get company settings
 - **PUT /api/companies/:companyId/settings**: Update company settings
+
+### Fee Management
+- **GET /api/companies/:companyId/fees**: List all fees for company
+- **POST /api/companies/:companyId/fees**: Create new fee
+- **GET /api/companies/:companyId/fees/:id**: Get fee details
+- **PUT /api/companies/:companyId/fees/:id**: Update fee
+- **DELETE /api/companies/:companyId/fees/:id**: Deactivate fee
+- **POST /api/companies/:companyId/fees/calculate**: Calculate fees for a specific package
 
 ## 6. Frontend Architecture
 
@@ -367,4 +376,103 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
 - **Phase 3**:
   - Machine learning for package processing
   - Predictive analytics
-  - International expansion 
+  - International expansion
+
+## 16. Fee Management System
+
+The SparrowX platform includes a robust and flexible fee management system that allows companies to configure various types of charges that are dynamically calculated based on package data.
+
+### Fee Calculation Methods
+
+The system supports the following fee calculation methods:
+
+1. **Flat Fee (`fixed`)**: 
+   - A simple fixed amount charged regardless of package attributes
+   - Example: $5 handling fee per package
+
+2. **Percentage-Based Fee (`percentage`)**: 
+   - Fee calculated as a percentage of a base amount
+   - Can be applied to subtotal, total, or declared value
+   - Example: 15% tax on subtotal
+
+3. **Price Per Unit (`per_weight`, `per_item`)**:
+   - Fee calculated based on a unit price multiplied by a quantity
+   - Supports different units (kg, lb, item, cubic meter, etc.)
+   - Example: $2.50 per pound shipping fee
+
+4. **Dimensional Weight Pricing (`dimensional`)**:
+   - Calculates fee based on volumetric weight using formula: (length × width × height) / dimensionalFactor
+   - Uses the greater of actual weight or dimensional weight
+   - Example: Shipping fee for bulky but lightweight items
+
+5. **Tiered Pricing (`tiered`)**:
+   - Sets different rates based on value ranges
+   - Can be tiered on any numeric attribute (weight, value, etc.)
+   - Example: 0-5kg = $10, 5-10kg = $15, 10kg+ = $20
+
+### Fee Metadata
+
+Each fee can include additional configuration in the `metadata` JSONB field:
+
+```json
+{
+  "dimensionalFactor": 139,
+  "tiers": [
+    { "min": 0, "max": 5, "rate": 10.00 },
+    { "min": 5, "max": 10, "rate": 15.00 },
+    { "min": 10, "max": null, "rate": 20.00 }
+  ],
+  "baseAttribute": "subtotal",
+  "unit": "kg",
+  "attributeName": "weight",
+  "minimumThreshold": 5.00,
+  "maximumCap": 50.00,
+  "tagConditions": {
+    "requiredTags": ["fragile", "oversized"],
+    "excludedTags": ["document"]
+  },
+  "thresholdConditions": {
+    "minWeight": 2,
+    "maxWeight": 50,
+    "minValue": 100,
+    "validFrom": "2023-01-01",
+    "validUntil": "2023-12-31"
+  }
+}
+```
+
+### Fee Application Logic
+
+Fees are applied based on complex conditional logic:
+
+1. **Tag-Based Application**: 
+   - Fees can be applied only to packages with specific tags
+   - Example: "fragile" fee only for packages tagged as fragile
+
+2. **Threshold Conditions**:
+   - Apply fees only when certain thresholds are met
+   - Weight-based thresholds (min/max weight)
+   - Value-based thresholds (min/max declared value)
+   - Date-based thresholds (valid from/until dates)
+
+3. **Fee Limits**:
+   - Minimum threshold: Ensures fee is at least a certain amount
+   - Maximum cap: Limits the maximum fee charged
+
+### Fee Calculation Service
+
+The fee calculation service implements the following key functions:
+
+- `calculateFee(fee, packageData)`: Main method to calculate a fee amount
+- `feeApplies(fee, packageData)`: Determines if a fee should apply to a package
+- `applyLimits(amount, metadata)`: Applies min/max constraints to calculated fee
+- Method-specific calculation functions for each fee type
+
+### Integration with Invoice Generation
+
+The fee system integrates with invoice generation to:
+
+1. Identify applicable fees for a package
+2. Calculate fee amounts based on package attributes
+3. Add fee line items to the invoice
+4. Apply tax calculations as appropriate 

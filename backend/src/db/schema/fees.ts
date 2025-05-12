@@ -16,7 +16,9 @@ export const calculationMethodEnum = pgEnum('calculation_method', [
   'fixed',
   'percentage',
   'per_weight',
-  'per_item'
+  'per_item',
+  'dimensional',
+  'tiered'
 ]);
 
 export const fees = pgTable('fees', {
@@ -31,6 +33,7 @@ export const fees = pgTable('fees', {
   amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
   currency: varchar('currency', { length: 3 }).notNull().default('USD'),
   appliesTo: jsonb('applies_to').default('[]'),
+  metadata: jsonb('metadata').default('{}'),
   description: text('description'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

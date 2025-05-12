@@ -87,7 +87,9 @@ The company settings table stores configurable settings for each company:
 | handlingFees         | JSONB                  | Handling fee configuration, defaults to empty object                 |
 | customsFees          | JSONB                  | Customs fee configuration, defaults to empty object                  |
 | taxRates             | JSONB                  | Tax rate configuration, defaults to empty object                     |
+| shippingAddress     | JSONB                  | Company shipping address for clients to send packages to, defaults to empty object |
 | notificationSettings | JSONB                  | Notification preferences, defaults to empty object                   |
+| exchangeRateSettings | JSONB                  | Currency exchange rate configuration, defaults to empty object        |
 | themeSettings        | JSONB                  | UI theme configuration, defaults to empty object                     |
 | createdAt            | Timestamp with TZ      | Creation timestamp, auto-generated                                   |
 | updatedAt            | Timestamp with TZ      | Last update timestamp, auto-generated                                |
@@ -145,12 +147,8 @@ The packages table records detailed package information:
 | receivedDate    | Timestamp with TZ      | Date when package was received at warehouse                               |
 | processingDate  | Timestamp with TZ      | Date when package processing began                                        |
 | photos          | Text Array             | Array of photo URLs for package images                                    |
-| customsFees     | Numeric               | Customs fees for package                                                  |
-| shippingFees    | Numeric               | Shipping fees                                                             |
-| handlingFees    | Numeric               | Handling fees                                                             |
-| taxAmount       | Numeric               | Tax amount                                                                |
-| insuranceFee    | Numeric               | Insurance fee                                                             |
-| totalFees       | Numeric               | Total of all fees                                                         |
+| tags            | Text Array             | Array of tags for categorizing and filtering packages                       |
+
 | notes           | Text                   | Additional notes                                                          |
 | createdAt       | Timestamp with TZ      | Creation timestamp, auto-generated                                        |
 | updatedAt       | Timestamp with TZ      | Last update timestamp, auto-generated                                     |
@@ -205,14 +203,24 @@ The fees table stores configurable fee types and calculation methods for compani
 | name              | Varchar(255)           | Human-readable name of the fee (not null)                                   |
 | code              | Varchar(50)            | Machine-readable code/identifier for the fee (not null)                     |
 | feeType           | Enum                   | Type of fee: 'tax', 'service', 'shipping', 'handling', 'customs', 'other'   |
-| calculationMethod | Enum                   | Fee calculation method: 'fixed', 'percentage', 'per_weight', 'per_item'     |
+| calculationMethod | Enum                   | Fee calculation method: 'fixed', 'percentage', 'per_weight', 'per_item', 'dimensional', 'tiered' |
 | amount            | Numeric               | Fee amount or percentage (not null)                                         |
 | currency          | Varchar(3)             | Currency code, defaults to 'USD'                                            |
 | appliesTo         | JSONB                  | JSON array of conditions or entity types this fee applies to                |
+| metadata          | JSONB                  | Method-specific configuration and advanced conditions                      |
 | description       | Text                   | Detailed description of the fee                                             |
 | isActive          | Boolean                | Whether this fee is currently active, defaults to true                      |
 | createdAt         | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt         | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
+
+The `metadata` JSONB field supports advanced fee configuration options such as:
+
+- **Dimensional Pricing**: Factor for dimensional weight calculation (length × width × height) / dimensionalFactor
+- **Tiered Pricing**: Configuration of price tiers based on weight, value, or other attributes
+- **Threshold Conditions**: Minimum/maximum values for fee application (e.g., only apply above certain weight)
+- **Date Conditions**: Date ranges when a fee is applicable
+- **Tag Conditions**: Required and excluded tags for fee application 
+- **Fee Limits**: Minimum thresholds or maximum caps on calculated fee amounts
 
 ## Database Relationships
 

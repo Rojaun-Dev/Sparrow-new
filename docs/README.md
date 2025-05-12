@@ -5,7 +5,7 @@ This directory contains all documentation for the SparrowX project.
 ## Documentation Index
 
 ### System Overview
-- [Technical Specifications](../Technical-Specification.md): Detailed system architecture, data models, and implementation details
+- [Technical Specifications](../Technical-Specification.md): Detailed system architecture, data models, advanced fee management system, and implementation details
 - [Development Rules](../SparrowX-Development-Rules.md): Guidelines and standards for development
 
 ### Setup and Configuration
@@ -17,8 +17,8 @@ This directory contains all documentation for the SparrowX project.
 - [Build Error Fixes](../BUILD-ERROR-FIXES.md): Solutions for common build issues
 
 ### Database
-- [Database Schema Documentation](../backend/SCHEMA_DOCUMENTATION.md): Comprehensive database schema reference with table structures and relationships
-- [Database Management Guide](./DATABASE.md): Complete guide to database migrations, seeding, and best practices
+- [Database Schema Documentation](../backend/SCHEMA_DOCUMENTATION.md): Comprehensive database schema reference with table structures, relationships, and fee configuration
+- [Database Management Guide](./DATABASE.md): Complete guide to database migrations, seeding, and best practices, including fee management system implementation
 
 ### Development
 - [Development Setup](./development-setup.md): Instructions for setting up the development environment

@@ -10,6 +10,10 @@ async function runMigrations() {
   
   // Create a PostgreSQL connection
   const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false,
+    },
     host: database.host,
     port: database.port,
     database: database.name,

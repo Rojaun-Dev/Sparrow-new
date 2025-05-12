@@ -17,7 +17,7 @@ sparrowx/
 │   │   ├── tables/          # Table components
 │   │   └── layout/          # Layout components
 │   ├── app/                 # Next.js app directory
-│   │   ├── auth/            # Auth0 authentication routes
+│   │   ├── auth/            # JWT authentication routes (DEPRECATED: previously Auth0)
 │   │   ├── dashboard/       # Dashboard routes
 │   │   ├── customers/       # Customer management routes
 │   │   └── ...              # Other feature routes
@@ -89,8 +89,8 @@ sparrowx/
    - Implement Skeleton/Spinner components for loading states
 
 4. **Authentication**
-   - Use Auth0 SDK for authentication flows
-   - Extract company_id and roles from Auth0 tokens
+   - Use JWT for authentication flows (DEPRECATED: previously Auth0 SDK)
+   - Extract company_id and roles from JWT tokens
    - Create protected route wrappers based on user roles
 
 5. **Multi-Tenant UI**
@@ -130,7 +130,7 @@ sparrowx/
    - Return standardized error responses for validation failures
 
 4. **Authentication & Authorization**
-   - Implement `checkJwt` middleware to verify Auth0 tokens
+   - Implement `checkJwt` middleware to verify JWT tokens (DEPRECATED: previously Auth0 tokens)
    - Create `checkRole(role)` middleware for authorization
    - Include proper error handling for expired/invalid tokens
 

@@ -14,6 +14,7 @@ export const createFeeSchema = z.object({
   amount: z.number().positive(),
   currency: z.string().length(3).default('USD'),
   appliesTo: z.array(z.string()).default([]),
+  metadata: z.record(z.any()).optional().default({}),
   description: z.string().optional(),
   isActive: z.boolean().default(true)
 });
@@ -109,22 +110,55 @@ export class FeesService extends BaseService<typeof fees> {
   /**
    * Calculate fee amount based on its method and value
    */
-  calculateFeeAmount(fee: any, baseAmount: number, weight?: number, quantity?: number) {
+  calculateFeeAmount(fee: any, baseAmount: number, packageData?: any) {
+    const weight = packageData?.weight || 0;
+    const quantity = packageData?.quantity || 1;
+    const dimensions = packageData?.dimensions || { length: 0, width: 0, height: 0 };
+    const metadata = fee.metadata || {};
+
     switch (fee.calculationMethod) {
       case 'fixed':
         return fee.amount;
+        
       case 'percentage':
         return (baseAmount * fee.amount) / 100;
+        
       case 'per_weight':
         if (!weight) {
           throw new Error('Weight is required for per_weight calculation method');
         }
         return fee.amount * weight;
+        
       case 'per_item':
         if (!quantity) {
           throw new Error('Quantity is required for per_item calculation method');
         }
         return fee.amount * quantity;
+        
+      case 'dimensional':
+        const dimensionalFactor = metadata.dimensionalFactor || 139; // Industry standard default
+        const { length, width, height } = dimensions;
+        
+        // Calculate dimensional weight
+        const dimensionalWeight = (length * width * height) / dimensionalFactor;
+        
+        // Use the greater of actual or dimensional weight
+        const chargeableWeight = Math.max(dimensionalWeight, weight);
+        
+        return fee.amount * chargeableWeight;
+        
+      case 'tiered':
+        const tiers = metadata.tiers || [];
+        const tierAttribute = metadata.tierAttribute || 'weight';
+        const value = packageData?.[tierAttribute] || 0;
+        
+        // Find the appropriate tier
+        const tier = tiers.find((t: any) => 
+          value >= t.min && (t.max === null || value < t.max)
+        );
+        
+        return tier ? tier.rate : 0;
+        
       default:
         throw new Error(`Unsupported calculation method: ${fee.calculationMethod}`);
     }

@@ -29,6 +29,27 @@ function generateTrackingId(companySubdomain: string): string {
 }
 
 /**
+ * Generate random tags for packages
+ */
+function generateRandomTags(): string[] {
+  const allTags = ['fragile', 'heavy', 'electronics', 'clothing', 'urgent', 'documents', 'perishable', 'gift', 'liquid', 'books', 'toys', 'furniture', 'vip', 'priority', 'commercial'];
+  const numberOfTags = Math.floor(Math.random() * 3) + 1; // 1-3 tags per package
+  const selectedTags: string[] = [];
+  
+  for (let i = 0; i < numberOfTags; i++) {
+    const randomTagIndex = Math.floor(Math.random() * allTags.length);
+    const tag = allTags[randomTagIndex];
+    
+    // Only add tag if not already selected
+    if (!selectedTags.includes(tag)) {
+      selectedTags.push(tag);
+    }
+  }
+  
+  return selectedTags;
+}
+
+/**
  * Seed packages table with initial data
  */
 export async function seedPackages(db: NodePgDatabase<any>) {
@@ -100,6 +121,7 @@ export async function seedPackages(db: NodePgDatabase<any>) {
               address: '123 Seller St, Miami, FL',
               phone: '+1-305-555-0000',
             },
+            tags: generateRandomTags(),
             receivedDate: randomStatus !== 'pre_alert' ? receivedDate : null,
             processingDate: ['processed', 'ready_for_pickup', 'delivered'].includes(randomStatus) 
               ? processingDate 

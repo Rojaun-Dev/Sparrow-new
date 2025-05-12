@@ -78,6 +78,68 @@ export const tableName = pgTable('table_name', {
 
 3. **JSONB Fields**: The database makes extensive use of JSONB fields for flexible data storage (e.g., package dimensions, sender information). These fields can store complex nested data structures.
 
+### Fee Structure
+
+The `fees` table uses an extended calculation method enum with the following values:
+
+```typescript
+export const calculationMethodEnum = pgEnum('calculation_method', [
+  'fixed',       // Flat fee
+  'percentage',  // Percentage-based fee
+  'per_weight',  // Price per weight unit
+  'per_item',    // Price per item
+  'dimensional', // Dimensional weight pricing
+  'tiered'       // Tiered pricing
+]);
+```
+
+The `metadata` JSONB field in the fees table stores method-specific configuration:
+
+1. **Dimensional Weight Pricing**:
+   ```json
+   {
+     "dimensionalFactor": 139  // Divisor for (length × width × height)
+   }
+   ```
+
+2. **Tiered Pricing**:
+   ```json
+   {
+     "tiers": [
+       {"min": 0, "max": 5, "rate": 10.00},
+       {"min": 5, "max": 10, "rate": 15.00},
+       {"min": 10, "max": null, "rate": 20.00}
+     ],
+     "tierAttribute": "weight"  // What to tier on (weight, value, etc.)
+   }
+   ```
+
+3. **Percentage Fee**:
+   ```json
+   {
+     "baseAttribute": "subtotal"  // What to calculate percentage on
+   }
+   ```
+
+4. **Fee Conditions**:
+   ```json
+   {
+     "tagConditions": {
+       "requiredTags": ["fragile"],
+       "excludedTags": ["document"]
+     },
+     "thresholdConditions": {
+       "minWeight": 5,
+       "maxValue": 1000,
+       "validFrom": "2023-01-01"
+     },
+     "minimumThreshold": 5.00,
+     "maximumCap": 50.00
+   }
+   ```
+
+When creating or updating fee records, ensure the metadata structure matches the calculation method to avoid calculation errors.
+
 ## Migrations
 
 Migrations allow you to evolve your database schema over time, tracking changes in version control and applying them in a consistent way across all environments.
@@ -186,6 +248,120 @@ export async function seedEntityName(db: NodePgDatabase<any>) {
 ```
 
 The seed files are executed in order, respecting dependencies (e.g., companies must be created before users).
+
+#### Example Fee Seed Data
+
+The `fees.ts` seed file includes examples of various fee calculation methods:
+
+```typescript
+// Basic fixed fee
+await db.insert(fees).values({
+  companyId: company.id,
+  name: 'Base Handling',
+  code: 'HANDLE_BASE',
+  feeType: 'handling',
+  calculationMethod: 'fixed',
+  amount: '5.00',
+  currency: 'USD',
+  appliesTo: ['package'],
+  description: 'Standard handling fee per package',
+  isActive: true,
+});
+
+// Percentage-based fee with metadata
+await db.insert(fees).values({
+  companyId: company.id,
+  name: 'General Consumption Tax',
+  code: 'GCT',
+  feeType: 'tax',
+  calculationMethod: 'percentage',
+  amount: '15.00', // 15%
+  currency: 'USD',
+  appliesTo: ['shipping', 'handling', 'customs'],
+  metadata: {
+    baseAttribute: 'subtotal',
+    minimumThreshold: 2.00
+  },
+  description: 'Standard Jamaica GCT applied to all services',
+  isActive: true,
+});
+
+// Per-weight fee
+await db.insert(fees).values({
+  companyId: company.id,
+  name: 'Per Pound Shipping',
+  code: 'SHIP_LB',
+  feeType: 'shipping',
+  calculationMethod: 'per_weight',
+  amount: '2.50', // $2.50 per pound
+  currency: 'USD',
+  appliesTo: ['weight'],
+  metadata: {
+    unit: 'lb',
+    attributeName: 'weight'
+  },
+  description: 'Standard shipping rate per pound',
+  isActive: true,
+});
+
+// Dimensional weight pricing
+await db.insert(fees).values({
+  companyId: company.id,
+  name: 'Volumetric Shipping',
+  code: 'SHIP_DIM',
+  feeType: 'shipping',
+  calculationMethod: 'dimensional',
+  amount: '2.00', // $2.00 per dimensional pound
+  currency: 'USD',
+  appliesTo: ['package'],
+  metadata: {
+    dimensionalFactor: 139
+  },
+  description: 'Shipping based on dimensional weight',
+  isActive: true,
+});
+
+// Tiered pricing based on weight
+await db.insert(fees).values({
+  companyId: company.id,
+  name: 'Tiered Weight Pricing',
+  code: 'TIER_WEIGHT',
+  feeType: 'shipping',
+  calculationMethod: 'tiered',
+  amount: '0.00', // Base amount not used for tiered
+  currency: 'USD',
+  appliesTo: ['package'],
+  metadata: {
+    tierAttribute: 'weight',
+    tiers: [
+      { min: 0, max: 5, rate: 10.00 },
+      { min: 5, max: 10, rate: 15.00 },
+      { min: 10, max: null, rate: 20.00 }
+    ]
+  },
+  description: 'Tiered shipping rates based on weight',
+  isActive: true,
+});
+
+// Fee with tag conditions
+await db.insert(fees).values({
+  companyId: company.id,
+  name: 'Fragile Handling',
+  code: 'FRAGILE',
+  feeType: 'handling',
+  calculationMethod: 'fixed',
+  amount: '10.00',
+  currency: 'USD',
+  appliesTo: ['package'],
+  metadata: {
+    tagConditions: {
+      requiredTags: ['fragile']
+    }
+  },
+  description: 'Additional handling for fragile items',
+  isActive: true,
+});
+```
 
 ### Running Seeds
 
