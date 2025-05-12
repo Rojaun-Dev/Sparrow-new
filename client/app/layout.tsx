@@ -8,13 +8,15 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { FeedbackProvider } from "@/components/ui/toast-provider"
 import { AuthProvider } from "@/hooks/useAuth"
 import "./globals.css"
+import { QueryProvider } from "@/lib/providers/QueryProvider"
+import type { Metadata } from "next"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "SparrowX - Package Forwarding Service",
-  description: "Multi-tenant SaaS platform for package forwarding services",
-    generator: 'v0.dev'
+export const metadata: Metadata = {
+  title: "SparrowX - Package Forwarding",
+  description: "SparrowX Package Forwarding Platform",
+  generator: 'v0.dev'
 }
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +32,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            <FeedbackProvider>{children}</FeedbackProvider>
+            <QueryProvider>
+              <FeedbackProvider>{children}</FeedbackProvider>
+            </QueryProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

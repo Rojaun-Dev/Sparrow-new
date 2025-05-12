@@ -260,205 +260,6 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
   - Notifications
 - React Query for API data fetching and caching
 
-## 7. Security Measures
-- **Authentication**: Auth0 JWT verification on all protected routes
-- **Authorization**: Role-based access control on both frontend and backend
-- **Data Isolation**: Tenant filtering on all database queries
-- **Input Validation**: Zod schema validation on all API endpoints
-- **CSRF Protection**: Token-based protection for state-changing operations
-- **Rate Limiting**: API rate limiting to prevent abuse
-- **Content Security Policy**: Restricted resource loading policies
-- **Database Security**:
-  - Parameterized queries to prevent SQL injection
-  - Encryption of sensitive fields
-  - Row-level security policies
-- **Audit Logging**: Comprehensive logging of security-relevant events
-- **Regular Security Audits**: Scheduled security reviews and penetration testing
-
-## 8. External Integrations
-- **Shipping Carriers**:
-  - Magaya Integration
-## 9. Deployment Infrastructure
-- **Development Environment**:
-  - Local Docker setup
-  - Development database
-  - Auth0 tenant for development
-- **Production Environment**:
-  - Load-balanced AWS EC2 instances for backend
-  - Vercel production deployment for frontend
-  - Production PostgreSQL with read replicas
-  - Redis for caching
-  - CloudFront CDN for static assets
-
-## 10. Testing Strategy
-- **Unit Testing**:
-  - Jest for JavaScript/TypeScript testing
-  - Backend service and utility function tests
-  - Frontend component tests
-- **Integration Testing**:
-  - API endpoint testing with Supertest
-  - Database integration tests
-- **End-to-End Testing**:
-  - Cypress for frontend user flows
-  - Multi-tenant testing scenarios
-- **Performance Testing**:
-  - Load testing with k6
-  - Database query performance benchmarking
-- **Security Testing**:
-  - Regular vulnerability scanning
-  - Penetration testing
-
-## 11. Monitoring and Logging
-- **Application Monitoring**:
-  - DataDog APM for performance monitoring
-  - Error tracking with Sentry
-- **Infrastructure Monitoring**:
-  - Server metrics monitoring
-  - Database performance monitoring
-  - API response time tracking
-- **Logging**:
-  - Structured JSON logs
-  - Centralized log aggregation
-  - Log retention policies
-- **Alerting**:
-  - Critical error notifications
-  - Performance degradation alerts
-  - Security incident alerts
-
-## 12. Performance Optimization
-- **Database Optimization**:
-  - Appropriate indexes on frequently queried fields
-  - Query optimization for multi-tenant filtering
-  - Connection pooling
-- **API Performance**:
-  - Response caching with Redis
-  - Pagination for large result sets
-  - Throttling for resource-intensive operations
-- **Frontend Performance**:
-  - Code splitting for reduced bundle size
-  - Static site generation for public pages
-  - Image optimization
-  - Service worker for offline capabilities
-
-## 13. Backup and Disaster Recovery
-- **Database Backups**:
-  - Automated daily backups
-  - Point-in-time recovery capability
-- **Application Backups**:
-  - Configuration backup
-  - File storage backup
-- **Disaster Recovery Plan**:
-  - Documented recovery procedures
-  - Regular recovery testing
-  - Cross-region replication
-
-## 14. Documentation
-- **API Documentation**:
-  - API usage examples
-- **Codebase Documentation**:
-  - Inline code documentation
-  - Architecture diagrams
-  - Design decisions
-- **Operational Documentation**:
-  - Deployment procedures
-  - Monitoring and alerting setup
-  - Troubleshooting guides
-
-## 15. Roadmap and Future Enhancements
-- **Phase 1 (MVP)**:
-  - Basic package tracking
-  - Simple invoicing
-  - Customer portal
-- **Phase 2**:
-  - Advanced reporting
-  - Integration with major shipping carriers
-  - Mobile application
-- **Phase 3**:
-  - Machine learning for package processing
-  - Predictive analytics
-  - International expansion
-
-## 16. Fee Management System
-
-The SparrowX platform includes a robust and flexible fee management system that allows companies to configure various types of charges that are dynamically calculated based on package data.
-
-### Fee Calculation Methods
-
-The system supports the following fee calculation methods:
-
-1. **Flat Fee (`fixed`)**: 
-   - A simple fixed amount charged regardless of package attributes
-   - Example: $5 handling fee per package
-
-2. **Percentage-Based Fee (`percentage`)**: 
-   - Fee calculated as a percentage of a base amount
-   - Can be applied to subtotal, total, or declared value
-   - Example: 15% tax on subtotal
-
-3. **Price Per Unit (`per_weight`, `per_item`)**:
-   - Fee calculated based on a unit price multiplied by a quantity
-   - Supports different units (kg, lb, item, cubic meter, etc.)
-   - Example: $2.50 per pound shipping fee
-
-4. **Dimensional Weight Pricing (`dimensional`)**:
-   - Calculates fee based on volumetric weight using formula: (length × width × height) / dimensionalFactor
-   - Uses the greater of actual weight or dimensional weight
-   - Example: Shipping fee for bulky but lightweight items
-
-5. **Tiered Pricing (`tiered`)**:
-   - Sets different rates based on value ranges
-   - Can be tiered on any numeric attribute (weight, value, etc.)
-   - Example: 0-5kg = $10, 5-10kg = $15, 10kg+ = $20
-
-### Fee Metadata
-
-Each fee can include additional configuration in the `metadata` JSONB field:
-
-```json
-{
-  "dimensionalFactor": 139,
-  "tiers": [
-    { "min": 0, "max": 5, "rate": 10.00 },
-    { "min": 5, "max": 10, "rate": 15.00 },
-    { "min": 10, "max": null, "rate": 20.00 }
-  ],
-  "baseAttribute": "subtotal",
-  "unit": "kg",
-  "attributeName": "weight",
-  "minimumThreshold": 5.00,
-  "maximumCap": 50.00,
-  "tagConditions": {
-    "requiredTags": ["fragile", "oversized"],
-    "excludedTags": ["document"]
-  },
-  "thresholdConditions": {
-    "minWeight": 2,
-    "maxWeight": 50,
-    "minValue": 100,
-    "validFrom": "2023-01-01",
-    "validUntil": "2023-12-31"
-  }
-}
-```
-
-### Fee Calculation Service
-
-The fee calculation service implements the following key functions:
-
-- `calculateFee(fee, packageData)`: Main method to calculate a fee amount
-- `feeApplies(fee, packageData)`: Determines if a fee should apply to a package
-- `applyLimits(amount, metadata)`: Applies min/max constraints to calculated fee
-- Method-specific calculation functions for each fee type
-
-### Integration with Invoice Generation
-
-The fee system integrates with invoice generation to:
-
-1. Identify applicable fees for a package
-2. Calculate fee amounts based on package attributes
-3. Add fee line items to the invoice
-4. Apply tax calculations as appropriate
-
 ## 7. Billing and Invoice Generation
 
 ### Billing Calculation Process
@@ -512,45 +313,50 @@ The billing system consists of multiple components:
 4. **Packages Repository**: Includes methods to find unbilled packages
 5. **Configuration Repository**: Stores company-specific billing rules
 
-## 8. Frontend Architecture
+## 8. Customer Portal Integration
 
-### Page Structure
-- **Public Pages**: Home, About, Contact, Pricing, Login/Signup
-- **Customer Portal**:
-  - Dashboard
-  - Package Tracking
-  - Pre-alerts
-  - Invoices
-  - Payments
-  - Profile/Settings
-- **Admin Portal (L1/L2)**:
-  - Dashboard
-  - Customer Management
-  - Package Management
-  - Invoice Management
-  - Payment Processing
-  - Reports
-  - Company Settings (L2 only)
-  - Employee Management (L2 only)
+The SparrowX platform includes a customer portal interface that allows customers to track packages, create pre-alerts, view and pay invoices, and manage their account information. The customer portal is built on the same multi-tenant architecture as the rest of the platform, ensuring proper data isolation and security.
 
-### Component Architecture
-- **Layout Components**: AppShell, Navbar, Sidebar, Footer
-- **Authentication Components**: LoginForm, SignupForm, PasswordReset
-- **Data Display Components**: DataTable, Card, StatusBadge, Timeline
-- **Form Components**: FormInput, FormSelect, DatePicker, FileUpload
-- **UI Components**: Button, Modal, Notification, Tabs, Accordion
-- **Domain-Specific Components**:
-  - PackageCard, PackageDetails, PackageStatusFlow
-  - InvoiceForm, InvoicePreview, PaymentForm
-  - CustomerProfile, CustomerPackages, CustomerInvoices
+### Customer Portal Architecture
 
-### State Management
-- React Context API for:
-  - Authentication state
-  - Company branding/theming
-  - User preferences
-  - Notifications
-- React Query for API data fetching and caching
+1. **Frontend Components**:
+   - Next.js-based responsive interface
+   - Company-specific branding and theming
+   - Mobile-friendly design with responsive layouts
+   - Real-time package tracking and status updates
+
+2. **Backend Integration**:
+   - RESTful API endpoints for all customer operations
+   - JWT-based authentication and session management
+   - Role-based access control limiting users to customer-specific actions
+   - Webhooks for real-time event notifications
+
+3. **Customer-Specific Functionality**:
+   - Package tracking with status history and photos
+   - Pre-alert creation and management
+   - Invoice viewing and online payment
+   - Profile management and communication preferences
+
+### Integration Points
+
+The customer portal provides several integration points for custom implementations:
+
+1. **API Integration**:
+   - Comprehensive REST API for all customer operations
+   - Consistent authentication and authorization mechanisms
+   - Standardized error handling and response formats
+
+2. **Webhook Events**:
+   - Real-time notifications for package status changes(PLANNED)
+   - Invoice and payment status updates
+   - Customer account activity notifications(PLANNED)
+
+3. **Custom Frontend Integration**:
+   - Ability to embed tracking widgets in external sites(PLANNED)
+   - White-labeled customer portal instances
+   - Custom domain mapping for tenant-specific portals
+
+For detailed integration instructions, refer to the [Customer Portal Integration Guide](./CUSTOMER-PORTAL-INTEGRATION.md).
 
 ## 9. Security Measures
 - **Authentication**: Auth0 JWT verification on all protected routes
@@ -570,6 +376,7 @@ The billing system consists of multiple components:
 ## 10. External Integrations
 - **Shipping Carriers**:
   - Magaya Integration
+
 ## 11. Deployment Infrastructure
 - **Development Environment**:
   - Local Docker setup

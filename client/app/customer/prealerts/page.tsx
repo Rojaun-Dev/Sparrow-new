@@ -1,5 +1,19 @@
+'use client';
+
 import Link from "next/link"
-import { Calendar, ChevronDown, Eye, Filter, Package, PlusCircle, Search, X } from "lucide-react"
+import { 
+  Calendar, 
+  ChevronDown, 
+  Eye, 
+  Filter, 
+  Package, 
+  PlusCircle, 
+  Search, 
+  X,
+  Loader2,
+  AlertCircle
+} from "lucide-react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { 
@@ -33,55 +47,91 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useUserPreAlerts, useCancelPreAlert } from "@/hooks"
+import { PreAlert, PreAlertFilterParams } from "@/lib/api/types"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function PreAlertsPage() {
-  // Example pre-alert data - in a real app, this would come from an API
-  const preAlerts = [
-    {
-      id: "prea-001",
-      trackingNumber: "1Z999AA10123456784",
-      courier: "UPS",
-      description: "T-shirts (3)",
-      status: "pending",
-      statusLabel: "Pending",
-      estimatedWeight: "1.5 lbs",
-      estimatedArrival: "Jun 10, 2023",
-      createdAt: "May 25, 2023",
-    },
-    {
-      id: "prea-002",
-      trackingNumber: "390489283204893249",
-      courier: "USPS",
-      description: "Books from Amazon",
-      status: "matched",
-      statusLabel: "Matched",
-      estimatedWeight: "4.2 lbs",
-      estimatedArrival: "Jun 5, 2023",
-      createdAt: "May 24, 2023",
-    },
-    {
-      id: "prea-003",
-      trackingNumber: "7777271623901",
-      courier: "FedEx",
-      description: "iPhone Accessories",
-      status: "pending",
-      statusLabel: "Pending",
-      estimatedWeight: "0.8 lbs",
-      estimatedArrival: "Jun 15, 2023",
-      createdAt: "May 28, 2023",
-    },
-    {
-      id: "prea-004",
-      trackingNumber: "JJD0099881276321",
-      courier: "DHL",
-      description: "Laptop Parts",
-      status: "cancelled",
-      statusLabel: "Cancelled",
-      estimatedWeight: "3.0 lbs",
-      estimatedArrival: "Jun 8, 2023",
-      createdAt: "May 20, 2023",
-    },
-  ]
+  const { toast } = useToast();
+  
+  // Filter state
+  const [filters, setFilters] = useState<PreAlertFilterParams>({
+    page: 1,
+    limit: 10,
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  });
+  
+  // Form inputs state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [courierFilter, setCourierFilter] = useState('');
+  const [creationDate, setCreationDate] = useState('');
+
+  // Fetch pre-alerts with current filters
+  const { 
+    data: preAlertsData, 
+    isLoading, 
+    error, 
+    refetch 
+  } = useUserPreAlerts(filters);
+
+  // Cancel pre-alert mutation
+  const cancelPreAlert = useCancelPreAlert();
+
+  // Apply filters when the apply button is clicked
+  const applyFilters = () => {
+    const newFilters: PreAlertFilterParams = {
+      ...filters,
+      search: searchTerm || undefined,
+      status: statusFilter !== 'all' ? statusFilter as any || undefined : undefined,
+      dateFrom: creationDate || undefined,
+    };
+    
+    setFilters(newFilters);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('');
+    setCourierFilter('');
+    setCreationDate('');
+    
+    setFilters({
+      page: 1,
+      limit: 10,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+  };
+
+  // Handle cancelling a pre-alert
+  const handleCancelPreAlert = async (id: string) => {
+    try {
+      await cancelPreAlert.mutateAsync(id);
+      toast({
+        title: "Pre-alert cancelled",
+        description: "Your pre-alert has been successfully cancelled.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel pre-alert. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Format date string
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -96,6 +146,11 @@ export default function PreAlertsPage() {
         return "bg-gray-500"
     }
   }
+
+  // Format status label
+  const formatStatusLabel = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -124,9 +179,11 @@ export default function PreAlertsPage() {
                 type="search"
                 placeholder="Search tracking#..."
                 className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -137,7 +194,7 @@ export default function PreAlertsPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select>
+            <Select value={courierFilter} onValueChange={setCourierFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Courier" />
               </SelectTrigger>
@@ -150,17 +207,22 @@ export default function PreAlertsPage() {
               </SelectContent>
             </Select>
             <div>
-              <Input type="date" placeholder="Creation date" />
+              <Input 
+                type="date" 
+                placeholder="Creation date"
+                value={creationDate}
+                onChange={(e) => setCreationDate(e.target.value)}
+              />
             </div>
           </div>
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
           <div className="flex items-center justify-between w-full">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={clearFilters}>
               <X className="mr-2 h-4 w-4" />
               Clear Filters
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={applyFilters}>
               <Filter className="mr-2 h-4 w-4" />
               Apply Filters
             </Button>
@@ -168,12 +230,25 @@ export default function PreAlertsPage() {
         </CardFooter>
       </Card>
 
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            Failed to load pre-alerts. Please try again later.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle>Pre-Alert List</CardTitle>
             <CardDescription>
-              Showing {preAlerts.length} pre-alerts
+              {isLoading 
+                ? 'Loading pre-alerts...'
+                : `Showing ${preAlertsData?.data.length || 0} pre-alerts`
+              }
             </CardDescription>
           </div>
           <div className="flex items-center space-x-2">
@@ -184,79 +259,111 @@ export default function PreAlertsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[180px]">Tracking #</TableHead>
-                  <TableHead>Courier</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="hidden md:table-cell">Est. Weight</TableHead>
-                  <TableHead className="hidden md:table-cell">Est. Arrival</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {preAlerts.map((preAlert) => (
-                  <TableRow key={preAlert.id}>
-                    <TableCell className="font-medium">{preAlert.trackingNumber}</TableCell>
-                    <TableCell>{preAlert.courier}</TableCell>
-                    <TableCell>{preAlert.description}</TableCell>
-                    <TableCell className="hidden md:table-cell">{preAlert.estimatedWeight}</TableCell>
-                    <TableCell className="hidden md:table-cell">{preAlert.estimatedArrival}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusBadgeColor(preAlert.status)}>
-                        {preAlert.statusLabel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            Actions <ChevronDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/customer/prealerts/${preAlert.id}`}>
-                              <Eye className="mr-2 h-4 w-4" /> 
-                              View Details
-                            </Link>
-                          </DropdownMenuItem>
-                          {preAlert.status === "pending" && (
-                            <DropdownMenuItem>
-                              <X className="mr-2 h-4 w-4" />
-                              Cancel Pre-Alert
-                            </DropdownMenuItem>
-                          )}
-                          {preAlert.status === "matched" && (
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : preAlertsData?.data.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No pre-alerts found. Try adjusting your filters or create a new pre-alert.
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">Tracking #</TableHead>
+                    <TableHead>Courier</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="hidden md:table-cell">Est. Weight</TableHead>
+                    <TableHead className="hidden md:table-cell">Est. Arrival</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {preAlertsData?.data.map((preAlert: PreAlert) => (
+                    <TableRow key={preAlert.id}>
+                      <TableCell className="font-medium">{preAlert.trackingNumber}</TableCell>
+                      <TableCell>{preAlert.courier}</TableCell>
+                      <TableCell>{preAlert.description}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {preAlert.weight ? `${preAlert.weight} lbs` : 'N/A'}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {preAlert.estimatedArrival 
+                          ? formatDate(preAlert.estimatedArrival) 
+                          : 'N/A'
+                        }
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusBadgeColor(preAlert.status)}>
+                          {formatStatusLabel(preAlert.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              Actions <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href="/customer/packages">
-                                <Package className="mr-2 h-4 w-4" />
-                                View Package
+                              <Link href={`/customer/prealerts/${preAlert.id}`}>
+                                <Eye className="mr-2 h-4 w-4" /> 
+                                View Details
                               </Link>
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                            {preAlert.status === "pending" && (
+                              <DropdownMenuItem 
+                                onClick={() => handleCancelPreAlert(preAlert.id)}
+                                disabled={cancelPreAlert.isPending}
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                {cancelPreAlert.isPending ? 'Cancelling...' : 'Cancel Pre-Alert'}
+                              </DropdownMenuItem>
+                            )}
+                            {preAlert.status === "matched" && preAlert.packageId && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/customer/packages/${preAlert.packageId}`}>
+                                  <Package className="mr-2 h-4 w-4" />
+                                  View Package
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-muted-foreground">
-              Showing <strong>{preAlerts.length}</strong> of <strong>{preAlerts.length}</strong> pre-alerts
+              {preAlertsData?.pagination && 
+                `Page ${preAlertsData.pagination.page} of ${preAlertsData.pagination.totalPages}`
+              }
             </div>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" disabled>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!preAlertsData?.pagination || preAlertsData.pagination.page <= 1}
+                onClick={() => setFilters(prev => ({ ...prev, page: prev.page ? prev.page - 1 : 1 }))}
+              >
                 Previous
               </Button>
-              <Button variant="outline" size="sm" disabled>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!preAlertsData?.pagination || preAlertsData.pagination.page >= preAlertsData.pagination.totalPages}
+                onClick={() => setFilters(prev => ({ ...prev, page: prev.page ? prev.page + 1 : 2 }))}
+              >
                 Next
               </Button>
             </div>

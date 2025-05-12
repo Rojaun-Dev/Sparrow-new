@@ -1,5 +1,19 @@
+'use client';
+
 import Link from "next/link"
-import { Calendar, ChevronDown, CreditCard, Download, Eye, Filter, Search, X } from "lucide-react"
+import { 
+  Calendar, 
+  ChevronDown, 
+  CreditCard, 
+  Download, 
+  Eye, 
+  Filter, 
+  Search, 
+  X,
+  Loader2,
+  AlertCircle
+} from "lucide-react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { 
@@ -41,68 +55,142 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useUserPayments, useDownloadPaymentReceipt } from "@/hooks"
+import { Payment, PaymentFilterParams } from "@/lib/api/types"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function PaymentsPage() {
-  // Example payment data - in a real app, this would come from an API
-  const payments = [
-    {
-      id: "pmt-001",
-      invoiceNumber: "INV-203",
-      paymentMethod: "Credit Card",
-      paymentMethodDetails: "**** **** **** 4242",
-      amount: "$85.50",
-      status: "completed",
-      statusLabel: "Completed",
-      date: "May 29, 2023",
-      transactionId: "txn_1NjTxLKj8JNkCvBl7QTrFxBp",
-    },
-    {
-      id: "pmt-002",
-      invoiceNumber: "INV-201",
-      paymentMethod: "PayPal",
-      paymentMethodDetails: "john.doe@example.com",
-      amount: "$112.30",
-      status: "completed",
-      statusLabel: "Completed",
-      date: "May 18, 2023",
-      transactionId: "9K5731485Y547602N",
-    },
-    {
-      id: "pmt-003",
-      invoiceNumber: "INV-200",
-      paymentMethod: "Bank Transfer",
-      paymentMethodDetails: "Wire Transfer",
-      amount: "$215.75",
-      status: "completed",
-      statusLabel: "Completed",
-      date: "May 10, 2023",
-      transactionId: "WIRE-78912345",
-    },
-    {
-      id: "pmt-004",
-      invoiceNumber: "INV-199",
-      paymentMethod: "Credit Card",
-      paymentMethodDetails: "**** **** **** 4242",
-      amount: "$45.20",
-      status: "failed",
-      statusLabel: "Failed",
-      date: "May 5, 2023",
-      transactionId: "txn_1NjLkPKj8JNkCvBl6YTfJsBn",
-    },
-    {
-      id: "pmt-005",
-      invoiceNumber: "INV-199",
-      paymentMethod: "Credit Card",
-      paymentMethodDetails: "**** **** **** 4242",
-      amount: "$45.20",
-      status: "completed",
-      statusLabel: "Completed",
-      date: "May 6, 2023",
-      transactionId: "txn_1NjMxRKj8JNkCvBl2FTwMpSq",
-    },
-  ]
+  const { toast } = useToast();
+  
+  // State for active tab
+  const [activeTab, setActiveTab] = useState("history");
+  
+  // Filter state
+  const [filters, setFilters] = useState<PaymentFilterParams>({
+    page: 1,
+    limit: 10,
+    sortBy: 'paymentDate',
+    sortOrder: 'desc'
+  });
+  
+  // Form inputs state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
-  // Example payment methods
+  // Fetch payments with current filters
+  const { 
+    data: paymentsData, 
+    isLoading, 
+    error,
+    refetch
+  } = useUserPayments(filters);
+
+  // Receipt Download mutation
+  const downloadReceipt = useDownloadPaymentReceipt();
+  
+  // Apply filters when the apply button is clicked
+  const applyFilters = () => {
+    const newFilters: PaymentFilterParams = {
+      ...filters,
+      search: searchTerm || undefined,
+      method: methodFilter !== 'all' ? methodFilter as any || undefined : undefined,
+      dateFrom: fromDate || undefined,
+      dateTo: toDate || undefined,
+    };
+    
+    setFilters(newFilters);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setMethodFilter('');
+    setFromDate('');
+    setToDate('');
+    
+    setFilters({
+      page: 1,
+      limit: 10,
+      sortBy: 'paymentDate',
+      sortOrder: 'desc'
+    });
+  };
+
+  // Handle receipt download
+  const handleDownloadReceipt = async (id: string) => {
+    try {
+      await downloadReceipt.mutateAsync(id);
+      toast({
+        title: "Receipt Downloaded",
+        description: "Payment receipt has been downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download payment receipt. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Format date string
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  // Format payment method display
+  const formatPaymentMethod = (method: string, payment: Payment) => {
+    switch (method) {
+      case 'credit_card':
+        return `Credit Card ${payment.transactionId ? `(${payment.transactionId.slice(-4)})` : ''}`;
+      case 'bank_transfer':
+        return 'Bank Transfer';
+      case 'cash':
+        return 'Cash';
+      case 'check':
+        return 'Check';
+      default:
+        return method.replace('_', ' ');
+    }
+  };
+
+  // Get status badge color based on status
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-500"
+      case "pending":
+        return "bg-blue-500"
+      case "failed":
+        return "bg-red-500"
+      case "refunded":
+        return "bg-amber-500"
+      default:
+        return "bg-gray-500"
+    }
+  }
+
+  // Format status label
+  const formatStatusLabel = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  // Example payment methods (would come from API in real implementation)
   const paymentMethods = [
     {
       id: "pm-001",
@@ -128,23 +216,7 @@ export default function PaymentsPage() {
       email: "john.doe@example.com",
       isDefault: false,
     },
-  ]
-
-  // Get status badge color based on status
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-500"
-      case "processing":
-        return "bg-blue-500"
-      case "failed":
-        return "bg-red-500"
-      case "refunded":
-        return "bg-amber-500"
-      default:
-        return "bg-gray-500"
-    }
-  }
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -172,7 +244,7 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="history" className="w-full">
+      <Tabs defaultValue="history" className="w-full" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="history">Payment History</TabsTrigger>
           <TabsTrigger value="methods">Payment Methods</TabsTrigger>
@@ -192,34 +264,47 @@ export default function PaymentsPage() {
                     type="search"
                     placeholder="Search transactions..."
                     className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <Select>
+                <Select value={methodFilter} onValueChange={setMethodFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="Payment Method" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Methods</SelectItem>
-                    <SelectItem value="card">Credit Card</SelectItem>
-                    <SelectItem value="paypal">PayPal</SelectItem>
-                    <SelectItem value="bank">Bank Transfer</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="check">Check</SelectItem>
                   </SelectContent>
                 </Select>
                 <div>
-                  <Input type="date" placeholder="From Date" />
+                  <Input 
+                    type="date" 
+                    placeholder="From Date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                  />
                 </div>
                 <div>
-                  <Input type="date" placeholder="To Date" />
+                  <Input 
+                    type="date" 
+                    placeholder="To Date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                  />
                 </div>
               </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
               <div className="flex items-center justify-between w-full">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={clearFilters}>
                   <X className="mr-2 h-4 w-4" />
                   Clear Filters
                 </Button>
-                <Button size="sm">
+                <Button size="sm" onClick={applyFilters}>
                   <Filter className="mr-2 h-4 w-4" />
                   Apply Filters
                 </Button>
@@ -227,12 +312,25 @@ export default function PaymentsPage() {
             </CardFooter>
           </Card>
 
+          {error && (
+            <Alert variant="destructive" className="mt-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                Failed to load payment history. Please try again later.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div>
                 <CardTitle>Transaction History</CardTitle>
                 <CardDescription>
-                  Your payment history for the past 90 days
+                  {isLoading 
+                    ? 'Loading payment history...'
+                    : `Showing ${paymentsData?.data.length || 0} transactions`
+                  }
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm">
@@ -241,76 +339,101 @@ export default function PaymentsPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[120px]">Invoice #</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Payment Method</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payments.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell className="font-medium">
-                          <Link href={`/customer/invoices/${payment.invoiceNumber}`} className="hover:underline">
-                            {payment.invoiceNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{payment.date}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>{payment.paymentMethod}</span>
-                            <span className="text-xs text-muted-foreground">{payment.paymentMethodDetails}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{payment.amount}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusBadgeColor(payment.status)}>
-                            {payment.statusLabel}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                Actions <ChevronDown className="ml-2 h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/customer/payments/${payment.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Receipt
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Download className="mr-2 h-4 w-4" />
-                                Download Receipt
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : paymentsData?.data.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No payment transactions found. Try adjusting your filters.
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[120px]">Invoice #</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Payment Method</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {paymentsData?.data.map((payment: Payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-medium">
+                            {payment.invoiceId}
+                          </TableCell>
+                          <TableCell>{formatDate(payment.paymentDate)}</TableCell>
+                          <TableCell>
+                            {formatPaymentMethod(payment.paymentMethod, payment)}
+                          </TableCell>
+                          <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusBadgeColor(payment.status)}>
+                              {formatStatusLabel(payment.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  Actions <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {payment.invoiceId && (
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/customer/invoices/${payment.invoiceId}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Invoice
+                                    </Link>
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => handleDownloadReceipt(payment.id)}>
+                                  <Download className="mr-2 h-4 w-4" />
+                                  {downloadReceipt.isPending ? 'Downloading...' : 'Download Receipt'}
+                                </DropdownMenuItem>
+                                {payment.status === "completed" && payment.amount > 0 && (
+                                  <DropdownMenuItem disabled>
+                                    <X className="mr-2 h-4 w-4" />
+                                    Request Refund
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
               <div className="flex items-center justify-between w-full">
                 <div className="text-sm text-muted-foreground">
-                  Showing <strong>{payments.length}</strong> of <strong>{payments.length}</strong> transactions
+                  {paymentsData?.pagination && 
+                    `Page ${paymentsData.pagination.page} of ${paymentsData.pagination.totalPages}`
+                  }
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" disabled>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!paymentsData?.pagination || paymentsData.pagination.page <= 1}
+                    onClick={() => setFilters(prev => ({ ...prev, page: prev.page ? prev.page - 1 : 1 }))}
+                  >
                     Previous
                   </Button>
-                  <Button variant="outline" size="sm" disabled>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!paymentsData?.pagination || paymentsData.pagination.page >= paymentsData.pagination.totalPages}
+                    onClick={() => setFilters(prev => ({ ...prev, page: prev.page ? prev.page + 1 : 2 }))}
+                  >
                     Next
                   </Button>
                 </div>
@@ -318,75 +441,100 @@ export default function PaymentsPage() {
             </CardFooter>
           </Card>
         </TabsContent>
-
+        
         <TabsContent value="methods" className="mt-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle>Saved Payment Methods</CardTitle>
-                <CardDescription>
-                  Manage your saved payment methods
-                </CardDescription>
-              </div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button disabled>
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Add New Method
-                      <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">Coming Soon</Badge>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Adding payment methods will be available in a future release</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            <CardHeader>
+              <CardTitle>Saved Payment Methods</CardTitle>
+              <CardDescription>Manage your saved payment methods.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8">
-                <CreditCard className="mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-medium">Payment Methods Management Coming Soon</h3>
-                <p className="mb-4 text-center text-sm text-muted-foreground max-w-md">
-                  In a future update, you'll be able to add and manage your payment methods securely for faster checkout.
-                </p>
-                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Available in v2</Badge>
+              <div className="space-y-4">
+                {paymentMethods.map((method) => (
+                  <div 
+                    key={method.id} 
+                    className={`flex items-center justify-between p-4 rounded-lg border ${method.isDefault ? 'bg-secondary/50' : ''}`}
+                  >
+                    <div className="flex items-center gap-4">
+                      {method.type === "card" ? (
+                        <div className="flex h-10 w-16 items-center justify-center rounded-md border bg-white">
+                          {method.brand === "Visa" ? (
+                            <span className="text-blue-600 font-bold text-lg">VISA</span>
+                          ) : method.brand === "Mastercard" ? (
+                            <span className="text-red-600 font-bold text-lg">MC</span>
+                          ) : (
+                            <CreditCard className="h-6 w-6" />
+                          )}
+                        </div>
+                      ) : method.type === "paypal" ? (
+                        <div className="flex h-10 w-16 items-center justify-center rounded-md border bg-[#0070BA]">
+                          <span className="text-white font-bold text-sm">PayPal</span>
+                        </div>
+                      ) : (
+                        <div className="flex h-10 w-16 items-center justify-center rounded-md border bg-gray-100">
+                          <CreditCard className="h-6 w-6" />
+                        </div>
+                      )}
+                      <div>
+                        {method.type === "card" ? (
+                          <div>
+                            <p className="font-medium">
+                              {method.brand} **** {method.last4}
+                              {method.isDefault && (
+                                <Badge className="ml-2 bg-secondary text-secondary-foreground">Default</Badge>
+                              )}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Expires {method.expiryMonth}/{method.expiryYear}
+                            </p>
+                          </div>
+                        ) : method.type === "paypal" ? (
+                          <div>
+                            <p className="font-medium">
+                              PayPal Account
+                              {method.isDefault && (
+                                <Badge className="ml-2 bg-secondary text-secondary-foreground">Default</Badge>
+                              )}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{method.email}</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="font-medium">Unknown Payment Method</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!method.isDefault && (
+                        <Button disabled variant="outline" size="sm">
+                          Set Default
+                        </Button>
+                      )}
+                      <Button disabled variant="ghost" size="sm">
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Remove</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
+            <CardFooter className="flex flex-col items-start gap-4 border-t px-6 py-4">
+              <div className="w-full flex justify-between items-center">
+                <p className="text-sm text-muted-foreground">Payment methods are stored securely.</p>
+                <Button disabled>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Add Payment Method
+                  <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">
+                    Coming Soon
+                  </Badge>
+                </Button>
+              </div>
+            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment FAQs</CardTitle>
-          <CardDescription>
-            Common questions about payments and billing
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <h3 className="text-base font-medium">When am I charged for my packages?</h3>
-            <p className="text-sm text-muted-foreground">
-              Invoices are generated when your package is processed at our warehouse. You'll have 14 days to pay before the invoice becomes overdue.
-            </p>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-base font-medium">What payment methods do you accept?</h3>
-            <p className="text-sm text-muted-foreground">
-              We accept all major credit cards (Visa, Mastercard, American Express, Discover), PayPal, and bank transfers.
-            </p>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-base font-medium">Is my payment information secure?</h3>
-            <p className="text-sm text-muted-foreground">
-              Yes, all payment information is encrypted and securely processed. We do not store your full credit card details on our servers.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 } 

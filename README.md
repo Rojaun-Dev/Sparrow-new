@@ -197,6 +197,7 @@ For detailed development rules and guidelines, see [SparrowX Development Rules](
 - [Technical Specifications](./docs/Technical-Specification.md): Detailed system architecture, data models, and implementation details
 - [Environment Setup Guide](./docs/ENVIRONMENT-SETUP.md): Comprehensive guide to environment variables and configuration
 - [Build Error Fixes](./docs/BUILD-ERROR-FIXES.md): Explanation of recent environment variable and build error fixes
+- [Customer Portal Integration](./docs/CUSTOMER-PORTAL-INTEGRATION.md): Guide for backend and customer portal integration
 - [API Documentation](./api-docs/): REST API reference and usage examples
 - [Database Schema Documentation](./docs/SCHEMA_DOCUMENTATION.md): Comprehensive database schema reference with table structures and relationships
 - [Database Management Guide](./docs/DATABASE.md): Complete guide to database migrations, seeding, and best practices
