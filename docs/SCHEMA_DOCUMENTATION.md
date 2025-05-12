@@ -19,6 +19,7 @@
   - [Packages Table](#packages-table)
 - [Financial Tables](#financial-tables)
   - [Invoices Table](#invoices-table)
+  - [Invoice Items Table](#invoice-items-table)
   - [Payments Table](#payments-table)
   - [Fees Table](#fees-table)
 - [Database Relationships](#database-relationships)
@@ -173,6 +174,31 @@ The invoices table tracks billing records:
 | notes         | Text                   | Additional notes                                                            |
 | createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
+
+### Invoice Items Table
+
+The invoice items table stores the line items for invoices:
+
+| Field         | Type                  | Description                                                                 |
+|---------------|------------------------|-----------------------------------------------------------------------------|
+| id            | UUID                   | Primary key, automatically generated                                        |
+| companyId     | UUID                   | Foreign key to companies table, with cascade delete                         |
+| invoiceId     | UUID                   | Foreign key to invoices table, with cascade delete                          |
+| packageId     | UUID                   | Foreign key to packages table (nullable - can be null if item not linked to package)|
+| description   | Text                   | Description of the invoice item (e.g., "Shipping Fee", "Handling Fee")      |
+| quantity      | Integer                | Quantity of units, defaults to 1                                            |
+| unitPrice     | Numeric               | Price per unit                                                              |
+| lineTotal     | Numeric               | Line item total (quantity * unitPrice)                                       |
+| type          | Enum                   | Type of fee: 'shipping', 'handling', 'customs', 'tax', 'other'              |
+| createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
+| updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
+
+**Notes on Invoice Items**:
+- Each invoice is composed of one or more invoice items
+- Items can be linked to specific packages or exist independently
+- Line total should always equal quantity * unitPrice
+- Different types of charges are categorized with the 'type' field
+- Invoice totals (subtotal, taxAmount, totalAmount) are calculated from these line items
 
 ### Payments Table
 

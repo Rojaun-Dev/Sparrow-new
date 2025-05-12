@@ -7,7 +7,9 @@ import invoicesRoutes from './invoices-routes';
 import paymentsRoutes from './payments-routes';
 import companySettingsRoutes from './company-settings-routes';
 import feesRoutes from './fees-routes';
+import billingRoutes from './billing-routes';
 import authRoutes from './auth-routes';
+import statisticsRoutes from './statistics-routes';
 import { extractCompanyId } from '../middleware/auth';
 
 const router = express.Router();
@@ -17,6 +19,9 @@ router.use(extractCompanyId);
 
 // Auth routes - not scoped to company
 router.use('/auth', authRoutes);
+
+// Statistics routes - not scoped to company, handled inside the controller
+router.use('/statistics', statisticsRoutes);
 
 // Company routes
 router.use('/companies', companiesRoutes);
@@ -41,6 +46,9 @@ router.use('/companies/:companyId/settings', companySettingsRoutes);
 
 // Fees routes - scoped to company
 router.use('/companies/:companyId/fees', feesRoutes);
+
+// Billing routes - scoped to company
+router.use('/companies/:companyId/billing', billingRoutes);
 
 // Additional routes will be added here as they are implemented:
 // router.use('/companies/:companyId/settings', settingsRoutes);

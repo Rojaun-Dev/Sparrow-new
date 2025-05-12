@@ -1,6 +1,7 @@
-import { SQL, and, eq, desc, asc, like, gte, lte, sql } from 'drizzle-orm';
+import { and, eq, desc, asc, like, gte, lte, sql, not, exists, or, SQL } from 'drizzle-orm';
 import { packages, packageStatusEnum } from '../db/schema/packages';
 import { BaseRepository } from './base-repository';
+import { invoiceItems } from '../db/schema/invoice-items';
 
 export class PackagesRepository extends BaseRepository<typeof packages> {
   constructor() {
@@ -179,5 +180,41 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
         totalPages: Math.ceil(totalCount / pageSize),
       },
     };
+  }
+
+  /**
+   * Find packages that haven't been billed yet for a specific user
+   * These are packages that don't have an associated invoice item
+   */
+  async findUnbilledByUser(userId: string, companyId: string) {
+    return this.db
+      .select()
+      .from(this.table)
+      .where(
+        and(
+          eq(this.table.userId, userId),
+          eq(this.table.companyId, companyId),
+          or(
+            // Packages in processed or ready_for_pickup states
+            eq(this.table.status, 'processed' as any),
+            eq(this.table.status, 'ready_for_pickup' as any)
+          ),
+          // Not already in an invoice
+          not(
+            exists(
+              this.db
+                .select()
+                .from(invoiceItems)
+                .where(
+                  and(
+                    eq(invoiceItems.packageId, this.table.id),
+                    eq(invoiceItems.companyId, companyId)
+                  )
+                )
+            )
+          )
+        )
+      )
+      .orderBy(desc(this.table.createdAt));
   }
 } 

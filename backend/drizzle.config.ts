@@ -6,15 +6,14 @@ export default {
   out: './src/db/migrations',
   driver: 'pg',
   dbCredentials: {
-    host: database.host,
-    port: database.port,
-    database: database.name,
-    user: database.user,
-    password: database.password,
+    host: database.host || 'localhost',
+    port: database.port || 5432,
+    database: database.name || 'sparrowx',
+    user: database.user || 'postgres',
+    password: database.password || '',
   },
-  // Use "shadow" as a database name for the drizzle migrations
-  // This creates and verifies migrations against a test database
-  shadowDatabaseName: 'sparrowx_shadow',
+  // Comment out shadowDatabaseName since it's not recognized in the Config type
+  // shadowDatabaseName: 'sparrowx_shadow',
   verbose: true,
   strict: true,
 } satisfies Config; 

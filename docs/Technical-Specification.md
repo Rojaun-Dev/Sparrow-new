@@ -441,23 +441,297 @@ Each fee can include additional configuration in the `metadata` JSONB field:
 }
 ```
 
-### Fee Application Logic
+### Fee Calculation Service
 
-Fees are applied based on complex conditional logic:
+The fee calculation service implements the following key functions:
 
-1. **Tag-Based Application**: 
-   - Fees can be applied only to packages with specific tags
-   - Example: "fragile" fee only for packages tagged as fragile
+- `calculateFee(fee, packageData)`: Main method to calculate a fee amount
+- `feeApplies(fee, packageData)`: Determines if a fee should apply to a package
+- `applyLimits(amount, metadata)`: Applies min/max constraints to calculated fee
+- Method-specific calculation functions for each fee type
 
-2. **Threshold Conditions**:
-   - Apply fees only when certain thresholds are met
-   - Weight-based thresholds (min/max weight)
-   - Value-based thresholds (min/max declared value)
-   - Date-based thresholds (valid from/until dates)
+### Integration with Invoice Generation
 
-3. **Fee Limits**:
-   - Minimum threshold: Ensures fee is at least a certain amount
-   - Maximum cap: Limits the maximum fee charged
+The fee system integrates with invoice generation to:
+
+1. Identify applicable fees for a package
+2. Calculate fee amounts based on package attributes
+3. Add fee line items to the invoice
+4. Apply tax calculations as appropriate
+
+## 7. Billing and Invoice Generation
+
+### Billing Calculation Process
+
+The billing system follows a structured process to calculate charges and generate invoices:
+
+1. **Package Fee Calculation**:
+   - Each package is evaluated for applicable fees based on its attributes (weight, dimensions, value)
+   - Applicable fees are determined using the company's fee configuration and package properties
+   - Conditional rules (thresholds, tags, etc.) are applied to determine which fees should be included
+   - Fees are calculated according to their calculation method (fixed, percentage, per_weight, etc.)
+   - Minimum thresholds and maximum caps are applied to each fee amount
+
+2. **Invoice Generation**:
+   - For each package to be billed, all applicable fees are calculated
+   - Line items are created for each fee (shipping, handling, customs, tax, other)
+   - Subtotal is calculated from all non-tax fees
+   - Tax is calculated based on the subtotal
+   - Total amount combines subtotal and tax amount
+   - Invoice metadata (number, dates, status) is generated
+
+3. **Fee Types and Processing Order**:
+   - **Shipping Fees**: Calculated first, based on weight, dimensions, or fixed rates
+   - **Handling Fees**: Applied for package processing, inspection, and additional services
+   - **Customs Fees**: Applied based on declared value, often as a percentage
+   - **Other Fees**: Any additional service fees not covered by other categories
+   - **Tax**: Applied last, typically on the subtotal of all other fees
+
+4. **Invoice Previews and Finalization**:
+   - Preview functionality allows calculating total without creating an invoice
+   - Draft invoices can be generated and then finalized when ready to issue
+   - Finalized invoices trigger notifications to customers
+   - Invoices maintain links to all associated packages for tracking purposes
+
+### Billing API Endpoints
+
+The billing system exposes the following API endpoints:
+
+- `GET /companies/:companyId/billing/packages/:packageId/fees`: Calculate fees for a specific package
+- `POST /companies/:companyId/billing/invoices/preview`: Preview invoice calculation without creating one
+- `POST /companies/:companyId/billing/invoices/generate`: Generate an invoice for specific packages
+- `POST /companies/:companyId/billing/users/:userId/generate-invoice`: Generate invoice for all unbilled packages of a user
+
+### Billing Service Components
+
+The billing system consists of multiple components:
+
+1. **Fees Service**: Manages fee configurations and calculations
+2. **Billing Service**: Handles the invoice generation process
+3. **Invoice Items Repository**: Manages the line items for invoices
+4. **Packages Repository**: Includes methods to find unbilled packages
+5. **Configuration Repository**: Stores company-specific billing rules
+
+## 8. Frontend Architecture
+
+### Page Structure
+- **Public Pages**: Home, About, Contact, Pricing, Login/Signup
+- **Customer Portal**:
+  - Dashboard
+  - Package Tracking
+  - Pre-alerts
+  - Invoices
+  - Payments
+  - Profile/Settings
+- **Admin Portal (L1/L2)**:
+  - Dashboard
+  - Customer Management
+  - Package Management
+  - Invoice Management
+  - Payment Processing
+  - Reports
+  - Company Settings (L2 only)
+  - Employee Management (L2 only)
+
+### Component Architecture
+- **Layout Components**: AppShell, Navbar, Sidebar, Footer
+- **Authentication Components**: LoginForm, SignupForm, PasswordReset
+- **Data Display Components**: DataTable, Card, StatusBadge, Timeline
+- **Form Components**: FormInput, FormSelect, DatePicker, FileUpload
+- **UI Components**: Button, Modal, Notification, Tabs, Accordion
+- **Domain-Specific Components**:
+  - PackageCard, PackageDetails, PackageStatusFlow
+  - InvoiceForm, InvoicePreview, PaymentForm
+  - CustomerProfile, CustomerPackages, CustomerInvoices
+
+### State Management
+- React Context API for:
+  - Authentication state
+  - Company branding/theming
+  - User preferences
+  - Notifications
+- React Query for API data fetching and caching
+
+## 9. Security Measures
+- **Authentication**: Auth0 JWT verification on all protected routes
+- **Authorization**: Role-based access control on both frontend and backend
+- **Data Isolation**: Tenant filtering on all database queries
+- **Input Validation**: Zod schema validation on all API endpoints
+- **CSRF Protection**: Token-based protection for state-changing operations
+- **Rate Limiting**: API rate limiting to prevent abuse
+- **Content Security Policy**: Restricted resource loading policies
+- **Database Security**:
+  - Parameterized queries to prevent SQL injection
+  - Encryption of sensitive fields
+  - Row-level security policies
+- **Audit Logging**: Comprehensive logging of security-relevant events
+- **Regular Security Audits**: Scheduled security reviews and penetration testing
+
+## 10. External Integrations
+- **Shipping Carriers**:
+  - Magaya Integration
+## 11. Deployment Infrastructure
+- **Development Environment**:
+  - Local Docker setup
+  - Development database
+  - Auth0 tenant for development
+- **Production Environment**:
+  - Load-balanced AWS EC2 instances for backend
+  - Vercel production deployment for frontend
+  - Production PostgreSQL with read replicas
+  - Redis for caching
+  - CloudFront CDN for static assets
+
+## 12. Testing Strategy
+- **Unit Testing**:
+  - Jest for JavaScript/TypeScript testing
+  - Backend service and utility function tests
+  - Frontend component tests
+- **Integration Testing**:
+  - API endpoint testing with Supertest
+  - Database integration tests
+- **End-to-End Testing**:
+  - Cypress for frontend user flows
+  - Multi-tenant testing scenarios
+- **Performance Testing**:
+  - Load testing with k6
+  - Database query performance benchmarking
+- **Security Testing**:
+  - Regular vulnerability scanning
+  - Penetration testing
+
+## 13. Monitoring and Logging
+- **Application Monitoring**:
+  - DataDog APM for performance monitoring
+  - Error tracking with Sentry
+- **Infrastructure Monitoring**:
+  - Server metrics monitoring
+  - Database performance monitoring
+  - API response time tracking
+- **Logging**:
+  - Structured JSON logs
+  - Centralized log aggregation
+  - Log retention policies
+- **Alerting**:
+  - Critical error notifications
+  - Performance degradation alerts
+  - Security incident alerts
+
+## 14. Performance Optimization
+- **Database Optimization**:
+  - Appropriate indexes on frequently queried fields
+  - Query optimization for multi-tenant filtering
+  - Connection pooling
+- **API Performance**:
+  - Response caching with Redis
+  - Pagination for large result sets
+  - Throttling for resource-intensive operations
+- **Frontend Performance**:
+  - Code splitting for reduced bundle size
+  - Static site generation for public pages
+  - Image optimization
+  - Service worker for offline capabilities
+
+## 15. Backup and Disaster Recovery
+- **Database Backups**:
+  - Automated daily backups
+  - Point-in-time recovery capability
+- **Application Backups**:
+  - Configuration backup
+  - File storage backup
+- **Disaster Recovery Plan**:
+  - Documented recovery procedures
+  - Regular recovery testing
+  - Cross-region replication
+
+## 16. Documentation
+- **API Documentation**:
+  - API usage examples
+- **Codebase Documentation**:
+  - Inline code documentation
+  - Architecture diagrams
+  - Design decisions
+- **Operational Documentation**:
+  - Deployment procedures
+  - Monitoring and alerting setup
+  - Troubleshooting guides
+
+## 17. Roadmap and Future Enhancements
+- **Phase 1 (MVP)**:
+  - Basic package tracking
+  - Simple invoicing
+  - Customer portal
+- **Phase 2**:
+  - Advanced reporting
+  - Integration with major shipping carriers
+  - Mobile application
+- **Phase 3**:
+  - Machine learning for package processing
+  - Predictive analytics
+  - International expansion
+
+## 18. Fee Management System
+
+The SparrowX platform includes a robust and flexible fee management system that allows companies to configure various types of charges that are dynamically calculated based on package data.
+
+### Fee Calculation Methods
+
+The system supports the following fee calculation methods:
+
+1. **Flat Fee (`fixed`)**: 
+   - A simple fixed amount charged regardless of package attributes
+   - Example: $5 handling fee per package
+
+2. **Percentage-Based Fee (`percentage`)**: 
+   - Fee calculated as a percentage of a base amount
+   - Can be applied to subtotal, total, or declared value
+   - Example: 15% tax on subtotal
+
+3. **Price Per Unit (`per_weight`, `per_item`)**:
+   - Fee calculated based on a unit price multiplied by a quantity
+   - Supports different units (kg, lb, item, cubic meter, etc.)
+   - Example: $2.50 per pound shipping fee
+
+4. **Dimensional Weight Pricing (`dimensional`)**:
+   - Calculates fee based on volumetric weight using formula: (length × width × height) / dimensionalFactor
+   - Uses the greater of actual weight or dimensional weight
+   - Example: Shipping fee for bulky but lightweight items
+
+5. **Tiered Pricing (`tiered`)**:
+   - Sets different rates based on value ranges
+   - Can be tiered on any numeric attribute (weight, value, etc.)
+   - Example: 0-5kg = $10, 5-10kg = $15, 10kg+ = $20
+
+### Fee Metadata
+
+Each fee can include additional configuration in the `metadata` JSONB field:
+
+```json
+{
+  "dimensionalFactor": 139,
+  "tiers": [
+    { "min": 0, "max": 5, "rate": 10.00 },
+    { "min": 5, "max": 10, "rate": 15.00 },
+    { "min": 10, "max": null, "rate": 20.00 }
+  ],
+  "baseAttribute": "subtotal",
+  "unit": "kg",
+  "attributeName": "weight",
+  "minimumThreshold": 5.00,
+  "maximumCap": 50.00,
+  "tagConditions": {
+    "requiredTags": ["fragile", "oversized"],
+    "excludedTags": ["document"]
+  },
+  "thresholdConditions": {
+    "minWeight": 2,
+    "maxWeight": 50,
+    "minValue": 100,
+    "validFrom": "2023-01-01",
+    "validUntil": "2023-12-31"
+  }
+}
+```
 
 ### Fee Calculation Service
 
