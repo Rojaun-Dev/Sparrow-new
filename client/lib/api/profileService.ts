@@ -8,14 +8,16 @@ class ProfileService {
    * Get current user profile
    */
   async getCurrentUser(): Promise<User> {
-    return apiClient.get<User>(`${this.baseUrl}/me`);
+    const response = await apiClient.get<{ user: User }>(`${this.baseUrl}/me`);
+    return response.user;
   }
 
   /**
    * Update user profile
    */
   async updateProfile(userData: Partial<User>): Promise<User> {
-    return apiClient.put<User>(`${this.baseUrl}/profile`, userData);
+    const response = await apiClient.put<{ user: User }>(`${this.baseUrl}/profile`, userData);
+    return response.user;
   }
 
   /**

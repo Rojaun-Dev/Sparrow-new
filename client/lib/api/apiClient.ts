@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { ApiResponse } from './types';
 
 // Define error types for better handling
 export interface ApiError {
@@ -12,7 +13,7 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost
 
 // Create a base API client class
 export class ApiClient {
-  private client: AxiosInstance;
+  client: AxiosInstance; // Changed to public for debugging
   private baseUrl: string;
 
   constructor() {
@@ -81,10 +82,11 @@ export class ApiClient {
     if (error.response) {
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
+      const responseData = error.response.data as any;
       return {
         status: error.response.status,
-        message: error.response.data?.message || 'An error occurred with the server response',
-        details: error.response.data
+        message: responseData?.message || 'An error occurred with the server response',
+        details: responseData
       };
     } else if (error.request) {
       // The request was made but no response was received
@@ -106,9 +108,13 @@ export class ApiClient {
   // Generic request method
   async request<T>(config: AxiosRequestConfig): Promise<T> {
     try {
-      const response: AxiosResponse<T> = await this.client.request(config);
-      return response.data;
+      const response: AxiosResponse<ApiResponse<T>> = await this.client.request(config);
+      console.log(`Response from ${config.url}:`, response.data);
+      
+      // Return the data property from the API response
+      return response.data.data;
     } catch (error) {
+      console.error(`Request error for ${config.url}:`, error);
       throw error;
     }
   }
