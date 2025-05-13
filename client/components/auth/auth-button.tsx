@@ -19,7 +19,7 @@ export function AuthButton({
   showIcon = true,
   className 
 }: AuthButtonProps) {
-  const { login, logout, signup, isAuthenticated, isLoading } = useAuthContext();
+  const { login, logout, register, isAuthenticated, isLoading } = useAuthContext();
 
   // Determine icon and text based on type
   const getIconAndText = () => {
@@ -40,7 +40,7 @@ export function AuthButton({
         return { 
           icon: <UserPlus className="h-4 w-4 mr-2" />, 
           text: 'Sign Up',
-          action: signup
+          action: register
         };
     }
   };

@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
-import apiClient from "@/lib/api-client"
+import { authService } from "@/lib/api/authService"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,44 +47,18 @@ export default function LoginPage() {
     try {
       const values = form.getValues()
       
-      // Direct API call to bypass TypeScript errors
-      const response = await fetch(`${apiClient.API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-        }),
+      // Use authService instead of direct fetch
+      const result = await authService.login({
+        email: values.email,
+        password: values.password,
+        rememberMe: values.rememberMe || false
       })
       
-      const result = await response.json()
-      
-      if (response.ok && result.token) {
-        // Store token
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('token', result.token)
-        }
-        
-        // Get user data
-        const userResponse = await fetch(`${apiClient.API_URL}/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${result.token}`
-          }
-        })
-        
-        if (userResponse.ok) {
-          router.push('/dashboard')
-        } else {
-          setFormError('Failed to fetch user data after login')
-        }
-      } else {
-        setFormError(result.message || 'Login failed')
-      }
-    } catch (error) {
+      // Auth service already stores the token, just redirect to dashboard
+      router.push('/dashboard')
+    } catch (error: any) {
       console.error("Login error:", error)
-      setFormError('An unexpected error occurred. Please try again.')
+      setFormError(error?.message || 'An unexpected error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -273,14 +247,6 @@ export default function LoginPage() {
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">Or</span>
             </div>
-          </div>
-
-          <div className="flex justify-center">
-            <Button variant="outline" className="w-full" asChild>
-              <Link href="/register">
-                Create an account
-              </Link>
-            </Button>
           </div>
 
           <div className="text-center text-sm">

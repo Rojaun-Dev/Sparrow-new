@@ -7,6 +7,9 @@ export interface ApiError {
   details?: any;
 }
 
+// API constants
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 // Create a base API client class
 export class ApiClient {
   private client: AxiosInstance;
@@ -14,7 +17,7 @@ export class ApiClient {
 
   constructor() {
     // Get API URL from environment variables or use default
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    this.baseUrl = API_BASE_URL;
     
     // Create axios instance
     this.client = axios.create({
@@ -27,11 +30,11 @@ export class ApiClient {
     // Set up request interceptors
     this.client.interceptors.request.use(
       (config) => {
-        // Get token from localStorage (will be implemented when auth is added)
-        // const token = localStorage.getItem('auth_token');
-        // if (token) {
-        //   config.headers.Authorization = `Bearer ${token}`;
-        // }
+        // Get token from localStorage 
+        const token = this.getToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
 
         // Add company ID to every request for multi-tenant isolation
         // This will be implemented when company context is available
@@ -49,6 +52,28 @@ export class ApiClient {
       (response) => response,
       (error) => Promise.reject(this.handleError(error))
     );
+  }
+
+  // Get token from localStorage
+  public getToken(): string | null {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('token');
+    }
+    return null;
+  }
+
+  // Set token in localStorage
+  public setToken(token: string): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', token);
+    }
+  }
+
+  // Remove token from localStorage
+  public removeToken(): void {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+    }
   }
 
   // Error handling helper

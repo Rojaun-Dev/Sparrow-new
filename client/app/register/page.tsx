@@ -487,13 +487,6 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="flex justify-center">
-            <Button variant="outline" className="w-full" asChild>
-              <Link href="/login">
-                Already have an account? Sign in
-              </Link>
-            </Button>
-          </div>
 
           <div className="text-center text-sm">
             Already have an account?{" "}
