@@ -21,9 +21,11 @@ const port = config.server.port;
 app.use(helmet()); // Security headers
 app.use(cors({
   origin: [
-    'https://localhost:3000/',
-    'https://localhost:4000/',
-    `${config.client.url}/`
+    'https://localhost:3000',
+    'https://localhost:4000',
+    `${config.client.url}`,
+    'http://localhost:3000',
+    'http://localhost:4000',
   ].filter(Boolean),
   credentials: true
 })); // CORS handling with credentials

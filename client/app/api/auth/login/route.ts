@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     // Create user data for token (exclude password)
     const userData = {
       id: user.id,

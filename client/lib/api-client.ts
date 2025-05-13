@@ -1,7 +1,7 @@
 import { safeGetEnv } from './env';
 
 // API URL from environment variables
-const API_URL = safeGetEnv('NEXT_PUBLIC_API_URL', 'http://localhost:4000/api');
+const API_URL = safeGetEnv('NEXT_PUBLIC_API_URL', 'http://localhost:3001/api');
 
 // Helper to get token from localStorage
 const getToken = (): string | null => {
@@ -72,21 +72,21 @@ const apiClient = {
   // Auth endpoints
   auth: {
     login: (data: { email: string; password: string }) =>
-      fetchWithAuth('/auth/login', {
+      fetchWithAuth('/login', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     
     signup: (data: any) =>
-      fetchWithAuth('/auth/signup', {
+      fetchWithAuth('/register', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     
-    getProfile: () => fetchWithAuth('/auth/me'),
+    getProfile: () => fetchWithAuth('/me'),
     
     updateProfile: (data: any) =>
-      fetchWithAuth('/auth/profile', {
+      fetchWithAuth('/profile', {
         method: 'PUT',
         body: JSON.stringify(data),
       }),

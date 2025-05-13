@@ -37,7 +37,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 // Get the API URL from environment variables
-const API_URL = safeGetEnv('NEXT_PUBLIC_API_URL', 'http://localhost:4000/api');
+const API_URL = safeGetEnv('NEXT_PUBLIC_API_URL', 'http://localhost:3000/api');
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
