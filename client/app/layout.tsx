@@ -14,9 +14,8 @@ import type { Metadata } from "next"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SparrowX - Package Forwarding",
+  title: "SparrowX",
   description: "SparrowX Package Forwarding Platform",
-  generator: 'v0.dev'
 }
 
 export const dynamic = 'force-dynamic';

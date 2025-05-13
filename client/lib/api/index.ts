@@ -1,5 +1,5 @@
 // Export all types
-export type * from './types';
+export type { User, Package, PreAlert, Invoice, Payment } from './types';
 
 // Export API client
 export { apiClient, ApiError } from './apiClient';
@@ -10,6 +10,9 @@ export { preAlertService } from './preAlertService';
 export { invoiceService } from './invoiceService';
 export { paymentService } from './paymentService';
 export { profileService } from './profileService';
+export { authService } from './authService';
+export { usersService } from './customerService';
+export { companyService } from './companyService';
 
 // Export a combined API object with all services
 export const api = {
@@ -18,4 +21,7 @@ export const api = {
   invoices: invoiceService,
   payments: paymentService,
   profile: profileService,
+  auth: authService,
+  users: usersService,
+  company: companyService
 }; 

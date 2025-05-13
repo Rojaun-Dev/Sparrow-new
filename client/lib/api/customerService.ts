@@ -2,9 +2,9 @@ import { apiClient } from './apiClient';
 import { authService } from './authService';
 
 /**
- * Service for handling company-specific resources in a multi-tenant environment
+ * Service for handling user-related operations
  */
-class CustomerService {
+class UsersService {
   private baseUrl = '/companies';
 
   /**
@@ -21,91 +21,45 @@ class CustomerService {
   }
 
   /**
-   * Get all packages for a company
+   * Get all users for the current company
    */
-  async getPackages(companyId?: string, params?: any): Promise<any[]> {
+  async getUsers(companyId?: string, params?: any): Promise<any[]> {
     const id = companyId || await this.getCompanyId();
-    return apiClient.get<any[]>(`${this.baseUrl}/${id}/packages`, { params });
+    return apiClient.get<any[]>(`${this.baseUrl}/${id}/users`, { params });
   }
   
   /**
-   * Get a specific package
+   * Get a specific user
    */
-  async getPackage(packageId: string, companyId?: string): Promise<any> {
+  async getUser(userId: string, companyId?: string): Promise<any> {
     const id = companyId || await this.getCompanyId();
-    return apiClient.get<any>(`${this.baseUrl}/${id}/packages/${packageId}`);
+    return apiClient.get<any>(`${this.baseUrl}/${id}/users/${userId}`);
   }
   
   /**
-   * Get package timeline
+   * Create a new user
    */
-  async getPackageTimeline(packageId: string, companyId?: string): Promise<any[]> {
+  async createUser(userData: any, companyId?: string): Promise<any> {
     const id = companyId || await this.getCompanyId();
-    return apiClient.get<any[]>(`${this.baseUrl}/${id}/packages/${packageId}/timeline`);
+    return apiClient.post<any>(`${this.baseUrl}/${id}/users`, userData);
   }
   
   /**
-   * Update package status
+   * Update a user
    */
-  async updatePackageStatus(packageId: string, status: string, companyId?: string): Promise<any> {
+  async updateUser(userId: string, userData: any, companyId?: string): Promise<any> {
     const id = companyId || await this.getCompanyId();
-    return apiClient.put<any>(`${this.baseUrl}/${id}/packages/${packageId}/status`, { status });
+    return apiClient.put<any>(`${this.baseUrl}/${id}/users/${userId}`, userData);
   }
   
   /**
-   * Upload package photos
+   * Delete a user
    */
-  async uploadPackagePhotos(packageId: string, files: File[], companyId?: string): Promise<any> {
+  async deleteUser(userId: string, companyId?: string): Promise<void> {
     const id = companyId || await this.getCompanyId();
-    
-    const formData = new FormData();
-    files.forEach(file => {
-      formData.append('photos', file);
-    });
-    
-    return apiClient.post<any>(
-      `${this.baseUrl}/${id}/packages/${packageId}/photos`, 
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      }
-    );
+    return apiClient.delete<void>(`${this.baseUrl}/${id}/users/${userId}`);
   }
-  
-  /**
-   * Get all pre-alerts for a company
-   */
-  async getPreAlerts(companyId?: string, params?: any): Promise<any[]> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.get<any[]>(`${this.baseUrl}/${id}/prealerts`, { params });
-  }
-  
-  /**
-   * Create a pre-alert for a company
-   */
-  async createPreAlert(data: any, companyId?: string): Promise<any> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.post<any>(`${this.baseUrl}/${id}/prealerts`, data);
-  }
-  
-  /**
-   * Get all invoices for a company
-   */
-  async getInvoices(companyId?: string, params?: any): Promise<any[]> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.get<any[]>(`${this.baseUrl}/${id}/invoices`, { params });
-  }
-  
-  /**
-   * Get all payments for a company
-   */
-  async getPayments(companyId?: string, params?: any): Promise<any[]> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.get<any[]>(`${this.baseUrl}/${id}/payments`, { params });
-  }
-  
+
   /**
    * Get company details
    */
@@ -124,4 +78,4 @@ class CustomerService {
 }
 
 // Export as singleton
-export const customerService = new CustomerService(); 
+export const usersService = new UsersService(); 
