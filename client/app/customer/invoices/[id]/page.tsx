@@ -16,10 +16,11 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useInvoice, useDownloadInvoicePdf } from "@/hooks/useInvoices"
+import { useInvoice } from "@/hooks/useInvoices"
 import { usePackagesByInvoiceId } from "@/hooks/usePackages"
 import { useUser } from "@/hooks/useUsers"
 import { useCompany } from "@/hooks/useCompanies"
+import InvoicePDFRenderer from "@/components/invoices/InvoicePDFRenderer"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // Define types for the payment history
@@ -70,10 +71,15 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   
   // Fetch invoice data using the useInvoice hook
   const { data: invoice, isLoading, isError, error } = useInvoice(resolvedParams.id);
-  const { mutate: downloadPdf, isPending: isDownloading } = useDownloadInvoicePdf();
   
   // Fetch related packages
   const { data: relatedPackages, isLoading: isLoadingPackages } = usePackagesByInvoiceId(resolvedParams.id);
+  
+  // Fetch user data
+  const { data: user } = useUser(invoice?.userId);
+  
+  // Fetch company data
+  const { data: company } = useCompany(invoice?.companyId);
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -180,15 +186,25 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => downloadPdf(invoice.id)}
-            disabled={isDownloading}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
+          
+          {invoice && relatedPackages && user && company ? (
+            <InvoicePDFRenderer
+              invoice={invoice}
+              packages={relatedPackages}
+              user={user}
+              company={company}
+              buttonText="Download PDF"
+            />
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Loading PDF...
+            </Button>
+          )}
         </div>
       </div>
 
