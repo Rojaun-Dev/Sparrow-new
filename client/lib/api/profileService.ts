@@ -46,6 +46,29 @@ class ProfileService {
   }
 
   /**
+   * Get company pickup locations
+   */
+  async getPickupLocations(): Promise<string[]> {
+    try {
+      // Use the original path since we've added support for it in the backend
+      const response = await apiClient.get<{ locations: string[], success: boolean }>(`/company-settings/pickup-locations`);
+      return response.locations || [];
+    } catch (error) {
+      console.error('Error fetching pickup locations:', error);
+      // Return empty array instead of throwing
+      return [];
+    }
+  }
+
+  /**
+   * Update user pickup location
+   */
+  async updatePickupLocation(pickupLocationId: string): Promise<User> {
+    const response = await apiClient.put<{ user: User }>(`${this.baseUrl}/profile`, { pickupLocationId });
+    return response.user;
+  }
+
+  /**
    * Get user statistics (package counts, invoices, etc.) based on role
    * The backend will handle access control based on the user's role
    */

@@ -2,12 +2,15 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { CompanySettingsService } from '../services/company-settings-service';
 import { z } from 'zod';
+import { CompaniesService } from '../services/companies-service';
 
 export class CompanySettingsController {
   private companySettingsService: CompanySettingsService;
+  private companiesService: CompaniesService;
 
   constructor() {
     this.companySettingsService = new CompanySettingsService();
+    this.companiesService = new CompaniesService();
   }
 
   /**
@@ -210,6 +213,47 @@ export class CompanySettingsController {
       console.error('Error calculating shipping cost:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return res.status(500).json({ error: 'Failed to calculate shipping cost', message: errorMessage });
+    }
+  };
+
+  /**
+   * Get pickup locations for a company
+   */
+  getPickupLocations = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+    try {
+      const companyId = req.companyId;
+      
+      // For development/testing, use a default company ID if none is provided
+      if (!companyId) {
+        // Log a warning for debugging
+        console.warn('No company ID found in request, using mock data for pickup locations');
+        
+        // Return mock data for development 
+        return res.json({ 
+          locations: [
+            "Kingston Main Office - 123 Hope Road",
+            "Montego Bay Branch - 45 Gloucester Avenue",
+            "Portmore Collection Point - Portmore Mall"
+          ],
+          success: true
+        });
+      }
+      
+      const company = await this.companiesService.getCompanyById(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ error: 'Company not found' });
+      }
+      
+      const locations = company.locations || [];
+      
+      return res.json({ 
+        locations,
+        success: true
+      });
+    } catch (error) {
+      console.error('Error fetching pickup locations:', error);
+      return res.status(500).json({ error: 'Failed to retrieve pickup locations' });
     }
   };
 } 

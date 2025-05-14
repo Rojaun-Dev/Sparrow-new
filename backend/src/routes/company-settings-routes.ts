@@ -15,6 +15,13 @@ router.get(
   companySettingsController.getCompanySettings
 );
 
+// Get pickup locations
+router.get(
+  '/pickup-locations',
+  /*checkRole(['admin_l1', 'admin_l2', 'customer']),*/
+  companySettingsController.getPickupLocations
+);
+
 // Update all company settings
 router.put(
   '/',

@@ -64,6 +64,8 @@ export interface User extends BaseEntity {
   lastName: string;
   phone?: string;
   address?: string;
+  trn?: string; // Tax Registration Number
+  pickupLocationId?: string; // ID for the selected pickup location
   role: 'customer' | 'admin_l1' | 'admin_l2' | 'super_admin';
   isActive: boolean;
 }

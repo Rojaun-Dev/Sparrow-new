@@ -9,6 +9,7 @@ const profileKeys = {
   settings: () => [...profileKeys.all, 'settings'] as const,
   statistics: () => [...profileKeys.all, 'statistics'] as const,
   notifications: () => [...profileKeys.all, 'notifications'] as const,
+  pickupLocations: () => [...profileKeys.all, 'pickupLocations'] as const,
 };
 
 // Hook for fetching current user profile
@@ -60,6 +61,27 @@ export function useUpdateNotificationPreferences() {
     onSuccess: (updatedPreferences: any) => {
       // Update the preferences in the cache
       queryClient.setQueryData(profileKeys.notifications(), updatedPreferences);
+    },
+  });
+}
+
+// Hook for fetching pickup locations
+export function usePickupLocations() {
+  return useQuery({
+    queryKey: profileKeys.pickupLocations(),
+    queryFn: () => profileService.getPickupLocations(),
+  });
+}
+
+// Hook for updating pickup location
+export function useUpdatePickupLocation() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (pickupLocationId: string) => profileService.updatePickupLocation(pickupLocationId),
+    onSuccess: (updatedUser: User) => {
+      // Update the user in the cache
+      queryClient.setQueryData(profileKeys.user(), updatedUser);
     },
   });
 }

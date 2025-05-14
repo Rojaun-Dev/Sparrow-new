@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   Bell, 
   Globe, 
@@ -50,31 +50,178 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useCurrentUser, useUpdateProfile } from "@/hooks/useProfile"
+import { useToast } from "@/hooks/use-toast"
+import { PickupLocationModal } from "@/components/customer/pickup-location-modal"
+import { Skeleton } from "@/components/ui/skeleton"
+
+// Skeleton loader component for profile cards
+const ProfileSkeleton = () => {
+  return (
+    <Card>
+      <CardHeader className="pb-4">
+        <Skeleton className="h-6 w-1/3 mb-2" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20 mb-2" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between border-t px-6 pt-4">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-32" />
+      </CardFooter>
+    </Card>
+  )
+}
 
 export default function ProfilePage() {
-  const [saving, setSaving] = useState(false)
+  const { data: user, isLoading } = useCurrentUser()
+  const { mutate: updateProfile, isPending: saving } = useUpdateProfile()
+  const { toast } = useToast()
+  
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    trn: ""
+  })
 
-  // Example profile data
-  const user = {
-    id: "user-001",
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 123-4567",
-    address: "123 Main St",
-    city: "Kingston",
-    state: "Jamaica",
-    postalCode: "00001",
-    avatar: "/placeholder.svg?key=user",
+  // Update form when user data loads
+  useEffect(() => {
+    if (user) {
+      const address = user.address?.split(',') || []
+      setFormData({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        address: address[0] || "",
+        city: address[1]?.trim() || "",
+        state: address[2]?.trim() || "Jamaica",
+        postalCode: address[3]?.trim() || "",
+        trn: user.trn || ""
+      })
+    }
+  }, [user])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.id]: e.target.value
+    })
   }
 
-  const handleSave = () => {
-    setSaving(true)
-    // Simulate API call
-    setTimeout(() => {
-      setSaving(false)
-      alert("Profile updated successfully!")
-    }, 1000)
+  const handleSelectChange = (value: string, field: string) => {
+    setFormData({
+      ...formData,
+      [field]: value
+    })
+  }
+
+  const handleSavePersonalInfo = () => {
+    updateProfile({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      trn: formData.trn
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Profile updated",
+          description: "Your personal information has been updated successfully.",
+        })
+      },
+      onError: () => {
+        toast({
+          title: "Failed to update",
+          description: "There was a problem updating your profile. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  const handleSaveAddress = () => {
+    const formattedAddress = `${formData.address}, ${formData.city}, ${formData.state}, ${formData.postalCode}`
+    updateProfile({
+      address: formattedAddress
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Address updated",
+          description: "Your address has been updated successfully.",
+        })
+      },
+      onError: () => {
+        toast({
+          title: "Failed to update",
+          description: "There was a problem updating your address. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
+        <Tabs defaultValue="personal" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="personal">Personal Info</TabsTrigger>
+            <TabsTrigger value="address">Address</TabsTrigger>
+            <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          </TabsList>
+          
+          <div className="mt-6 space-y-6">
+            <ProfileSkeleton />
+          </div>
+        </Tabs>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <Skeleton className="h-6 w-1/4 mb-2" />
+            <Skeleton className="h-4 w-1/3" />
+          </CardHeader>
+          <CardContent className="pb-2 space-y-3">
+            <div className="grid gap-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -104,33 +251,61 @@ export default function ProfilePage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="first-name">First Name</Label>
-                  <Input id="first-name" defaultValue={user.firstName} />
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input 
+                    id="firstName" 
+                    value={formData.firstName}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last-name">Last Name</Label>
-                  <Input id="last-name" defaultValue={user.lastName} />
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input 
+                    id="lastName" 
+                    value={formData.lastName}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={user.email} disabled />
-                  <p className="text-xs text-muted-foreground">
-                    To change your email, please contact support.
-                  </p>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" defaultValue={user.phone} />
+                  <Input 
+                    id="phone" 
+                    type="tel" 
+                    value={formData.phone}
+                    onChange={handleChange}
+                  />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trn">TRN (Tax Registration Number)</Label>
+                <Input 
+                  id="trn" 
+                  value={formData.trn}
+                  onChange={handleChange}
+                  disabled={true}
+                />
+                <p className="text-xs text-muted-foreground">
+                  To update your TRN, please contact support or visit one of our stores.
+                </p>
               </div>
 
             </CardContent>
             <CardFooter className="flex justify-between border-t px-6 pt-4">
               <Button variant="outline">Cancel</Button>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSavePersonalInfo} disabled={saving}>
                 {saving ? (
                   <>Saving...</>
                 ) : (
@@ -154,18 +329,30 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="street-address">Street Address</Label>
-                <Textarea id="street-address" defaultValue={user.address} className="min-h-20" />
+                <Label htmlFor="address">Street Address</Label>
+                <Textarea 
+                  id="address" 
+                  value={formData.address}
+                  onChange={handleChange}
+                  className="min-h-20" 
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" defaultValue={user.city} />
+                  <Input 
+                    id="city" 
+                    value={formData.city}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="state">State/Parish</Label>
-                  <Select defaultValue={user.state}>
+                  <Select 
+                    value={formData.state} 
+                    onValueChange={(value) => handleSelectChange(value, 'state')}
+                  >
                     <SelectTrigger id="state">
                       <SelectValue placeholder="Select parish" />
                     </SelectTrigger>
@@ -189,19 +376,19 @@ export default function ProfilePage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="postal-code">Postal Code</Label>
-                  <Input id="postal-code" defaultValue={user.postalCode} />
+                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Input 
+                    id="postalCode" 
+                    value={formData.postalCode}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="delivery-instructions">Delivery Instructions (Optional)</Label>
-                <Textarea id="delivery-instructions" placeholder="Special instructions for delivery" className="min-h-20" />
-              </div>
             </CardContent>
             <CardFooter className="flex justify-between border-t px-6 pt-4">
               <Button variant="outline">Cancel</Button>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSaveAddress} disabled={saving}>
                 {saving ? (
                   <>Saving...</>
                 ) : (
@@ -383,7 +570,7 @@ export default function ProfilePage() {
             </CardContent>
             <CardFooter className="flex justify-between border-t px-6 pt-4">
               <Button variant="outline">Reset to Default</Button>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSavePersonalInfo} disabled={saving}>
                 {saving ? (
                   <>Saving...</>
                 ) : (
@@ -396,60 +583,6 @@ export default function ProfilePage() {
             </CardFooter>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Language & Regional Settings</CardTitle>
-              <CardDescription>
-                Choose your preferred language and regional settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="language">Language</Label>
-                  <Select defaultValue="en-US">
-                    <SelectTrigger id="language">
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en-US">English (US)</SelectItem>
-                      <SelectItem value="en-GB">English (UK)</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select defaultValue="America/Jamaica">
-                    <SelectTrigger id="timezone">
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="America/Jamaica">Jamaica (EST)</SelectItem>
-                      <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                      <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-                      <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-                      <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between border-t px-6 pt-4">
-              <Button variant="outline">Cancel</Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>Saving...</>
-                ) : (
-                  <>
-                    <Globe className="mr-2 h-4 w-4" />
-                    Save Settings
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
         </TabsContent>
       </Tabs>
 
@@ -460,14 +593,7 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="pb-2 space-y-3">
           <div className="grid gap-3">
-            <Button variant="outline" className="justify-start">
-              <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
-              Advanced Settings
-            </Button>
-            <Button variant="outline" className="justify-start">
-              <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
-              Manage Pickup Locations
-            </Button>
+            <PickupLocationModal />
             <Button variant="outline" className="justify-start text-red-500">
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out

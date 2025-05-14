@@ -252,4 +252,60 @@ The following folders are excluded from formatting:
 
 When working on the SparrowX project, ensure your editor is configured to respect these formatting rules. If you're using Cursor IDE, these settings will be automatically applied.
 
-For other editors, please configure them to match these standards as closely as possible. 
+For other editors, please configure them to match these standards as closely as possible.
+
+# Profile Page Functionality
+
+## Overview
+The profile page allows users to manage their personal information, shipping address, and pickup location preferences. The page is divided into different tabs for organizing the various settings.
+
+## Features
+- **Personal Information**: Update name, email, phone, and TRN (Tax Registration Number)
+- **Address**: Update shipping address details
+- **Security**: Change password and manage security settings
+- **Preferences**: Update notification and language preferences
+- **Pickup Locations**: Select preferred pickup location for package deliveries
+
+## Implementation Details
+
+### Backend Components
+- Added TRN and pickupLocationId fields to the user schema
+- Created a migration script to update the database schema
+- Added API endpoint to retrieve pickup locations from company settings
+- Enhanced user update functionality to support new fields
+
+### Frontend Components
+- Implemented form state management with React hooks
+- Created pickup location selection modal
+- Added form validation and error handling
+- Connected to backend API using React Query
+
+## Getting Started
+
+### Running Migrations
+To apply the database schema changes:
+
+```bash
+npm run migrate
+```
+
+### Testing the Functionality
+1. Log in to the application
+2. Navigate to the profile page
+3. Update your personal information and address
+4. Select a preferred pickup location
+
+## Technical Documentation
+
+### API Endpoints
+- `GET /api/company-settings/pickup-locations` - Retrieve available pickup locations
+- `PUT /api/auth/profile` - Update user profile information
+- `PUT /api/auth/profile/pickup-location` - Update user's preferred pickup location
+
+### Data Models
+- User: Includes personal information, address, TRN, and pickup location preference
+- Company: Contains company details including available pickup locations
+
+### Frontend Components
+- ProfilePage: Main component for the profile page
+- PickupLocationModal: Modal for selecting a pickup location 

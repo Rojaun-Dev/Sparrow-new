@@ -20,6 +20,8 @@ export const users = pgTable('users', {
   lastName: text('last_name').notNull(),
   phone: text('phone'),
   address: text('address'),
+  trn: text('trn'), // Tax Registration Number
+  pickupLocationId: text('pickup_location_id'), // Reference to selected pickup location
   role: userRoleEnum('role').notNull().default('customer'),
   auth0Id: text('auth0_id'), // Optional now with JWT implementation
   isActive: boolean('is_active').notNull().default(true),

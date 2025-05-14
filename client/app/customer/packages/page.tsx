@@ -84,6 +84,8 @@ export default function PackagesPage() {
     };
     
     setFilters(newFilters);
+    // Manually trigger a refetch after setting filters
+    setTimeout(() => refetch(), 100);
   };
 
   // Clear all filters
@@ -99,6 +101,9 @@ export default function PackagesPage() {
       sortBy: 'createdAt',
       sortOrder: 'desc'
     });
+    
+    // Manually trigger a refetch after clearing filters
+    setTimeout(() => refetch(), 100);
   };
 
   // Function to format date
@@ -141,18 +146,6 @@ export default function PackagesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold tracking-tight">My Packages</h1>
-        <div className="flex items-center gap-2">
-          <Button asChild size="sm">
-            <Link href="/customer/prealerts/new">
-              <Package className="mr-2 h-4 w-4" />
-              Create Pre-Alert
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-        </div>
       </div>
 
       <Card>

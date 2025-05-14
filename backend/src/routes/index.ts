@@ -48,6 +48,9 @@ router.use('/companies/:companyId/payments', paymentsRoutes);
 // Company settings routes - scoped to company
 router.use('/companies/:companyId/settings', companySettingsRoutes);
 
+// Direct access to company settings (for supporting the frontend implementation)
+router.use('/company-settings', companySettingsRoutes);
+
 // Fees routes - scoped to company
 router.use('/companies/:companyId/fees', feesRoutes);
 

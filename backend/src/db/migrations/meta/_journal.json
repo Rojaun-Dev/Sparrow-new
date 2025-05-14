@@ -15,6 +15,13 @@
       "when": 1747070002414,
       "tag": "0001_sturdy_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1747254274937,
+      "tag": "0002_curvy_iron_lad",
+      "breakpoints": true
     }
   ]
 }

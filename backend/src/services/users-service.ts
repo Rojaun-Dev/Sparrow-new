@@ -11,6 +11,8 @@ export const createUserSchema = z.object({
   lastName: z.string().min(2).max(50),
   phone: z.string().optional(),
   address: z.string().optional(),
+  trn: z.string().optional(),
+  pickupLocationId: z.string().optional(),
   role: z.enum(['customer', 'admin_l1', 'admin_l2', 'super_admin']).default('customer'),
   auth0Id: z.string().optional(), // Optional because it might be set by Auth0 integration
   passwordHash: z.string().optional(), // For JWT authentication
