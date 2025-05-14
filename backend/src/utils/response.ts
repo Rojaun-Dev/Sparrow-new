@@ -85,4 +85,11 @@ export class ApiResponse {
   static created(res: Response, data: any = null, message = 'Resource created successfully') {
     return this.success(res, data, message, 201);
   }
+
+  /**
+   * Send a server error response
+   */
+  static serverError(res: Response, message = 'Internal Server Error') {
+    return this.error(res, message, 500);
+  }
 } 

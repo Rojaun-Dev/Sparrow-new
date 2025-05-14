@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../utils/response';
 import { UsersService, createUserSchema } from '../services/users-service';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { jwt as jwtConfig } from '../config';
 
 interface AuthRequest extends Request {
@@ -36,7 +36,7 @@ export class AuthController {
       }
 
       // Verify password
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+      const passwordMatch = await bcrypt.compare(password, user.passwordHash || '');
       if (!passwordMatch) {
         return ApiResponse.unauthorized(res, 'Invalid credentials');
       }
@@ -259,7 +259,7 @@ export class AuthController {
       const user = await this.usersService.getUserByIdWithPassword(userId, companyId);
 
       // Verify current password
-      const passwordMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      const passwordMatch = await bcrypt.compare(currentPassword, user.passwordHash || '');
       if (!passwordMatch) {
         return ApiResponse.badRequest(res, 'Current password is incorrect');
       }
@@ -301,13 +301,13 @@ export class AuthController {
     const accessToken = jwt.sign(
       accessPayload,
       jwtConfig.secret,
-      { expiresIn: jwtConfig.expiresIn }
+      { expiresIn: jwtConfig.expiresIn } as SignOptions
     );
 
     const refreshToken = jwt.sign(
       refreshPayload,
       jwtConfig.refreshSecret,
-      { expiresIn: jwtConfig.refreshExpiresIn }
+      { expiresIn: jwtConfig.refreshExpiresIn } as SignOptions
     );
 
     return { accessToken, refreshToken };
