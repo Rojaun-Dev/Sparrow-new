@@ -1,5 +1,6 @@
 "use client"
 
+import { use } from "react"
 import Link from "next/link"
 import { ArrowLeft, CreditCard, Download, ExternalLink, FileText, Printer } from "lucide-react"
 
@@ -15,8 +16,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useInvoice, useDownloadInvoicePdf } from "@/hooks/useInvoices"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Define types for the invoice data
+// Define types for the payment history
 type PaymentHistory = {
   date: string;
   method: string;
@@ -24,36 +27,13 @@ type PaymentHistory = {
   amount: string;
 }
 
-export default function InvoiceDetailsPage({ params }: { params: { id: string } }) {
-  // In a real app, this would be fetched from an API
-  const invoice = {
-    id: params.id,
-    invoiceNumber: "INV-202",
-    status: "unpaid",
-    statusLabel: "Unpaid",
-    issueDate: "May 20, 2023",
-    dueDate: "Jun 03, 2023",
-    subtotal: "$120.00",
-    tax: "$5.30",
-    total: "$125.30",
-    packages: [
-      { id: "pkg-001", trackingNumber: "SP-1234", description: "Nike Shoes", weight: "2.5 lbs" }
-    ],
-    items: [
-      { description: "Shipping Fee", details: "International shipping", amount: "$90.00" },
-      { description: "Handling Fee", details: "Package processing", amount: "$30.00" },
-      { description: "Tax", details: "Sales tax", amount: "$5.30" },
-    ],
-    billingAddress: {
-      name: "John Doe",
-      line1: "123 Main St",
-      city: "Kingston",
-      state: "Jamaica",
-      postalCode: "00001",
-      country: "Jamaica"
-    },
-    paymentHistory: [] as PaymentHistory[]
-  }
+export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  // Unwrap params with React.use()
+  const resolvedParams = use(params);
+  
+  // Fetch invoice data using the useInvoice hook
+  const { data: invoice, isLoading, isError, error } = useInvoice(resolvedParams.id);
+  const { mutate: downloadPdf, isPending: isDownloading } = useDownloadInvoicePdf();
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -68,6 +48,50 @@ export default function InvoiceDetailsPage({ params }: { params: { id: string } 
         return "bg-gray-500"
       default:
         return "bg-gray-500"
+    }
+  }
+
+  if (isLoading) {
+    return <InvoiceDetailsSkeleton />
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-6">
+        <h3 className="text-xl font-semibold mb-2">Error Loading Invoice</h3>
+        <p className="text-muted-foreground mb-4">{error?.message || "Failed to load invoice details"}</p>
+        <Button asChild variant="outline">
+          <Link href="/customer/invoices">Return to Invoices</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  if (!invoice) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-6">
+        <h3 className="text-xl font-semibold mb-2">Invoice Not Found</h3>
+        <p className="text-muted-foreground mb-4">The requested invoice could not be found.</p>
+        <Button asChild variant="outline">
+          <Link href="/customer/invoices">Return to Invoices</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  // Get status label from status
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "paid":
+        return "Paid"
+      case "unpaid":
+        return "Unpaid"
+      case "overdue":
+        return "Overdue"
+      case "draft":
+        return "Draft"
+      default:
+        return status.charAt(0).toUpperCase() + status.slice(1);
     }
   }
 
@@ -92,7 +116,12 @@ export default function InvoiceDetailsPage({ params }: { params: { id: string } 
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => downloadPdf(invoice.id)}
+            disabled={isDownloading}
+          >
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
@@ -106,11 +135,11 @@ export default function InvoiceDetailsPage({ params }: { params: { id: string } 
               <div>
                 <CardTitle>Invoice Details</CardTitle>
                 <CardDescription>
-                  Issued on {invoice.issueDate}
+                  Issued on {new Date(invoice.issueDate).toLocaleDateString()}
                 </CardDescription>
               </div>
               <Badge className={getStatusBadgeColor(invoice.status)}>
-                {invoice.statusLabel}
+                {getStatusLabel(invoice.status)}
               </Badge>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -118,69 +147,72 @@ export default function InvoiceDetailsPage({ params }: { params: { id: string } 
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Invoice Date</h3>
-                    <p className="text-base">{invoice.issueDate}</p>
+                    <p className="text-base">{new Date(invoice.issueDate).toLocaleDateString()}</p>
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Due Date</h3>
                     <p className={`text-base ${invoice.status === "overdue" ? "text-red-600 font-medium" : ""}`}>
-                      {invoice.dueDate}
+                      {new Date(invoice.dueDate).toLocaleDateString()}
                     </p>
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Invoice Number</h3>
                     <p className="text-base">{invoice.invoiceNumber}</p>
                   </div>
+                  {invoice.notes && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Notes</h3>
+                      <p className="text-base">{invoice.notes}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Billing Address</h3>
-                    <div className="text-sm">
-                      <p>{invoice.billingAddress.name}</p>
-                      <p>{invoice.billingAddress.line1}</p>
-                      <p>
-                        {invoice.billingAddress.city}, {invoice.billingAddress.state} {invoice.billingAddress.postalCode}
-                      </p>
-                      <p>{invoice.billingAddress.country}</p>
-                    </div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
+                    <p className="text-base">Customer ID: {invoice.userId}</p>
+                    <p className="text-base">Company ID: {invoice.companyId}</p>
                   </div>
                 </div>
               </div>
               
               <Separator />
               
-              <div>
-                <h3 className="mb-4 text-base font-medium">Related Packages</h3>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tracking #</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Weight</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {invoice.packages.map((pkg) => (
-                        <TableRow key={pkg.id}>
-                          <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
-                          <TableCell>{pkg.description}</TableCell>
-                          <TableCell>{pkg.weight}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/customer/packages/${pkg.id}`}>
-                                View Package
-                              </Link>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-              
-              <Separator />
+              {invoice.packages && invoice.packages.length > 0 && (
+                <>
+                  <div>
+                    <h3 className="mb-4 text-base font-medium">Related Packages</h3>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Tracking #</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Weight</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {invoice.packages.map((pkg) => (
+                            <TableRow key={pkg.id}>
+                              <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
+                              <TableCell>{pkg.description}</TableCell>
+                              <TableCell>{pkg.weight}</TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link href={`/customer/packages/${pkg.id}`}>
+                                    View Package
+                                  </Link>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                  <Separator />
+                </>
+              )}
               
               <div>
                 <h3 className="mb-4 text-base font-medium">Invoice Items</h3>
@@ -189,42 +221,48 @@ export default function InvoiceDetailsPage({ params }: { params: { id: string } 
                     <TableHeader>
                       <TableRow>
                         <TableHead>Description</TableHead>
-                        <TableHead>Details</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invoice.items.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{item.description}</TableCell>
-                          <TableCell>{item.details}</TableCell>
-                          <TableCell className="text-right">{item.amount}</TableCell>
+                      {invoice.items && invoice.items.length > 0 ? (
+                        invoice.items.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{item.description}</TableCell>
+                            <TableCell className="text-right">${item.amount}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center text-muted-foreground py-4">
+                            No detailed items available
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      )}
                       <TableRow>
-                        <TableCell colSpan={2} className="text-right font-medium">
+                        <TableCell className="text-right font-medium">
                           Subtotal
                         </TableCell>
-                        <TableCell className="text-right">{invoice.subtotal}</TableCell>
+                        <TableCell className="text-right">${invoice.subtotal}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell colSpan={2} className="text-right font-medium">
+                        <TableCell className="text-right font-medium">
                           Tax
                         </TableCell>
-                        <TableCell className="text-right">{invoice.tax}</TableCell>
+                        <TableCell className="text-right">${invoice.taxAmount}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell colSpan={2} className="text-right font-medium">
+                        <TableCell className="text-right font-medium">
                           Total
                         </TableCell>
-                        <TableCell className="text-right font-bold">{invoice.total}</TableCell>
+                        <TableCell className="text-right font-bold">${invoice.totalAmount}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </div>
               </div>
               
-              {invoice.paymentHistory.length > 0 && (
+              {invoice.paymentHistory && invoice.paymentHistory.length > 0 && (
                 <>
                   <Separator />
                   <div>
@@ -255,86 +293,133 @@ export default function InvoiceDetailsPage({ params }: { params: { id: string } 
                 </>
               )}
             </CardContent>
-            {invoice.status === "unpaid" || invoice.status === "overdue" ? (
-              <CardFooter className="flex justify-end border-t px-6 pt-4">
-                <Button asChild>
-                  <Link href={`/customer/invoices/${invoice.id}/pay`}>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Pay Now
-                  </Link>
-                </Button>
-              </CardFooter>
-            ) : (
-              <CardFooter className="flex justify-center border-t px-6 pt-4">
-                <Button variant="outline" asChild>
-                  <Link href="/customer/invoices">
-                    Back to Invoices
-                  </Link>
-                </Button>
-              </CardFooter>
-            )}
           </Card>
         </div>
-        
-        <div className="space-y-6">
+
+        <div>
           <Card>
             <CardHeader>
               <CardTitle>Payment Status</CardTitle>
+              <CardDescription>
+                {invoice.status === "paid" 
+                  ? "This invoice has been paid in full." 
+                  : `Due on ${new Date(invoice.dueDate).toLocaleDateString()}`}
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col items-center justify-center gap-2 rounded-md border p-6">
-                <Badge className={`mb-2 ${getStatusBadgeColor(invoice.status)}`}>
-                  {invoice.statusLabel}
-                </Badge>
-                <p className="text-2xl font-bold">{invoice.total}</p>
-                {invoice.status === "unpaid" && (
-                  <p className="text-center text-sm text-muted-foreground">
-                    Due on {invoice.dueDate}
-                  </p>
-                )}
-                {invoice.status === "overdue" && (
-                  <p className="text-center text-sm text-red-600">
-                    Overdue since {invoice.dueDate}
-                  </p>
-                )}
-                {invoice.status === "paid" && invoice.paymentHistory.length > 0 && (
-                  <p className="text-center text-sm text-muted-foreground">
-                    Paid on {invoice.paymentHistory[0].date}
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Due:</span>
+                  <span className="font-bold text-lg">${invoice.totalAmount}</span>
+                </div>
+                <Separator />
+                {invoice.status === "paid" ? (
+                  <div className="rounded-md bg-green-50 p-4 text-green-700 text-sm">
+                    <p>Payment complete. Thank you!</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {invoice.status === "overdue" 
+                      ? "This invoice is past due. Please make payment as soon as possible." 
+                      : "Please make payment before the due date."}
                   </p>
                 )}
               </div>
-              
-              {(invoice.status === "unpaid" || invoice.status === "overdue") && (
+            </CardContent>
+            {invoice.status !== "paid" && (
+              <CardFooter className="border-t px-6 pt-4">
                 <Button className="w-full" asChild>
                   <Link href={`/customer/invoices/${invoice.id}/pay`}>
                     <CreditCard className="mr-2 h-4 w-4" />
                     Pay Now
                   </Link>
                 </Button>
-              )}
-              
-              {invoice.status === "paid" && (
-                <Button variant="outline" className="w-full">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Receipt
-                </Button>
-              )}
-            </CardContent>
+              </CardFooter>
+            )}
           </Card>
-          
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Skeleton loader component
+function InvoiceDetailsSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-10 rounded-md" />
+          <div>
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-24 mt-1" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-36" />
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Need Help?</CardTitle>
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-32" />
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                If you have any questions about this invoice or need assistance with payment, please contact our support team.
-              </p>
-              <Button variant="outline" className="w-full">
-                <FileText className="mr-2 h-4 w-4" />
-                Contact Support
-              </Button>
+            <CardContent className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i}>
+                      <Skeleton className="h-4 w-24 mb-1" />
+                      <Skeleton className="h-5 w-32" />
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <Skeleton className="h-4 w-28 mb-1" />
+                  <div className="space-y-1">
+                    {[1, 2, 3, 4].map((i) => (
+                      <Skeleton key={i} className="h-4 w-full" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <Skeleton className="h-5 w-36 mb-2" />
+              <Skeleton className="h-[200px] w-full" />
+              
+              <Separator />
+              
+              <Skeleton className="h-5 w-32 mb-2" />
+              <Skeleton className="h-[200px] w-full" />
             </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-40" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-6 w-24" />
+                </div>
+                <Separator />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            </CardContent>
+            <CardFooter className="border-t pt-4">
+              <Skeleton className="h-10 w-full" />
+            </CardFooter>
           </Card>
         </div>
       </div>

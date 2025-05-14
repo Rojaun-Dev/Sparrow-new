@@ -432,9 +432,9 @@ export default function CustomerDashboard() {
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : statistics?.data?.monthlyTrend && statistics.data.monthlyTrend.length > 0 ? (
+            ) : statistics?.monthlyTrend && statistics.monthlyTrend.length > 0 ? (
               <div className="space-y-8">
-                {statistics.data.monthlyTrend.map((item: any, index: number) => (
+                {statistics.monthlyTrend.map((item: any, index: number) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="space-y-1">
                       <p className="text-sm font-medium leading-none">{item.month}</p>
@@ -470,9 +470,9 @@ export default function CustomerDashboard() {
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : statistics?.data?.recentPayments && statistics.data.recentPayments.length > 0 ? (
+            ) : statistics?.recentPayments && statistics.recentPayments.length > 0 ? (
               <div className="space-y-4">
-                {statistics.data.recentPayments.map((payment: any) => (
+                {statistics.recentPayments.map((payment: any) => (
                   <div key={payment.id} className="flex items-center justify-between rounded-md border p-4">
                     <div className="space-y-1">
                       <p className="text-sm font-medium leading-none">{payment.invoiceNumber}</p>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, use } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { 
@@ -50,70 +50,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { usePackage, usePackageTimeline } from "@/hooks/usePackages"
+import { Skeleton } from "@/components/ui/skeleton"
 
-export default function PackageDetailPage({ params }: { params: { id: string } }) {
+export default function PackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // Unwrap params with React.use()
+  const resolvedParams = use(params);
+  
   const [activeImage, setActiveImage] = useState(0)
-
-  // Example package data - would be fetched from API in a real app
-  const packageData = {
-    id: params.id,
-    trackingNumber: "SP-1234",
-    internalTrackingId: "INT-1234",
-    description: "Nike Shoes - Air Max 270",
-    status: "processing",
-    statusLabel: "Processing",
-    weight: "2.5 lbs",
-    dimensions: {
-      length: "12 in",
-      width: "8 in",
-      height: "6 in",
-    },
-    declaredValue: "$120.00",
-    senderInfo: {
-      name: "Nike Store",
-      address: "123 Retailer St, Portland, OR"
-    },
-    receivedDate: "May 20, 2023",
-    processingDate: "May 21, 2023",
-    estimatedDelivery: "May 25, 2023",
-    photos: [
-      "/placeholder.svg?key=photo1",
-      "/placeholder.svg?key=photo2",
-      "/placeholder.svg?key=photo3",
-    ],
-    notes: "Handle with care. Box slightly damaged during shipping but contents intact.",
-    timeline: [
-      {
-        date: "May 21, 2023 - 10:30 AM",
-        status: "Processing",
-        description: "Package is being processed at our warehouse.",
-        icon: Package,
-      },
-      {
-        date: "May 20, 2023 - 2:15 PM",
-        status: "Received",
-        description: "Package has been received at our warehouse.",
-        icon: Package,
-      },
-      {
-        date: "May 18, 2023 - 9:45 AM",
-        status: "Pre-Alert Created",
-        description: "Pre-alert was created for this package.",
-        icon: FileText,
-      },
-    ],
-    invoice: {
-      id: "INV-202",
-      amount: "$45.30",
-      status: "Unpaid",
-      dueDate: "May 25, 2023",
-      items: [
-        { description: "Shipping Fee", amount: "$35.00" },
-        { description: "Handling Fee", amount: "$5.00" },
-        { description: "Tax", amount: "$5.30" },
-      ],
-    },
-  }
+  
+  // Fetch package data using the usePackage hook
+  const { data: packageData, isLoading, isError, error } = usePackage(resolvedParams.id);
+  const { data: timeline } = usePackageTimeline(resolvedParams.id);
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -135,6 +83,57 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
     }
   }
 
+  // Get status label from status
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "pre_alert":
+        return "Pre-Alert"
+      case "received":
+        return "Received"
+      case "processing":
+        return "Processing"
+      case "ready_for_pickup":
+        return "Ready for Pickup"
+      case "in_transit":
+        return "In Transit"
+      case "delivered":
+        return "Delivered"
+      default:
+        return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+    }
+  }
+
+  if (isLoading) {
+    return <PackageDetailsSkeleton />
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-6">
+        <h3 className="text-xl font-semibold mb-2">Error Loading Package</h3>
+        <p className="text-muted-foreground mb-4">{error?.message || "Failed to load package details"}</p>
+        <Button asChild variant="outline">
+          <Link href="/customer/packages">Return to Packages</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  if (!packageData) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-6">
+        <h3 className="text-xl font-semibold mb-2">Package Not Found</h3>
+        <p className="text-muted-foreground mb-4">The requested package could not be found.</p>
+        <Button asChild variant="outline">
+          <Link href="/customer/packages">Return to Packages</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  const packagePhotos = packageData.photos || [];
+  const packageTimeline = timeline || [];
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -146,7 +145,7 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
           </Button>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Package Details</h1>
           <Badge className={getStatusBadgeColor(packageData.status)}>
-            {packageData.statusLabel}
+            {getStatusLabel(packageData.status)}
           </Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -177,42 +176,63 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
                     <h3 className="text-sm font-medium text-muted-foreground">Tracking Number</h3>
                     <p className="text-base font-medium">{packageData.trackingNumber}</p>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Internal ID</h3>
-                    <p className="text-base">{packageData.internalTrackingId}</p>
-                  </div>
+                  {packageData.internalTrackingId && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Internal ID</h3>
+                      <p className="text-base">{packageData.internalTrackingId}</p>
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Description</h3>
                     <p className="text-base">{packageData.description}</p>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Weight</h3>
-                    <p className="text-base">{packageData.weight}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Dimensions</h3>
-                    <p className="text-base">
-                      {packageData.dimensions.length} × {packageData.dimensions.width} × {packageData.dimensions.height}
-                    </p>
-                  </div>
+                  {packageData.weight && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Weight</h3>
+                      <p className="text-base">{packageData.weight}</p>
+                    </div>
+                  )}
+                  {packageData.dimensions && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Dimensions</h3>
+                      <p className="text-base">
+                        {packageData.dimensions.length} × {packageData.dimensions.width} × {packageData.dimensions.height}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-4">
+                  {packageData.declaredValue && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Declared Value</h3>
+                      <p className="text-base">{packageData.declaredValue}</p>
+                    </div>
+                  )}
+                  {packageData.senderInfo && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Sender</h3>
+                      <p className="text-base">{packageData.senderInfo.name}</p>
+                      <p className="text-sm text-muted-foreground">{packageData.senderInfo.address}</p>
+                    </div>
+                  )}
+                  {packageData.receivedDate && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Received Date</h3>
+                      <p className="text-base">{new Date(packageData.receivedDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                  {packageData.estimatedDelivery && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Estimated Delivery</h3>
+                      <p className="text-base">{new Date(packageData.estimatedDelivery).toLocaleDateString()}</p>
+                    </div>
+                  )}
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Declared Value</h3>
-                    <p className="text-base">{packageData.declaredValue}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Sender</h3>
-                    <p className="text-base">{packageData.senderInfo.name}</p>
-                    <p className="text-sm text-muted-foreground">{packageData.senderInfo.address}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Received Date</h3>
-                    <p className="text-base">{packageData.receivedDate}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Estimated Delivery</h3>
-                    <p className="text-base">{packageData.estimatedDelivery}</p>
+                    <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
+                    <p className="text-base">Customer ID: {packageData.userId}</p>
+                    {packageData.companyId && (
+                      <p className="text-base">Company ID: {packageData.companyId}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -240,23 +260,31 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
             </CardHeader>
             <CardContent>
               <div className="space-y-8">
-                {packageData.timeline.map((event, index) => (
-                  <div key={index} className="flex">
-                    <div className="mr-4 flex flex-col items-center">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <event.icon className="h-5 w-5 text-primary" />
+                {packageTimeline.length > 0 ? (
+                  packageTimeline.map((event: any, index: number) => (
+                    <div key={index} className="flex">
+                      <div className="mr-4 flex flex-col items-center">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                          <Package className="h-5 w-5 text-primary" />
+                        </div>
+                        {index !== packageTimeline.length - 1 && (
+                          <div className="mt-1 h-full w-px bg-border" />
+                        )}
                       </div>
-                      {index !== packageData.timeline.length - 1 && (
-                        <div className="mt-1 h-full w-px bg-border" />
-                      )}
+                      <div className="space-y-1 pt-1.5">
+                        <p className="text-sm font-medium">{event.status || "Status Update"}</p>
+                        <p className="text-sm text-muted-foreground">{event.description || "Package status updated"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {event.timestamp ? new Date(event.timestamp).toLocaleString() : new Date(event.createdAt).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-1 pt-1.5">
-                      <p className="text-sm font-medium">{event.status}</p>
-                      <p className="text-sm text-muted-foreground">{event.description}</p>
-                      <p className="text-xs text-muted-foreground">{event.date}</p>
-                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-center py-8 text-muted-foreground">
+                    No tracking information available yet
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -267,17 +295,17 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
             <CardHeader>
               <CardTitle>Package Photos</CardTitle>
               <CardDescription>
-                {packageData.photos.length} photos available
+                {packagePhotos.length} photos available
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {packageData.photos.length > 0 ? (
+              {packagePhotos.length > 0 ? (
                 <div className="space-y-4">
                   <Dialog>
                     <DialogTrigger asChild>
                       <div className="overflow-hidden rounded-md border cursor-pointer">
                         <Image
-                          src={packageData.photos[activeImage]}
+                          src={packagePhotos[activeImage]}
                           alt="Package photo"
                           width={400}
                           height={300}
@@ -294,7 +322,7 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
                       </DialogHeader>
                       <div className="mt-4">
                         <Image
-                          src={packageData.photos[activeImage]}
+                          src={packagePhotos[activeImage]}
                           alt="Package photo"
                           width={800}
                           height={600}
@@ -305,7 +333,7 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
                   </Dialog>
 
                   <div className="flex flex-wrap gap-2">
-                    {packageData.photos.map((photo, i) => (
+                    {packagePhotos.map((photo, i) => (
                       <div
                         key={i}
                         className={`relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border transition-colors ${
@@ -332,77 +360,44 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Invoice Details</CardTitle>
-              <CardDescription>
-                Associated invoice for this package.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {packageData.invoice ? (
+          {packageData.invoiceId && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Invoice</CardTitle>
+                <CardDescription>
+                  Associated invoice for this package.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{packageData.invoice.id}</p>
-                      <p className="text-sm text-muted-foreground">Due: {packageData.invoice.dueDate}</p>
-                    </div>
-                    <Badge variant={packageData.invoice.status === "Paid" ? "outline" : "destructive"}>
-                      {packageData.invoice.status}
-                    </Badge>
+                    <p className="font-medium">Invoice ID: {packageData.invoiceId}</p>
                   </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    {packageData.invoice.items.map((item, i) => (
-                      <div key={i} className="flex justify-between text-sm">
-                        <span>{item.description}</span>
-                        <span>{item.amount}</span>
-                      </div>
-                    ))}
-                    <Separator />
-                    <div className="flex justify-between font-medium">
-                      <span>Total</span>
-                      <span>{packageData.invoice.amount}</span>
-                    </div>
-                  </div>
+                  <Button className="w-full" asChild>
+                    <Link href={`/customer/invoices/${packageData.invoiceId}`}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      View Invoice
+                    </Link>
+                  </Button>
                 </div>
-              ) : (
-                <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed">
-                  <FileText className="h-10 w-10 text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">No invoice available</p>
-                </div>
-              )}
-            </CardContent>
-            {packageData.invoice && packageData.invoice.status !== "Paid" && (
-              <CardFooter className="border-t px-6 pt-4">
-                <Button className="w-full">
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Pay Now
-                </Button>
-              </CardFooter>
-            )}
-            {packageData.invoice && packageData.invoice.status === "Paid" && (
-              <CardFooter className="border-t px-6 pt-4">
-                <Button variant="outline" className="w-full">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Receipt
-                </Button>
-              </CardFooter>
-            )}
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start">
-                <Truck className="mr-2 h-4 w-4" />
-                Track with Courier
-                <ExternalLink className="ml-auto h-4 w-4" />
-              </Button>
+              {packageData.trackingUrl && (
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href={packageData.trackingUrl} target="_blank">
+                    <Truck className="mr-2 h-4 w-4" />
+                    Track with Courier
+                    <ExternalLink className="ml-auto h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
               <Button variant="outline" className="w-full justify-start">
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Contact Support
@@ -411,6 +406,114 @@ export default function PackageDetailPage({ params }: { params: { id: string } }
                 <Map className="mr-2 h-4 w-4" />
                 Pickup Locations
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Skeleton loader component
+function PackageDetailsSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-10 rounded-md" />
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-6 w-24" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-72" />
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i}>
+                      <Skeleton className="h-4 w-32 mb-1" />
+                      <Skeleton className="h-5 w-48" />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i}>
+                      <Skeleton className="h-4 w-32 mb-1" />
+                      <Skeleton className="h-5 w-48" />
+                      {i === 2 && <Skeleton className="h-4 w-64 mt-1" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-56" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex">
+                    <div className="mr-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      {i !== 3 && <Skeleton className="h-16 w-1 mx-auto mt-1" />}
+                    </div>
+                    <div className="space-y-1 pt-1.5">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-64" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-36" />
+              <Skeleton className="h-4 w-24" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[200px] w-full" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-56" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[100px] w-full" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-28" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
             </CardContent>
           </Card>
         </div>
