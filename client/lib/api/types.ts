@@ -232,4 +232,13 @@ export interface PaymentFilterParams extends PaginationParams {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+}
+
+// Add User and Company types if they don't exist
+export interface Company extends BaseEntity {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
 } 

@@ -207,4 +207,24 @@ export class InvoicesController {
       return undefined;
     }
   };
+
+  /**
+   * Get invoice by package ID
+   */
+  getInvoiceByPackageId = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { packageId } = req.params;
+      const companyId = req.companyId as string;
+      
+      if (!packageId) {
+        return ApiResponse.badRequest(res, 'Package ID is required');
+      }
+      
+      const invoice = await this.service.getInvoiceByPackageId(packageId, companyId);
+      return ApiResponse.success(res, invoice);
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 

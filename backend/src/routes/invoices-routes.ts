@@ -38,4 +38,11 @@ router.post('/:id/cancel', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.c
 // Delete invoice (Admin L2 only)
 router.delete('/:id', /*checkRole('admin_l2'),*/ controller.deleteInvoice);
 
+// Get invoice for a package
+router.get(
+  '/by-package/:packageId',
+  /* authMiddleware, validateCompanyAccess, */
+  controller.getInvoiceByPackageId
+);
+
 export default router; 

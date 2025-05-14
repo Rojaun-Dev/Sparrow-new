@@ -245,4 +245,26 @@ export class InvoicesService {
     // Example: ABC-23-05-0042
     return `${companyCode}-${year}-${month}-${count.toString().padStart(4, '0')}`;
   }
+
+  /**
+   * Get invoice by package ID
+   * @param packageId - The package ID
+   * @param companyId - The company ID
+   */
+  async getInvoiceByPackageId(packageId: string, companyId: string) {
+    try {
+      const invoice = await this.invoicesRepository.findByPackageId(packageId, companyId);
+      
+      if (!invoice) {
+        throw new AppError('Invoice not found for this package', 404);
+      }
+      
+      return invoice;
+    } catch (error: any) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new Error(`Failed to get invoice for package: ${error.message}`);
+    }
+  }
 } 

@@ -14,7 +14,9 @@ import {
   MessageSquare,
   Package,
   Printer,
-  Truck
+  Receipt,
+  Truck,
+  User as UserIcon
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -51,7 +53,47 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { usePackage, usePackageTimeline } from "@/hooks/usePackages"
+import { useInvoiceByPackageId } from "@/hooks/useInvoices"
+import { useUser } from "@/hooks/useUsers"
+import { useCompany } from "@/hooks/useCompanies"
 import { Skeleton } from "@/components/ui/skeleton"
+
+// Customer Name Display Component
+function CustomerNameDisplay({ userId }: { userId: string }) {
+  const { data: user, isLoading } = useUser(userId);
+  
+  if (isLoading) {
+    return <Skeleton className="h-5 w-40" />;
+  }
+  
+  if (!user) {
+    return <p className="text-base">Customer ID: {userId}</p>;
+  }
+  
+  return (
+    <div className="flex items-center gap-2">
+      <UserIcon className="h-4 w-4 text-muted-foreground" />
+      <p className="text-base">
+        {user.firstName} {user.lastName}
+      </p>
+    </div>
+  );
+}
+
+// Company Name Display Component
+function CompanyNameDisplay({ companyId }: { companyId: string }) {
+  const { data: company, isLoading } = useCompany(companyId);
+  
+  if (isLoading) {
+    return <Skeleton className="h-5 w-40" />;
+  }
+  
+  if (!company) {
+    return <p className="text-base">Company ID: {companyId}</p>;
+  }
+  
+  return <p className="text-base">{company.name}</p>;
+}
 
 export default function PackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
@@ -62,6 +104,9 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
   // Fetch package data using the usePackage hook
   const { data: packageData, isLoading, isError, error } = usePackage(resolvedParams.id);
   const { data: timeline } = usePackageTimeline(resolvedParams.id);
+  
+  // Fetch related invoice
+  const { data: relatedInvoice, isLoading: isLoadingInvoice } = useInvoiceByPackageId(resolvedParams.id);
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -221,19 +266,16 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
                       <p className="text-base">{new Date(packageData.receivedDate).toLocaleDateString()}</p>
                     </div>
                   )}
-                  {packageData.estimatedDelivery && (
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Estimated Delivery</h3>
-                      <p className="text-base">{new Date(packageData.estimatedDelivery).toLocaleDateString()}</p>
-                    </div>
-                  )}
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
-                    <p className="text-base">Customer ID: {packageData.userId}</p>
-                    {packageData.companyId && (
-                      <p className="text-base">Company ID: {packageData.companyId}</p>
-                    )}
+                    <CustomerNameDisplay userId={packageData.userId} />
                   </div>
+                  {packageData.companyId && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Company</h3>
+                      <CompanyNameDisplay companyId={packageData.companyId} />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -248,6 +290,205 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+
+          {isLoadingInvoice ? (
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-4 w-60" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : relatedInvoice ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Receipt className="mr-2 h-5 w-5" />
+                  Related Invoice
+                </CardTitle>
+                <CardDescription>
+                  Billing information for this package
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Invoice Number</h3>
+                      <p className="text-base font-medium">{relatedInvoice.invoiceNumber}</p>
+                    </div>
+                    <Badge
+                      className={
+                        relatedInvoice.status === "paid" 
+                          ? "bg-green-500" 
+                          : relatedInvoice.status === "overdue" 
+                            ? "bg-red-500" 
+                            : "bg-amber-500"
+                      }
+                    >
+                      {relatedInvoice.status.charAt(0).toUpperCase() + relatedInvoice.status.slice(1)}
+                    </Badge>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
+                    <p className="text-base font-medium">
+                      ${typeof relatedInvoice.totalAmount === 'string' 
+                          ? parseFloat(relatedInvoice.totalAmount).toFixed(2)
+                          : relatedInvoice.totalAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Due Date</h3>
+                      <p className="text-base">
+                        {new Date(relatedInvoice.dueDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/customer/invoices/${relatedInvoice.id}`}>
+                        View Invoice
+                        <ExternalLink className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Receipt className="mr-2 h-5 w-5" />
+                  Billing Information
+                </CardTitle>
+                <CardDescription>
+                  No invoice has been generated for this package yet
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  This package is not associated with any invoice at the moment. An invoice will be generated when your package is processed.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Delivery Progress</CardTitle>
+              <CardDescription>
+                Current status of your package in the delivery process
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-8">
+                {/* Static timeline steps showing progress based on current status */}
+                <div className="relative">
+                  {/* Progress line */}
+                  <div className="absolute left-5 top-0 h-full w-px bg-border" />
+                  
+                  {/* Timeline steps */}
+                  <div className="space-y-8">
+                    {[
+                      { 
+                        id: "pre_alert", 
+                        label: "Pre-Alert", 
+                        description: "Package information received",
+                        icon: <Package className="h-5 w-5" />
+                      },
+                      { 
+                        id: "received", 
+                        label: "Received", 
+                        description: "Package arrived at our facility",
+                        icon: <Truck className="h-5 w-5" />
+                      },
+                      { 
+                        id: "processing", 
+                        label: "Processing", 
+                        description: "Package is being processed",
+                        icon: <Package className="h-5 w-5" />
+                      },
+                      { 
+                        id: "ready_for_pickup", 
+                        label: "Ready for Pickup", 
+                        description: "Package is ready to be picked up",
+                        icon: <Package className="h-5 w-5" />
+                      },
+                      { 
+                        id: "delivered", 
+                        label: "Delivered", 
+                        description: "Package has been delivered",
+                        icon: <Package className="h-5 w-5" />
+                      }
+                    ].map((step, index) => {
+                      // Determine if this step is active, completed, or upcoming
+                      const packageStatus = packageData.status || "pre_alert";
+                      const statuses = ["pre_alert", "received", "processing", "ready_for_pickup", "delivered"];
+                      const currentStatusIndex = statuses.indexOf(packageStatus);
+                      const stepIndex = statuses.indexOf(step.id);
+                      
+                      let status: "completed" | "active" | "upcoming" = "upcoming";
+                      if (stepIndex < currentStatusIndex) {
+                        status = "completed";
+                      } else if (stepIndex === currentStatusIndex) {
+                        status = "active";
+                      }
+                      
+                      return (
+                        <div key={step.id} className="flex">
+                          <div className="relative mr-4 flex h-10 w-10 flex-shrink-0 items-center justify-center">
+                            <div 
+                              className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                                status === "completed" 
+                                  ? "bg-primary text-primary-foreground" 
+                                  : status === "active" 
+                                    ? "bg-primary/20 text-primary border-2 border-primary" 
+                                    : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {step.icon}
+                            </div>
+                          </div>
+                          <div className="flex flex-col space-y-1 pt-1.5">
+                            <p className={`text-sm font-medium ${
+                              status === "completed" ? "text-primary" : 
+                              status === "active" ? "text-foreground" : 
+                              "text-muted-foreground"
+                            }`}>
+                              {step.label}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {step.description}
+                            </p>
+                            {status === "completed" && (
+                              <p className="text-xs text-muted-foreground">
+                                {step.id === "received" && packageData.receivedDate 
+                                  ? `On ${new Date(packageData.receivedDate).toLocaleDateString()}` 
+                                  : step.id === "processing" && packageData.processingDate
+                                    ? `On ${new Date(packageData.processingDate).toLocaleDateString()}`
+                                    : "Completed"}
+                              </p>
+                            )}
+                            {status === "active" && (
+                              <p className="text-xs text-primary">Current status</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -360,44 +601,15 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
-          {packageData.invoiceId && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Invoice</CardTitle>
-                <CardDescription>
-                  Associated invoice for this package.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">Invoice ID: {packageData.invoiceId}</p>
-                  </div>
-                  <Button className="w-full" asChild>
-                    <Link href={`/customer/invoices/${packageData.invoiceId}`}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      View Invoice
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {packageData.trackingUrl && (
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href={packageData.trackingUrl} target="_blank">
-                    <Truck className="mr-2 h-4 w-4" />
-                    Track with Courier
-                    <ExternalLink className="ml-auto h-4 w-4" />
-                  </Link>
-                </Button>
-              )}
+              <Button variant="outline" className="w-full justify-start">
+                <Truck className="mr-2 h-4 w-4" />
+                Track with Carrier
+              </Button>
               <Button variant="outline" className="w-full justify-start">
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Contact Support

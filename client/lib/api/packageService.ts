@@ -135,6 +135,14 @@ class PackageService {
     const cId = companyId || await this.getCompanyId();
     return apiClient.delete<void>(`${this.baseUrl}/${cId}/packages/${id}`);
   }
+
+  /**
+   * Get packages by invoice ID
+   */
+  async getPackagesByInvoiceId(invoiceId: string, companyId?: string): Promise<Package[]> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.get<Package[]>(`${this.baseUrl}/${cId}/packages/by-invoice/${invoiceId}`);
+  }
 }
 
 export const packageService = new PackageService(); 

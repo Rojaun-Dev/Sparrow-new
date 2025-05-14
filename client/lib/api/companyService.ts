@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import { authService } from './authService';
+import { Company } from './types';
 
 /**
  * Service for handling company-specific resources in a multi-tenant environment
@@ -64,6 +65,26 @@ class CompanyService {
    */
   async createCompany(data: any): Promise<any> {
     return apiClient.post<any>(`${this.baseUrl}`, data);
+  }
+
+  /**
+   * Get a company by ID
+   */
+  async getCompany(id: string): Promise<Company> {
+    return apiClient.get<Company>(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Get the current user's company
+   */
+  async getCurrentCompany(): Promise<Company> {
+    const userProfile = await authService.getProfile();
+    
+    if (!userProfile || !userProfile.companyId) {
+      throw new Error('Unable to fetch user company information');
+    }
+    
+    return this.getCompany(userProfile.companyId);
   }
 }
 

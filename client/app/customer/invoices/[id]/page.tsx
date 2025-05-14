@@ -17,6 +17,9 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useInvoice, useDownloadInvoicePdf } from "@/hooks/useInvoices"
+import { usePackagesByInvoiceId } from "@/hooks/usePackages"
+import { useUser } from "@/hooks/useUsers"
+import { useCompany } from "@/hooks/useCompanies"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // Define types for the payment history
@@ -27,6 +30,40 @@ type PaymentHistory = {
   amount: string;
 }
 
+// Customer Name Display Component
+function CustomerNameDisplay({ userId }: { userId: string }) {
+  const { data: user, isLoading } = useUser(userId);
+  
+  if (isLoading) {
+    return <Skeleton className="h-5 w-40" />;
+  }
+  
+  if (!user) {
+    return <p className="text-base">Customer ID: {userId}</p>;
+  }
+  
+  return (
+    <p className="text-base">
+      {user.firstName} {user.lastName}
+    </p>
+  );
+}
+
+// Company Name Display Component
+function CompanyNameDisplay({ companyId }: { companyId: string }) {
+  const { data: company, isLoading } = useCompany(companyId);
+  
+  if (isLoading) {
+    return <Skeleton className="h-5 w-40" />;
+  }
+  
+  if (!company) {
+    return <p className="text-base">Company ID: {companyId}</p>;
+  }
+  
+  return <p className="text-base">{company.name}</p>;
+}
+
 export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
   const resolvedParams = use(params);
@@ -34,6 +71,9 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   // Fetch invoice data using the useInvoice hook
   const { data: invoice, isLoading, isError, error } = useInvoice(resolvedParams.id);
   const { mutate: downloadPdf, isPending: isDownloading } = useDownloadInvoicePdf();
+  
+  // Fetch related packages
+  const { data: relatedPackages, isLoading: isLoadingPackages } = usePackagesByInvoiceId(resolvedParams.id);
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -46,6 +86,18 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
         return "bg-red-500"
       case "draft":
         return "bg-gray-500"
+      case "pre_alert":
+        return "bg-gray-500"
+      case "received":
+        return "bg-blue-500"
+      case "processing":
+        return "bg-amber-500"
+      case "ready_for_pickup":
+        return "bg-green-500"
+      case "in_transit":
+        return "bg-blue-600"
+      case "delivered":
+        return "bg-green-700"
       default:
         return "bg-gray-500"
     }
@@ -90,8 +142,20 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
         return "Overdue"
       case "draft":
         return "Draft"
+      case "pre_alert":
+        return "Pre-Alert"
+      case "received":
+        return "Received"
+      case "processing":
+        return "Processing"
+      case "ready_for_pickup":
+        return "Ready for Pickup"
+      case "in_transit":
+        return "In Transit"
+      case "delivered":
+        return "Delivered"
       default:
-        return status.charAt(0).toUpperCase() + status.slice(1);
+        return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }
   }
 
@@ -169,38 +233,50 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
-                    <p className="text-base">Customer ID: {invoice.userId}</p>
-                    <p className="text-base">Company ID: {invoice.companyId}</p>
+                    <CustomerNameDisplay userId={invoice.userId} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Company</h3>
+                    <CompanyNameDisplay companyId={invoice.companyId} />
                   </div>
                 </div>
               </div>
               
               <Separator />
               
-              {invoice.packages && invoice.packages.length > 0 && (
-                <>
                   <div>
                     <h3 className="mb-4 text-base font-medium">Related Packages</h3>
+                {isLoadingPackages ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : relatedPackages && relatedPackages.length > 0 ? (
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Tracking #</TableHead>
                             <TableHead>Description</TableHead>
-                            <TableHead>Weight</TableHead>
+                          <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {invoice.packages.map((pkg) => (
+                        {relatedPackages.map((pkg) => (
                             <TableRow key={pkg.id}>
                               <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
-                              <TableCell>{pkg.description}</TableCell>
-                              <TableCell>{pkg.weight}</TableCell>
+                            <TableCell>{pkg.description || "No description"}</TableCell>
+                            <TableCell>
+                              <Badge className={getStatusBadgeColor(pkg.status)}>
+                                {getStatusLabel(pkg.status || "unknown")}
+                              </Badge>
+                            </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" asChild>
+                              <Button asChild variant="ghost" size="icon">
                                   <Link href={`/customer/packages/${pkg.id}`}>
-                                    View Package
+                                  <ExternalLink className="h-4 w-4" />
                                   </Link>
                                 </Button>
                               </TableCell>
@@ -209,10 +285,12 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                         </TableBody>
                       </Table>
                     </div>
+                ) : (
+                  <p className="text-muted-foreground">No packages associated with this invoice.</p>
+                )}
                   </div>
+              
                   <Separator />
-                </>
-              )}
               
               <div>
                 <h3 className="mb-4 text-base font-medium">Invoice Items</h3>
@@ -229,7 +307,11 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                         invoice.items.map((item, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">{item.description}</TableCell>
-                            <TableCell className="text-right">${item.amount}</TableCell>
+                            <TableCell className="text-right">
+                              ${typeof item.lineTotal === 'string' 
+                                ? parseFloat(item.lineTotal).toFixed(2)
+                                : (item.lineTotal || 0).toFixed(2)}
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -243,26 +325,39 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                         <TableCell className="text-right font-medium">
                           Subtotal
                         </TableCell>
-                        <TableCell className="text-right">${invoice.subtotal}</TableCell>
+                        <TableCell className="text-right">
+                          ${typeof invoice.subtotal === 'string' 
+                            ? parseFloat(invoice.subtotal).toFixed(2)
+                            : (invoice.subtotal || 0).toFixed(2)}
+                        </TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="text-right font-medium">
                           Tax
                         </TableCell>
-                        <TableCell className="text-right">${invoice.taxAmount}</TableCell>
+                        <TableCell className="text-right">
+                          ${typeof invoice.taxAmount === 'string' 
+                            ? parseFloat(invoice.taxAmount).toFixed(2)
+                            : (invoice.taxAmount || 0).toFixed(2)}
+                        </TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="text-right font-medium">
                           Total
                         </TableCell>
-                        <TableCell className="text-right font-bold">${invoice.totalAmount}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          ${typeof invoice.totalAmount === 'string' 
+                            ? parseFloat(invoice.totalAmount).toFixed(2)
+                            : (invoice.totalAmount || 0).toFixed(2)}
+                        </TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </div>
               </div>
               
-              {invoice.paymentHistory && invoice.paymentHistory.length > 0 && (
+              {/* Show payment history only if payments property exists and has items */}
+              {((invoice as any).payments && Array.isArray((invoice as any).payments) && (invoice as any).payments.length > 0) && (
                 <>
                   <Separator />
                   <div>
@@ -278,12 +373,16 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {invoice.paymentHistory.map((payment, index) => (
+                          {((invoice as any).payments as any[]).map((payment: any, index: number) => (
                             <TableRow key={index}>
-                              <TableCell>{payment.date}</TableCell>
-                              <TableCell>{payment.method}</TableCell>
-                              <TableCell className="font-mono text-xs">{payment.transactionId}</TableCell>
-                              <TableCell className="text-right">{payment.amount}</TableCell>
+                              <TableCell>{new Date(payment.date || payment.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell>{payment.method || payment.paymentMethod || 'Unknown'}</TableCell>
+                              <TableCell className="font-mono text-xs">{payment.transactionId || payment.id || 'N/A'}</TableCell>
+                              <TableCell className="text-right">
+                                ${typeof payment.amount === 'string' 
+                                  ? parseFloat(payment.amount).toFixed(2)
+                                  : (payment.amount || 0).toFixed(2)}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -310,7 +409,11 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Due:</span>
-                  <span className="font-bold text-lg">${invoice.totalAmount}</span>
+                  <span className="font-bold text-lg">
+                    ${typeof invoice.totalAmount === 'string' 
+                      ? parseFloat(invoice.totalAmount).toFixed(2)
+                      : (invoice.totalAmount || 0).toFixed(2)}
+                  </span>
                 </div>
                 <Separator />
                 {invoice.status === "paid" ? (

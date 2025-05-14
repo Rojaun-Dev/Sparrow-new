@@ -360,4 +360,17 @@ export class PackagesService {
       package: pkg
     };
   }
+
+  /**
+   * Get packages by invoice ID
+   * @param invoiceId - The invoice ID
+   * @param companyId - The company ID
+   */
+  async getPackagesByInvoiceId(invoiceId: string, companyId: string) {
+    try {
+      return await this.packagesRepository.findByInvoiceId(invoiceId, companyId);
+    } catch (error: any) {
+      throw new Error(`Failed to get packages for invoice: ${error.message}`);
+    }
+  }
 } 

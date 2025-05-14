@@ -217,4 +217,27 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       )
       .orderBy(desc(this.table.createdAt));
   }
+
+  /**
+   * Find packages by invoice ID
+   * @param invoiceId - The invoice ID to filter by
+   * @param companyId - The company ID
+   */
+  async findByInvoiceId(invoiceId: string, companyId: string) {
+    return this.db
+      .select({
+        package: this.table,
+      })
+      .from(this.table)
+      .innerJoin(
+        invoiceItems,
+        and(
+          eq(invoiceItems.packageId, this.table.id),
+          eq(invoiceItems.invoiceId, invoiceId)
+        )
+      )
+      .where(eq(this.table.companyId, companyId))
+      .orderBy(desc(this.table.createdAt))
+      .then(results => results.map(r => r.package));
+  }
 } 

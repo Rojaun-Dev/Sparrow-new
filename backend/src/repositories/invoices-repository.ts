@@ -1,6 +1,7 @@
 import { SQL, and, eq, desc, asc, like, gte, lte, sql } from 'drizzle-orm';
 import { BaseRepository } from './base-repository';
 import { invoices, invoiceStatusEnum } from '../db/schema/invoices';
+import { invoiceItems } from '../db/schema/invoice-items';
 
 export class InvoicesRepository extends BaseRepository<typeof invoices> {
   constructor() {
@@ -187,5 +188,29 @@ export class InvoicesRepository extends BaseRepository<typeof invoices> {
         totalPages: Math.ceil(totalCount / pageSize),
       },
     };
+  }
+
+  /**
+   * Find invoice by package ID
+   * @param packageId - The package ID
+   * @param companyId - The company ID
+   */
+  async findByPackageId(packageId: string, companyId: string) {
+    const result = await this.db
+      .select({
+        invoice: this.table,
+      })
+      .from(this.table)
+      .innerJoin(
+        invoiceItems,
+        and(
+          eq(invoiceItems.invoiceId, this.table.id),
+          eq(invoiceItems.packageId, packageId)
+        )
+      )
+      .where(eq(this.table.companyId, companyId))
+      .limit(1);
+    
+    return result.length > 0 ? result[0].invoice : null;
   }
 } 

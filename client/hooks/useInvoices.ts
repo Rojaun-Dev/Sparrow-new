@@ -93,4 +93,13 @@ export function useDownloadInvoicePdf() {
       return true;
     },
   });
+}
+
+// Hook for fetching invoice associated with a package
+export function useInvoiceByPackageId(packageId: string) {
+  return useQuery({
+    queryKey: [...invoiceKeys.lists(), 'package', packageId],
+    queryFn: () => invoiceService.getInvoiceByPackageId(packageId),
+    enabled: !!packageId, // Only run the query if we have a package ID
+  });
 } 

@@ -32,4 +32,12 @@ router.put('/:id', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.updatePac
 // Delete package (Admin L2 only)
 router.delete('/:id', /*checkRole('admin_l2'),*/ controller.deletePackage);
 
+// Get packages by invoice ID
+router.get(
+  '/by-invoice/:invoiceId',
+  // authMiddleware,
+  // validateCompanyAccess,
+  controller.getPackagesByInvoiceId
+);
+
 export default router; 

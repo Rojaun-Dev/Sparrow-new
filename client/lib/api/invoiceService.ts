@@ -120,6 +120,22 @@ class InvoiceService {
     const cId = companyId || await this.getCompanyId();
     return apiClient.patch<Invoice>(`${this.baseUrl}/${cId}/invoices/${id}/paid`, paymentDetails);
   }
+
+  /**
+   * Get invoice for a specific package
+   */
+  async getInvoiceByPackageId(packageId: string, companyId?: string): Promise<Invoice | null> {
+    const cId = companyId || await this.getCompanyId();
+    try {
+      return await apiClient.get<Invoice>(`${this.baseUrl}/${cId}/invoices/by-package/${packageId}`);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // If package isn't associated with any invoice, return null
+        return null;
+      }
+      throw error;
+    }
+  }
 }
 
 // Export as singleton

@@ -36,12 +36,27 @@ export function usePackage(id: string) {
   });
 }
 
+/**
+ * TODO: Backend Timeline API Integration
+ * 
+ * When the backend timeline API is fully implemented, update this hook by:
+ * 1. Restoring the original packageService.getPackageTimeline API call or Using your own API call
+ * 2. Setting enabled: !!id to enable the query when an ID is available
+ * 3. Removing the temporary Promise.resolve([]) placeholder
+ * 
+ * Example implementation:
+ * return useQuery({
+ *   queryKey: [...packageKeys.detail(id), 'timeline'],
+ *   queryFn: () => packageService.getPackageTimeline(id),
+ *   enabled: !!id,
+ * });
+ */
 // Hook for fetching package timeline
 export function usePackageTimeline(id: string) {
   return useQuery({
     queryKey: [...packageKeys.detail(id), 'timeline'],
-    queryFn: () => packageService.getPackageTimeline(id),
-    enabled: !!id,
+    queryFn: () => Promise.resolve([]), // Return empty array instead of making API call
+    enabled: false, // Disable the query to prevent API calls
   });
 }
 
@@ -79,5 +94,14 @@ export function useUploadPackagePhotos() {
         updatedPackage
       );
     },
+  });
+}
+
+// Hook for fetching packages by invoice ID
+export function usePackagesByInvoiceId(invoiceId: string) {
+  return useQuery({
+    queryKey: [...packageKeys.lists(), 'invoice', invoiceId],
+    queryFn: () => packageService.getPackagesByInvoiceId(invoiceId),
+    enabled: !!invoiceId, // Only run the query if we have an invoice ID
   });
 } 
