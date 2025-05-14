@@ -50,17 +50,46 @@ class ProfileService {
    * The backend will handle access control based on the user's role
    */
   async getUserStatistics(): Promise<any> {
-    // First get the user's profile to check role
-    const user = await this.getCurrentUser();
-    
-    // Determine which statistics endpoint to call based on role
-    if (user.role === 'super_admin') {
-      return apiClient.get<any>(`/statistics/superadmin`);
-    } else if (user.role === 'admin_l1' || user.role === 'admin_l2') {
-      return apiClient.get<any>(`/statistics/admin`);
-    } else {
-      // Default to customer statistics for regular users
-      return apiClient.get<any>(`/statistics/customer`);
+    try {
+      // First get the user's profile to check role
+      const user = await this.getCurrentUser();
+      
+      let endpoint;
+      // Determine which statistics endpoint to call based on role
+      if (user.role === 'super_admin') {
+        endpoint = `/statistics/superadmin`;
+      } else if (user.role === 'admin_l1' || user.role === 'admin_l2') {
+        endpoint = `/statistics/admin`;
+      } else {
+        // Default to customer statistics for regular users
+        endpoint = `/statistics/customer/`;
+      }
+      
+      const response = await apiClient.get<any>(endpoint);
+      
+      // Ensure we have a valid response object
+      if (!response) {
+        return { data: {}, success: true };
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Error fetching user statistics:', error);
+      // Return default statistics object instead of throwing
+      return { 
+        data: {
+          totalPackages: "0",
+          packagesByStatus: {},
+          pendingPreAlerts: "0",
+          outstandingInvoices: {
+            count: "0",
+            amount: 0
+          },
+          monthlyTrend: [],
+          recentPayments: []
+        },
+        success: true
+      };
     }
   }
 }

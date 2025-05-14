@@ -42,6 +42,8 @@ export default function CustomerDashboard() {
     error: statsError 
   } = useUserStatistics();
 
+  console.log('Statistics:', statistics); // For debugging
+
   // Fetch recent packages
   const { 
     data: packagesData, 
@@ -113,10 +115,10 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Helper to count packages by status
-  const countPackagesByStatus = (status: string) => {
-    if (!statistics?.packageCounts) return 0;
-    return statistics.packageCounts[status] || 0;
+  // Helper to get package count by status
+  const getPackageCountByStatus = (status: string) => {
+    if (!statistics?.data?.packagesByStatus) return 0;
+    return parseInt(statistics.packagesByStatus[status] || '0', 10);
   };
 
   // Function to format dates
@@ -131,6 +133,8 @@ export default function CustomerDashboard() {
   // Function to determine status badge color
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
+      case 'pre_alert':
+        return 'bg-amber-500';
       case 'processed':
         return 'bg-amber-500';
       case 'ready_for_pickup':
@@ -200,12 +204,10 @@ export default function CustomerDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {statistics?.packageCounts?.total || 0}
+                  {statistics?.totalPackages || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {statistics?.packageCounts?.monthlyChange > 0 
-                    ? `+${statistics.packageCounts.monthlyChange} from last month` 
-                    : 'No change from last month'}
+                  All your packages
                 </p>
               </>
             )}
@@ -213,8 +215,8 @@ export default function CustomerDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Transit</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pre-Alerts</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {statsLoading ? (
@@ -225,16 +227,16 @@ export default function CustomerDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {countPackagesByStatus('in_transit')}
+                  {statistics?.packagesByStatus?.pre_alert || 0}
                 </div>
-                <p className="text-xs text-muted-foreground">Packages in transit</p>
+                <p className="text-xs text-muted-foreground">Registered packages</p>
               </>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ready for Pickup</CardTitle>
+            <CardTitle className="text-sm font-medium">Delivered</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -246,9 +248,9 @@ export default function CustomerDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {countPackagesByStatus('ready_for_pickup')}
+                  {statistics?.packagesByStatus?.delivered || 0}
                 </div>
-                <p className="text-xs text-muted-foreground">Ready for collection</p>
+                <p className="text-xs text-muted-foreground">Completed deliveries</p>
               </>
             )}
           </CardContent>
@@ -267,12 +269,12 @@ export default function CustomerDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {statistics?.outstandingBalance 
-                    ? formatCurrency(statistics.outstandingBalance) 
+                  {statistics?.outstandingInvoices 
+                    ? formatCurrency(statistics.outstandingInvoices.amount) 
                     : '$0.00'}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {statistics?.outstandingInvoices || 0} outstanding invoices
+                  {statistics?.outstandingInvoices?.count || 0} outstanding invoices
                 </p>
               </>
             )}
@@ -303,7 +305,7 @@ export default function CustomerDashboard() {
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : packagesData?.data.length === 0 ? (
+            ) : packagesData?.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No packages found. Create a pre-alert to get started.
               </div>
@@ -318,7 +320,7 @@ export default function CustomerDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {packagesData?.data.map((pkg: PackageType) => (
+                  {packagesData?.map((pkg: PackageType) => (
                     <TableRow key={pkg.id}>
                       <TableCell className="font-medium">{pkg.internalTrackingId}</TableCell>
                       <TableCell>{pkg.description}</TableCell>
@@ -422,73 +424,76 @@ export default function CustomerDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="md:col-span-2 lg:col-span-4">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Your package activity timeline.</CardDescription>
+            <CardTitle>Monthly Package Trend</CardTitle>
+            <CardDescription>Your package deliveries by month.</CardDescription>
           </CardHeader>
           <CardContent>
             {statsLoading ? (
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : statistics?.recentActivity && statistics.recentActivity.length > 0 ? (
+            ) : statistics?.data?.monthlyTrend && statistics.data.monthlyTrend.length > 0 ? (
               <div className="space-y-8">
-                {statistics.recentActivity.map((item: any, index: number) => (
-                  <div key={index} className="flex items-start">
-                    <div className="mr-4 mt-0.5 flex h-2 w-2 rounded-full bg-primary" />
+                {statistics.data.monthlyTrend.map((item: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">{item.title}</p>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(item.date)}</p>
+                      <p className="text-sm font-medium leading-none">{item.month}</p>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-32 h-2 bg-muted overflow-hidden rounded-full mr-2">
+                        <div 
+                          className="h-full bg-primary" 
+                          style={{ 
+                            width: `${Math.min(100, parseInt(item.count) * 20)}%` 
+                          }}
+                        />
+                      </div>
+                      <p className="text-sm font-medium">{item.count}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                No recent activity found.
+                No monthly data available.
               </div>
             )}
           </CardContent>
         </Card>
         <Card className="md:col-span-2 lg:col-span-3">
           <CardHeader>
-            <CardTitle>Outstanding Invoices</CardTitle>
-            <CardDescription>Your pending payments.</CardDescription>
+            <CardTitle>Recent Payments</CardTitle>
+            <CardDescription>Your recent transactions.</CardDescription>
           </CardHeader>
           <CardContent>
             {statsLoading ? (
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : statistics?.pendingInvoices && statistics.pendingInvoices.length > 0 ? (
+            ) : statistics?.data?.recentPayments && statistics.data.recentPayments.length > 0 ? (
               <div className="space-y-4">
-                {statistics.pendingInvoices.map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-md border p-4">
+                {statistics.data.recentPayments.map((payment: any) => (
+                  <div key={payment.id} className="flex items-center justify-between rounded-md border p-4">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">{item.invoiceNumber}</p>
-                      <p className="text-sm text-muted-foreground">Due: {formatDate(item.dueDate)}</p>
+                      <p className="text-sm font-medium leading-none">{payment.invoiceNumber}</p>
+                      <p className="text-sm text-muted-foreground">Date: {formatDate(payment.date)}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold">{formatCurrency(item.totalAmount)}</p>
-                      <Button size="sm" variant="outline" asChild>
-                        <Link href={`/customer/invoices/${item.id}`}>
-                          <CreditCard className="mr-2 h-4 w-4" />
-                          Pay
-                        </Link>
-                      </Button>
+                      <p className="text-sm font-bold">{formatCurrency(payment.amount)}</p>
+                      <Badge variant="outline" className="bg-green-50 text-green-700">Paid</Badge>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                No outstanding invoices found.
+                No recent payments found.
               </div>
             )}
           </CardContent>
           <CardFooter>
             <Button variant="outline" asChild className="w-full">
-              <Link href="/customer/invoices">View All Invoices</Link>
+              <Link href="/customer/payments">View All Payments</Link>
             </Button>
           </CardFooter>
         </Card>

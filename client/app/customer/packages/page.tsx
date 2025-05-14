@@ -233,7 +233,7 @@ export default function PackagesPage() {
           <CardDescription>
             {isLoading 
               ? 'Loading packages...'
-              : `Showing ${packagesData?.data.length || 0} packages`
+              : `Showing ${packagesData?.length || 0} packages`
             }
           </CardDescription>
         </CardHeader>
@@ -242,7 +242,7 @@ export default function PackagesPage() {
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : packagesData?.data.length === 0 ? (
+          ) : packagesData?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No packages found. Try adjusting your filters or create a pre-alert.
             </div>
@@ -260,7 +260,7 @@ export default function PackagesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {packagesData?.data.map((pkg: PackageType) => (
+                  {packagesData?.map((pkg: PackageType) => (
                     <TableRow key={pkg.id}>
                       <TableCell className="font-medium">{pkg.internalTrackingId}</TableCell>
                       <TableCell>{pkg.description}</TableCell>

@@ -23,7 +23,40 @@ export function usePayments(filters: PaymentFilterParams = {}) {
 export function useUserPayments(filters: PaymentFilterParams = {}) {
   return useQuery({
     queryKey: [...paymentKeys.lists(), 'user', filters],
-    queryFn: () => paymentService.getUserPayments(filters),
+    queryFn: async () => {
+      try {
+        // Call the service method
+        const result = await paymentService.getUserPayments(filters);
+        
+        // Ensure we always return a valid object
+        if (!result) {
+          console.warn('Payments service returned undefined or null, using fallback empty structure');
+          return {
+            data: [],
+            pagination: {
+              total: 0,
+              page: filters.page || 1,
+              limit: filters.limit || 10,
+              totalPages: 0
+            }
+          };
+        }
+        
+        return result;
+      } catch (error) {
+        console.error('Error in useUserPayments hook:', error);
+        // Return a valid empty response
+        return {
+          data: [],
+          pagination: {
+            total: 0,
+            page: filters.page || 1,
+            limit: filters.limit || 10,
+            totalPages: 0
+          }
+        };
+      }
+    }
   });
 }
 

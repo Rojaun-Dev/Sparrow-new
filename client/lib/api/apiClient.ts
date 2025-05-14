@@ -108,11 +108,37 @@ export class ApiClient {
   // Generic request method
   async request<T>(config: AxiosRequestConfig): Promise<T> {
     try {
-      const response: AxiosResponse<ApiResponse<T>> = await this.client.request(config);
+      const response: AxiosResponse = await this.client.request(config);
       console.log(`Response from ${config.url}:`, response.data);
       
-      // Return the data property from the API response
-      return response.data.data;
+      // If there's no data at all, return an empty object or array
+      if (!response.data) {
+        console.warn(`No data in response from ${config.url}`);
+        return (Array.isArray(response.data) ? [] : {}) as T;
+      }
+      
+      // If the response is already in the format we expect
+      if (!(response.data.success !== undefined && response.data.data !== undefined)) {
+        return response.data as T;
+      }
+      
+      // Standard API response format with { success, data }
+      if (response.data.success && response.data.data !== undefined) {
+        // Return just the data property
+        return response.data.data as T;
+      }
+      
+      // If success is false, throw an error
+      if (response.data.success === false) {
+        throw {
+          status: response.status,
+          message: response.data.message || 'API request failed',
+          details: response.data
+        };
+      }
+      
+      // Default case - return the whole response data
+      return response.data as T;
     } catch (error) {
       console.error(`Request error for ${config.url}:`, error);
       throw error;

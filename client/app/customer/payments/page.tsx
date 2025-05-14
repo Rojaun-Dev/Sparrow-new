@@ -329,7 +329,7 @@ export default function PaymentsPage() {
                 <CardDescription>
                   {isLoading 
                     ? 'Loading payment history...'
-                    : `Showing ${paymentsData?.data.length || 0} transactions`
+                    : `Showing ${paymentsData?.data?.length || 0} transactions`
                   }
                 </CardDescription>
               </div>
@@ -343,7 +343,7 @@ export default function PaymentsPage() {
                 <div className="flex justify-center items-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : paymentsData?.data.length === 0 ? (
+              ) : !paymentsData?.data || paymentsData.data.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No payment transactions found. Try adjusting your filters.
                 </div>
@@ -361,7 +361,7 @@ export default function PaymentsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paymentsData?.data.map((payment: Payment) => (
+                      {paymentsData.data.map((payment: Payment) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium">
                             {payment.invoiceId}

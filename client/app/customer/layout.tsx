@@ -1,8 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import "../globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
 import { CustomerHeader } from "@/components/customer/header"
 import { CustomerSidebar } from "@/components/customer/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
@@ -20,21 +18,15 @@ export default function CustomerLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <div className="flex min-h-screen flex-col">
-            <CustomerHeader />
-            <div className="flex flex-1">
-              <CustomerSidebar />
-              <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">
-                <Breadcrumbs className="mb-4" homeHref="/customer" homeLabel="Dashboard" rootPath="/customer" />
-                {children}
-              </main>
-            </div>
-          </div>
-        </ThemeProvider>
-      </body>
-    </html>
+    <div className="flex min-h-screen flex-col">
+      <CustomerHeader />
+      <div className="flex flex-1">
+        <CustomerSidebar />
+        <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">
+          <Breadcrumbs className="mb-4" homeHref="/customer" homeLabel="Dashboard" rootPath="/customer" />
+          {children}
+        </main>
+      </div>
+    </div>
   )
 } 

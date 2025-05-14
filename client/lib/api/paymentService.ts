@@ -46,16 +46,72 @@ class PaymentService {
    * Get payments for the current user
    */
   async getUserPayments(params?: PaymentFilterParams): Promise<PaginatedResponse<Payment>> {
-    const companyId = await this.getCompanyId();
-    return apiClient.get<PaginatedResponse<Payment>>(`${this.baseUrl}/${companyId}/payments/user`, { 
-      params: {
-        status: params?.status,
-        sortBy: params?.sortBy,
-        sortOrder: params?.sortOrder,
-        limit: params?.limit,
-        offset: params?.offset
+    try {
+      const companyId = await this.getCompanyId();
+      
+      const userProfile = await authService.getProfile();
+      
+      if (!userProfile || !userProfile.id) {
+        throw new Error('Unable to fetch user information');
       }
-    });
+      
+      const url = `${this.baseUrl}/${companyId}/payments/user/${userProfile.id}`;
+      console.log(`Making request to: ${url}`);
+      
+      // Use the client directly to get access to the raw response
+      const response = await apiClient.client.get(url, { 
+        params: {
+          status: params?.status,
+          sortBy: params?.sortBy,
+          sortOrder: params?.sortOrder,
+          limit: params?.limit,
+          page: params?.page,
+          offset: params?.offset
+        }
+      });
+      
+      console.log('Raw API response:', response.data);
+      
+      // Check if we have a proper response
+      if (response.data && response.data.data) {
+        return response.data;
+      }
+      
+      // If we got an array directly
+      if (Array.isArray(response.data)) {
+        return {
+          data: response.data,
+          pagination: {
+            total: response.data.length,
+            page: params?.page || 1, 
+            limit: params?.limit || 10,
+            totalPages: 1
+          }
+        };
+      }
+      
+      // Default empty response
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: params?.page || 1,
+          limit: params?.limit || 10,
+          totalPages: 0
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching user payments:', error);
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: params?.page || 1,
+          limit: params?.limit || 10,
+          totalPages: 0
+        }
+      };
+    }
   }
 
   /**

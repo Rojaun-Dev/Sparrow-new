@@ -47,15 +47,52 @@ class InvoiceService {
    */
   async getUserInvoices(params?: InvoiceFilterParams): Promise<PaginatedResponse<Invoice>> {
     const companyId = await this.getCompanyId();
-    return apiClient.get<PaginatedResponse<Invoice>>(`${this.baseUrl}/${companyId}/invoices/user`, { 
-      params: {
-        status: params?.status,
-        sortBy: params?.sortBy,
-        sortOrder: params?.sortOrder,
-        limit: params?.limit,
-        offset: params?.offset
+    
+    const userProfile = await authService.getProfile();
+    
+    if (!userProfile || !userProfile.id) {
+      throw new Error('Unable to fetch user information');
+    }
+    
+    try {
+      const response = await apiClient.get<any>(`${this.baseUrl}/${companyId}/invoices/user/${userProfile.id}`, { 
+        params: {
+          status: params?.status,
+          sortBy: params?.sortBy,
+          sortOrder: params?.sortOrder,
+          limit: params?.limit,
+          offset: params?.offset
+        }
+      });
+      
+      // If the response is an array, wrap it in a PaginatedResponse structure
+      if (Array.isArray(response)) {
+        console.log('Received array response, wrapping in PaginatedResponse structure');
+        return {
+          data: response,
+          pagination: {
+            total: response.length,
+            page: params?.page || 1,
+            limit: params?.limit || response.length,
+            totalPages: 1
+          }
+        };
       }
-    });
+      
+      return response;
+    } catch (error) {
+      console.error('Error fetching user invoices:', error);
+      // Return empty paginated response instead of throwing to prevent query errors
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: params?.limit || 10,
+          totalPages: 0
+        }
+      };
+    }
   }
 
   /**

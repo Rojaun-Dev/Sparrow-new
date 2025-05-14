@@ -292,7 +292,7 @@ export default function InvoicesPage() {
               <CardDescription>
                 {isLoading 
                   ? 'Loading invoices...'
-                  : `Showing ${invoicesData?.data.length || 0} invoices`
+                  : `Showing ${invoicesData?.data?.length || 0} invoices`
                 }
               </CardDescription>
             </CardHeader>
@@ -301,7 +301,7 @@ export default function InvoicesPage() {
                 <div className="flex justify-center items-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : invoicesData?.data.length === 0 ? (
+              ) : !invoicesData?.data || invoicesData.data.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No invoices found. Try adjusting your filters.
                 </div>
@@ -319,7 +319,7 @@ export default function InvoicesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invoicesData?.data.map((invoice: Invoice) => (
+                      {invoicesData.data.map((invoice: Invoice) => (
                         <TableRow key={invoice.id}>
                           <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                           <TableCell>{formatDate(invoice.issueDate)}</TableCell>

@@ -41,15 +41,29 @@ class PackageService {
   async getUserPackages(filters: PackageFilterParams = {}): Promise<Package[]> {
     const companyId = await this.getCompanyId();
     
-    return apiClient.get<Package[]>(`${this.baseUrl}/${companyId}/packages/user`, {
-      params: {
-        status: filters.status,
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder,
-        limit: filters.limit,
-        offset: filters.offset
-      }
-    });
+    const userProfile = await authService.getProfile();
+    
+    if (!userProfile || !userProfile.id) {
+      throw new Error('Unable to fetch user information');
+    }
+    
+    try {
+      const response = await apiClient.get<Package[]>(`${this.baseUrl}/${companyId}/packages/user/${userProfile.id}`, {
+        params: {
+          status: filters.status,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+          limit: filters.limit,
+          offset: filters.offset
+        }
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Error fetching user packages:', error);
+      // Return empty array instead of throwing to prevent query errors
+      return [];
+    }
   }
   
   /**

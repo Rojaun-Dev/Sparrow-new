@@ -247,7 +247,7 @@ export default function PreAlertsPage() {
             <CardDescription>
               {isLoading 
                 ? 'Loading pre-alerts...'
-                : `Showing ${preAlertsData?.data.length || 0} pre-alerts`
+                : `Showing ${preAlertsData?.data?.length || 0} pre-alerts`
               }
             </CardDescription>
           </div>
@@ -263,7 +263,7 @@ export default function PreAlertsPage() {
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : preAlertsData?.data.length === 0 ? (
+          ) : !preAlertsData?.data || preAlertsData.data.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No pre-alerts found. Try adjusting your filters or create a new pre-alert.
             </div>
@@ -282,7 +282,7 @@ export default function PreAlertsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {preAlertsData?.data.map((preAlert: PreAlert) => (
+                  {preAlertsData.data.map((preAlert: PreAlert) => (
                     <TableRow key={preAlert.id}>
                       <TableCell className="font-medium">{preAlert.trackingNumber}</TableCell>
                       <TableCell>{preAlert.courier}</TableCell>
