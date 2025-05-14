@@ -84,9 +84,12 @@ export default function PreAlertsPage() {
   const applyFilters = () => {
     const newFilters: PreAlertFilterParams = {
       ...filters,
+      page: 1, // Reset to first page when applying new filters
       search: searchTerm || undefined,
       status: statusFilter !== 'all' ? statusFilter as any || undefined : undefined,
       dateFrom: creationDate || undefined,
+      // Even though we only have one date field, setting both helps with backend filtering
+      dateTo: creationDate ? new Date(new Date(creationDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined,
     };
     
     setFilters(newFilters);
@@ -194,18 +197,6 @@ export default function PreAlertsPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={courierFilter} onValueChange={setCourierFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Courier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Couriers</SelectItem>
-                <SelectItem value="usps">USPS</SelectItem>
-                <SelectItem value="fedex">FedEx</SelectItem>
-                <SelectItem value="ups">UPS</SelectItem>
-                <SelectItem value="dhl">DHL</SelectItem>
-              </SelectContent>
-            </Select>
             <div>
               <Input 
                 type="date" 
@@ -250,12 +241,6 @@ export default function PreAlertsPage() {
                 : `Showing ${preAlertsData?.data?.length || 0} pre-alerts`
               }
             </CardDescription>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
-              <Calendar className="mr-2 h-4 w-4" />
-              This Month
-            </Button>
           </div>
         </CardHeader>
         <CardContent>

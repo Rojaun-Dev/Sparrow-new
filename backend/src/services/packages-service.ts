@@ -70,14 +70,27 @@ export class PackagesService {
   /**
    * Get packages by user ID with company isolation
    */
-  async getPackagesByUserId(userId: string, companyId: string) {
+  async getPackagesByUserId(
+    userId: string, 
+    companyId: string,
+    filters: {
+      search?: string;
+      status?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      limit?: number;
+      page?: number;
+    } = {}
+  ) {
     // Verify user exists in this company
     const user = await this.usersRepository.findById(userId, companyId);
     if (!user) {
       throw AppError.notFound('User not found');
     }
     
-    return this.packagesRepository.findByUserId(userId, companyId);
+    return this.packagesRepository.findByUserId(userId, companyId, filters);
   }
 
   /**

@@ -137,4 +137,101 @@ export class PaymentsRepository extends BaseRepository<typeof payments> {
 
     return result[0]?.total ? parseFloat(result[0].total) : 0;
   }
+
+  /**
+   * Search payments with various filters
+   */
+  async search(
+    companyId: string,
+    {
+      userId,
+      invoiceId,
+      status,
+      method,
+      search,
+      dateFrom,
+      dateTo,
+      sortBy = 'paymentDate',
+      sortOrder = 'desc',
+      page = 1, 
+      pageSize = 10
+    }: {
+      userId?: string;
+      invoiceId?: string;
+      status?: string;
+      method?: string;
+      search?: string;
+      dateFrom?: Date;
+      dateTo?: Date;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    }
+  ) {
+    let conditions = [eq(this.table.companyId, companyId)];
+    
+    // Add filters
+    if (userId) {
+      conditions.push(eq(this.table.userId, userId));
+    }
+    
+    if (invoiceId) {
+      conditions.push(eq(this.table.invoiceId, invoiceId));
+    }
+    
+    if (status && Object.values(paymentStatusEnum.enumValues).includes(status as any)) {
+      conditions.push(eq(this.table.status, status as any));
+    }
+    
+    if (method) {
+      conditions.push(eq(this.table.paymentMethod, method as any));
+    }
+    
+    // Search in transaction ID if provided
+    if (search && search.trim() !== '') {
+      conditions.push(sql`${this.table.transactionId} LIKE ${`%${search}%`}`);
+    }
+    
+    if (dateFrom) {
+      conditions.push(sql`${this.table.paymentDate} >= ${dateFrom}`);
+    }
+    
+    if (dateTo) {
+      conditions.push(sql`${this.table.paymentDate} <= ${dateTo}`);
+    }
+    
+    // Calculate pagination
+    const offset = (page - 1) * pageSize;
+    
+    // Determine sort direction
+    const sortDirection = sortOrder === 'asc' ? sql`asc` : sql`desc`;
+    
+    // Get total count for pagination info
+    const countResult = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(this.table)
+      .where(and(...conditions));
+    
+    const totalCount = Number(countResult[0].count);
+    
+    // Get paginated results
+    const results = await this.db
+      .select()
+      .from(this.table)
+      .where(and(...conditions))
+      .orderBy(sql`${this.table[sortBy as keyof typeof this.table]} ${sortDirection}`)
+      .limit(pageSize)
+      .offset(offset);
+    
+    return {
+      data: results,
+      pagination: {
+        page,
+        limit: pageSize,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
+      },
+    };
+  }
 } 

@@ -116,8 +116,8 @@ export class InvoicesRepository extends BaseRepository<typeof invoices> {
     let conditions: SQL<unknown>[] = [eq(this.table.companyId, companyId)];
     
     // Add filters
-    if (invoiceNumber) {
-      conditions.push(like(this.table.invoiceNumber, `%${invoiceNumber}%`));
+    if (invoiceNumber && invoiceNumber.trim() !== '') {
+      conditions.push(sql`${this.table.invoiceNumber} LIKE ${`%${invoiceNumber}%`}`);
     }
     
     if (userId) {
@@ -183,8 +183,8 @@ export class InvoicesRepository extends BaseRepository<typeof invoices> {
       data: results,
       pagination: {
         page,
-        pageSize,
-        totalCount,
+        limit: pageSize,
+        total: totalCount,
         totalPages: Math.ceil(totalCount / pageSize),
       },
     };

@@ -62,6 +62,10 @@ class PaymentService {
       const response = await apiClient.client.get(url, { 
         params: {
           status: params?.status,
+          method: params?.method,
+          search: params?.search,
+          dateFrom: params?.dateFrom,
+          dateTo: params?.dateTo,
           sortBy: params?.sortBy,
           sortOrder: params?.sortOrder,
           limit: params?.limit,

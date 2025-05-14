@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import { authService } from './authService';
-import { Package, PackageFilterParams } from './types';
+import { Package, PackageFilterParams, PaginatedResponse } from './types';
 
 class PackageService {
   private baseUrl = '/companies';
@@ -48,9 +48,12 @@ class PackageService {
     }
     
     try {
-      const response = await apiClient.get<Package[]>(`${this.baseUrl}/${companyId}/packages/user/${userProfile.id}`, {
+      const response = await apiClient.get<any>(`${this.baseUrl}/${companyId}/packages/user/${userProfile.id}`, {
         params: {
           status: filters.status,
+          search: filters.search,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
           sortBy: filters.sortBy,
           sortOrder: filters.sortOrder,
           limit: filters.limit,
@@ -58,11 +61,91 @@ class PackageService {
         }
       });
       
-      return response;
+      // Handle both paginated response and direct array response
+      if (response && response.data && Array.isArray(response.data)) {
+        // If it's a paginated response, return just the data array to maintain compatibility
+        return response.data;
+      } else if (Array.isArray(response)) {
+        // If it's a direct array, return it as is
+        return response;
+      }
+      
+      // Default to empty array
+      return [];
     } catch (error) {
       console.error('Error fetching user packages:', error);
       // Return empty array instead of throwing to prevent query errors
       return [];
+    }
+  }
+  
+  /**
+   * Get packages for the current user with pagination info
+   * This is a new method that returns the full paginated response
+   */
+  async getUserPackagesWithPagination(filters: PackageFilterParams = {}): Promise<PaginatedResponse<Package>> {
+    const companyId = await this.getCompanyId();
+    
+    const userProfile = await authService.getProfile();
+    
+    if (!userProfile || !userProfile.id) {
+      throw new Error('Unable to fetch user information');
+    }
+    
+    try {
+      const response = await apiClient.get<any>(`${this.baseUrl}/${companyId}/packages/user/${userProfile.id}`, {
+        params: {
+          status: filters.status,
+          search: filters.search,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+          limit: filters.limit,
+          offset: filters.offset
+        }
+      });
+      
+      // If the response is a paginated response
+      if (response && response.data && Array.isArray(response.data)) {
+        return response;
+      }
+      
+      // If the response is an array, wrap it in a PaginatedResponse structure
+      if (Array.isArray(response)) {
+        return {
+          data: response,
+          pagination: {
+            total: response.length,
+            page: filters.page || 1,
+            limit: filters.limit || response.length,
+            totalPages: 1
+          }
+        };
+      }
+      
+      // Default empty response
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: filters.limit || 10,
+          totalPages: 0
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching user packages with pagination:', error);
+      // Return empty paginated response instead of throwing to prevent query errors
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: filters.limit || 10,
+          totalPages: 0
+        }
+      };
     }
   }
   

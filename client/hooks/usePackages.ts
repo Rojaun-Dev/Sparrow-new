@@ -27,6 +27,14 @@ export function useUserPackages(filters: PackageFilterParams = {}) {
   });
 }
 
+// Hook for fetching user packages with filters and pagination information
+export function useUserPackagesWithPagination(filters: PackageFilterParams = {}) {
+  return useQuery({
+    queryKey: [...packageKeys.lists(), 'user', 'paginated', filters],
+    queryFn: () => packageService.getUserPackagesWithPagination(filters),
+  });
+}
+
 // Hook for fetching a single package by ID
 export function usePackage(id: string) {
   return useQuery({

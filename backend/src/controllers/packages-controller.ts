@@ -49,7 +49,32 @@ export class PackagesController {
     try {
       const { userId } = req.params;
       const companyId = req.companyId as string;
-      const packages = await this.service.getPackagesByUserId(userId, companyId);
+      
+      // Create a new object for filters
+      const filters: Record<string, any> = {};
+      
+      // Copy query parameters
+      Object.assign(filters, req.query);
+      
+      // Convert numeric query parameters
+      if (filters.page) {
+        filters.page = Number(filters.page);
+      }
+      
+      if (filters.limit) {
+        filters.limit = Number(filters.limit);
+      }
+      
+      // Convert date parameters if present
+      if (filters.dateFrom) {
+        filters.dateFrom = filters.dateFrom as string;
+      }
+      
+      if (filters.dateTo) {
+        filters.dateTo = filters.dateTo as string;
+      }
+      
+      const packages = await this.service.getPackagesByUserId(userId, companyId, filters);
       return ApiResponse.success(res, packages);
     } catch (error) {
       next(error);

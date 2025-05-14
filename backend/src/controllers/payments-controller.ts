@@ -133,6 +133,40 @@ export class PaymentsController {
       const { userId } = req.params;
       const companyId = req.companyId as string;
       
+      // Check if there are any query parameters for filtering
+      if (Object.keys(req.query).length > 0) {
+        // Create search parameters
+        const searchParams: Record<string, any> = {
+          userId: userId,
+        };
+        
+        // Copy query parameters
+        Object.assign(searchParams, req.query);
+        
+        // Convert date parameters
+        if (searchParams.dateFrom) {
+          searchParams.dateFrom = new Date(searchParams.dateFrom as string);
+        }
+        
+        if (searchParams.dateTo) {
+          searchParams.dateTo = new Date(searchParams.dateTo as string);
+        }
+        
+        // Convert pagination parameters
+        if (searchParams.page) {
+          searchParams.page = Number(searchParams.page);
+        }
+        
+        if (searchParams.limit) {
+          searchParams.pageSize = Number(searchParams.limit);
+        }
+        
+        // Use the search method with filters
+        const filteredPayments = await this.paymentsService.searchPayments(companyId, searchParams);
+        return res.json(filteredPayments);
+      }
+      
+      // If no filters, use the original method
       const payments = await this.paymentsService.getPaymentsByUser(userId, companyId);
       return res.json(payments);
     } catch (error: any) {

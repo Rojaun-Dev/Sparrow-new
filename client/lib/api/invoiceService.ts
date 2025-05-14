@@ -58,6 +58,9 @@ class InvoiceService {
       const response = await apiClient.get<any>(`${this.baseUrl}/${companyId}/invoices/user/${userProfile.id}`, { 
         params: {
           status: params?.status,
+          search: params?.search,
+          dateFrom: params?.dateFrom,
+          dateTo: params?.dateTo,
           sortBy: params?.sortBy,
           sortOrder: params?.sortOrder,
           limit: params?.limit,

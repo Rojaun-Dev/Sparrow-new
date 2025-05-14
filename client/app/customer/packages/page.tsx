@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
-import { useUserPackages } from "@/hooks"
+import { useUserPackagesWithPagination } from "@/hooks"
 import { Package as PackageType, PackageFilterParams } from "@/lib/api/types"
 
 export default function PackagesPage() {
@@ -70,12 +70,13 @@ export default function PackagesPage() {
     isLoading, 
     error, 
     refetch
-  } = useUserPackages(filters);
+  } = useUserPackagesWithPagination(filters);
 
   // Apply filters when the apply button is clicked
   const applyFilters = () => {
     const newFilters: PackageFilterParams = {
       ...filters,
+      page: 1, // Reset to first page when applying new filters
       search: searchTerm || undefined,
       status: statusFilter !== 'all' ? statusFilter as any || undefined : undefined,
       dateFrom: fromDate || undefined,
@@ -233,7 +234,7 @@ export default function PackagesPage() {
           <CardDescription>
             {isLoading 
               ? 'Loading packages...'
-              : `Showing ${packagesData?.length || 0} packages`
+              : `Showing ${packagesData?.data?.length || 0} packages`
             }
           </CardDescription>
         </CardHeader>
@@ -242,7 +243,7 @@ export default function PackagesPage() {
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : packagesData?.length === 0 ? (
+          ) : !packagesData?.data || packagesData.data.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No packages found. Try adjusting your filters or create a pre-alert.
             </div>
@@ -260,7 +261,7 @@ export default function PackagesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {packagesData?.map((pkg: PackageType) => (
+                  {packagesData.data.map((pkg: PackageType) => (
                     <TableRow key={pkg.id}>
                       <TableCell className="font-medium">{pkg.internalTrackingId}</TableCell>
                       <TableCell>{pkg.description}</TableCell>

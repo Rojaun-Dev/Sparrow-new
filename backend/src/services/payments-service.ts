@@ -160,4 +160,26 @@ export class PaymentsService extends BaseService<typeof payments> {
   async getTotalPaymentsInPeriod(companyId: string, startDate: Date, endDate: Date) {
     return this.paymentsRepository.getTotalPaymentsInPeriod(companyId, startDate, endDate);
   }
+
+  /**
+   * Search payments with various filters
+   */
+  async searchPayments(
+    companyId: string,
+    searchParams: {
+      userId?: string;
+      invoiceId?: string;
+      status?: string;
+      method?: string;
+      search?: string;
+      dateFrom?: Date;
+      dateTo?: Date;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    }
+  ) {
+    return this.paymentsRepository.search(companyId, searchParams);
+  }
 } 

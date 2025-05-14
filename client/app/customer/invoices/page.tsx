@@ -85,11 +85,11 @@ export default function InvoicesPage() {
   const applyFilters = () => {
     const newFilters: InvoiceFilterParams = {
       ...filters,
+      page: 1, // Reset to first page when applying new filters
       search: searchTerm || undefined,
       status: statusFilter && statusFilter !== 'all' ? statusFilter as any : undefined,
       dateFrom: fromDate || undefined,
       dateTo: toDate || undefined,
-      page: 1,
     };
     
     setFilters(newFilters);
@@ -199,34 +199,6 @@ export default function InvoicesPage() {
             This Month
           </Button>
         </div>
-      </div>
-
-      {/* Status filter buttons */}
-      <div className="flex flex-wrap gap-2">
-        <Button 
-          variant={!filters.status ? "default" : "outline"} 
-          onClick={() => handleStatusFilterChange('all')}
-        >
-          All Invoices
-        </Button>
-        <Button 
-          variant={filters.status === "draft" ? "default" : "outline"}
-          onClick={() => handleStatusFilterChange('draft')}
-        >
-          Unpaid
-        </Button>
-        <Button 
-          variant={filters.status === "paid" ? "default" : "outline"}
-          onClick={() => handleStatusFilterChange('paid')}
-        >
-          Paid
-        </Button>
-        <Button 
-          variant={filters.status === "overdue" ? "default" : "outline"}
-          onClick={() => handleStatusFilterChange('overdue')}
-        >
-          Overdue
-        </Button>
       </div>
 
       <Card>
