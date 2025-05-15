@@ -38,7 +38,6 @@ const navItems: NavItem[] = [
     icon: Package,
     submenu: [
       { title: "All Packages", href: "/customer/packages" },
-      { title: "Create Pre-Alert", href: "/customer/prealerts/new" },
     ],
   },
   {

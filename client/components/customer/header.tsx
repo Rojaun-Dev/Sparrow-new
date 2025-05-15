@@ -4,6 +4,9 @@ import Link from "next/link"
 import Image from "next/image"
 import { Bell, Moon, Sun, LogOut, User, Settings, Package } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useCurrentUser } from "@/hooks/useProfile"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/useAuth"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -20,6 +23,44 @@ import { Badge } from "@/components/ui/badge"
 
 export function CustomerHeader() {
   const { setTheme } = useTheme()
+  const { data: user, isLoading } = useCurrentUser()
+  const router = useRouter()
+  const { logout } = useAuth()
+  
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      // Wait for the logout to complete
+      await logout();
+      
+      // Force any additional local storage cleanup
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+      }
+      
+      // Add a small delay to ensure everything is cleared before redirecting
+      setTimeout(() => {
+        console.log('Header: Redirecting after logout');
+        // Redirect to login page (not home) to ensure proper auth flow
+        window.location.href = '/';
+      }, 100);
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Still redirect even if there's an error
+      window.location.href = '/';
+    }
+  }
+  
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user) return "U"
+    
+    const firstName = user.firstName || ""
+    const lastName = user.lastName || ""
+    
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
@@ -31,42 +72,24 @@ export function CustomerHeader() {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
-        <Button variant="outline" size="sm" className="hidden md:flex">
-          <Package className="mr-2 h-4 w-4" />
-          Create Pre-Alert
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon" className="relative h-8 w-8 md:h-9 md:w-9">
               <Bell className="h-4 w-4 md:h-5 md:w-5" />
-              <Badge className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10px]">
-                2
-              </Badge>
               <span className="sr-only">Notifications</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[280px] md:w-[350px]">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span>Notifications</span>
+              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+                Coming Soon
+              </Badge>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <div className="max-h-80 overflow-y-auto">
-              <DropdownMenuItem className="cursor-pointer p-4">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Package received</p>
-                  <p className="text-xs text-muted-foreground">Your package #1234 has been received at our warehouse</p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer p-4">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Invoice ready</p>
-                  <p className="text-xs text-muted-foreground">Invoice #INV-202 is ready for payment</p>
-                </div>
-              </DropdownMenuItem>
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Notifications functionality will be available soon!
             </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer justify-center text-center">
-              View all notifications
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -89,35 +112,44 @@ export function CustomerHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full md:h-9 md:w-9">
               <Avatar className="h-8 w-8 md:h-9 md:w-9">
-                <AvatarImage src="/placeholder.svg?key=user" alt="User" />
-                <AvatarFallback>JD</AvatarFallback>
+                <AvatarImage src="/placeholder.svg?key=user" alt={user?.firstName || 'User'} />
+                <AvatarFallback>{isLoading ? "..." : getUserInitials()}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">John Doe</p>
-                <p className="text-xs leading-none text-muted-foreground">john.doe@example.com</p>
+                {isLoading ? (
+                  <>
+                    <p className="text-sm font-medium leading-none">Loading...</p>
+                    <p className="text-xs leading-none text-muted-foreground">Please wait</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium leading-none">{user?.firstName} {user?.lastName}</p>
+                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                  </>
+                )}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
+              <DropdownMenuItem asChild>
+                <Link href="/customer/profile">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Package className="mr-2 h-4 w-4" />
-                <span>My Packages</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
+              <DropdownMenuItem asChild>
+                <Link href="/customer/packages">
+                  <Package className="mr-2 h-4 w-4" />
+                  <span>My Packages</span>
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </DropdownMenuItem>
@@ -126,4 +158,4 @@ export function CustomerHeader() {
       </div>
     </header>
   )
-} 
+}

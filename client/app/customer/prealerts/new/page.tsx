@@ -144,8 +144,9 @@ export default function CreatePreAlertPage() {
       })
       
       toast({
-        title: "Pre-alert created",
-        description: "Your pre-alert has been successfully submitted.",
+        title: "Success!",
+        description: "Your pre-alert has been successfully created. We will notify you when it arrives.",
+        variant: "default",
       })
       
       // Redirect to pre-alerts list
@@ -155,7 +156,7 @@ export default function CreatePreAlertPage() {
       
       toast({
         title: "Error",
-        description: "Failed to create pre-alert. Please try again.",
+        description: "Failed to create pre-alert. Please check your information and try again.",
         variant: "destructive",
       })
     } finally {

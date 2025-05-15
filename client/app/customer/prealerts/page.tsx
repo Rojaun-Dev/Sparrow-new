@@ -116,12 +116,13 @@ export default function PreAlertsPage() {
       await cancelPreAlert.mutateAsync(id);
       toast({
         title: "Pre-alert cancelled",
-        description: "Your pre-alert has been successfully cancelled.",
+        description: "Your pre-alert has been successfully cancelled and will no longer be processed.",
+        variant: "default",
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to cancel pre-alert. Please try again.",
+        title: "Error cancelling pre-alert",
+        description: "There was a problem cancelling your pre-alert. Please try again or contact support.",
         variant: "destructive",
       });
     }

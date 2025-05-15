@@ -74,6 +74,8 @@ export class ApiClient {
   public removeToken(): void {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
+      // Also remove refresh token if it exists
+      localStorage.removeItem('refreshToken');
     }
   }
 

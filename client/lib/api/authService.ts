@@ -58,10 +58,21 @@ class AuthService {
    */
   async logout(): Promise<void> {
     try {
-      await apiClient.post<void>(`${this.baseUrl}/logout`);
+      // Make the API call but don't wait for it to complete
+      // This prevents issues if the server is unavailable
+      apiClient.post<void>(`${this.baseUrl}/logout`).catch(err => {
+      });
     } finally {
-      // Always remove the token, even if the request fails
+      // Critical step: Always remove token to ensure client-side logout works
       apiClient.removeToken();
+      
+      // Clear any other auth-related data from localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_data');
+        localStorage.removeItem('user');
+        
+        // Force a delay to ensure localStorage updates are processed
+      }
     }
   }
   

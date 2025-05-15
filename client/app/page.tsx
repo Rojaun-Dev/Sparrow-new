@@ -55,7 +55,7 @@ export default function LoginPage() {
       })
       
       // Auth service already stores the token, just redirect to dashboard
-      router.push('/dashboard')
+      router.push('/customer')
     } catch (error: any) {
       console.error("Login error:", error)
       setFormError(error?.message || 'An unexpected error occurred. Please try again.')

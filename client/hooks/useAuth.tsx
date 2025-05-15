@@ -2,11 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { LoginFormValues, RegistrationFormValues } from '@/lib/validations/auth';
-import { authService, UserProfile } from '@/lib/api/authService';
+import { authService } from '@/lib/api/authService';
+import { User } from '@/lib/api/types';
 import { API_BASE_URL } from '@/lib/api/apiClient';
 import { apiClient } from '@/lib/api/apiClient';
+import { useQueryClient } from '@tanstack/react-query';
 
-export type User = UserProfile;
+// Use the User type directly from types.ts
+// export type User = UserProfile;
 
 type AuthContextType = {
   user: User | null;
@@ -35,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const queryClient = useQueryClient();
 
   const clearError = () => setError(null);
 
@@ -120,13 +124,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     setIsLoading(true);
+    console.log('useAuth: Logout initiated');
     
     try {
+      // Call the auth service logout method
       await authService.logout();
+      
+      // Clear user state
       setUser(null);
       setIsAuthenticated(false);
+      
+      // Clear any cached data in localStorage
+      if (typeof window !== 'undefined') {
+        // Force clear token again for redundancy
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        
+        // Clear React Query cache
+        queryClient.clear();
+      }
+      
     } catch (err) {
-      console.error('Logout error:', err);
+      // Even if there's an error, still remove tokens and reset auth state
+      setUser(null);
+      setIsAuthenticated(false);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        
+        // Still clear cache on error
+        queryClient.clear();
+      }
     } finally {
       setIsLoading(false);
     }
