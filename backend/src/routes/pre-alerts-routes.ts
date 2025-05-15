@@ -1,41 +1,48 @@
 import express from 'express';
 import { PreAlertsController } from '../controllers/pre-alerts-controller';
+// Commented out until auth is fully implemented
 // import { checkJwt, checkRole } from '../middleware/auth';
 
 const router = express.Router({ mergeParams: true }); // mergeParams allows access to companyId from parent router
 const controller = new PreAlertsController();
 
 // Apply JWT authentication to all routes
-// router.use(checkJwt); NOTE: enable this and checkRole when we have login and auth implemented fully
+// router.use(checkJwt); NOTE: enable this when we have login and auth implemented fully
 
-// Search pre-alerts with filtering (accessible to all authenticated users)
-router.get('/search', controller.searchPreAlerts);
+// Get all pre-alerts for a company (Admin L1+)
+router.get('/', controller.getAllPreAlerts);
 
-// Get unmatched pre-alerts (Admin L1+)
-router.get('/unmatched', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.getUnmatchedPreAlerts);
-
-// Get pre-alerts by status (Admin L1+)
-router.get('/status/:status', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.getPreAlertsByStatus);
-
-// Get pre-alerts by user ID (access control handled at service level)
+// Get pre-alerts by user ID (access control handled in service)
 router.get('/user/:userId', controller.getPreAlertsByUserId);
 
-// Get all pre-alerts (Admin L1+)
-router.get('/', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.getAllPreAlerts);
+// Get pre-alerts by status (Admin L1+)
+router.get('/status/:status', controller.getPreAlertsByStatus);
 
-// Get pre-alert by ID (access control handled at service level for customers)
-router.get('/:id', controller.getPreAlertById);
+// Get unmatched pre-alerts (Admin L1+)
+router.get('/unmatched', controller.getUnmatchedPreAlerts);
 
-// Create new pre-alert (accessible to all authenticated users)
+// Search pre-alerts with filtering
+router.get('/search', controller.searchPreAlerts);
+
+// Create new pre-alert
 router.post('/', controller.createPreAlert);
 
-// Update pre-alert (Admin L1+ or owner)
+// Get pre-alert by ID
+router.get('/:id', controller.getPreAlertById);
+
+// Update pre-alert
 router.put('/:id', controller.updatePreAlert);
 
-// Cancel pre-alert (Admin L1+ or owner)
-router.post('/:id/cancel', controller.cancelPreAlert);
+// Cancel pre-alert
+router.patch('/:id/cancel', controller.cancelPreAlert);
 
 // Delete pre-alert (Admin L2 only)
-router.delete('/:id', /*checkRole('admin_l2'),*/ controller.deletePreAlert);
+router.delete('/:id', controller.deletePreAlert);
+
+// Upload documents to a pre-alert
+router.post('/:id/documents', controller.uploadDocuments);
+
+// Remove a document from a pre-alert
+router.delete('/:id/documents/:index', controller.removeDocument);
 
 export default router; 

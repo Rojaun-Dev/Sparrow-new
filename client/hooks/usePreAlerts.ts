@@ -50,6 +50,60 @@ export function useCreatePreAlert() {
   });
 }
 
+// Hook for creating a new preAlert with documents
+export function useCreatePreAlertWithDocuments() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ preAlert, files }: { preAlert: Partial<PreAlert>, files: File[] }) => 
+      preAlertService.createPreAlertWithDocuments(preAlert, files),
+    onSuccess: () => {
+      // Invalidate all preAlert lists to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
+    },
+  });
+}
+
+// Hook for uploading documents to a preAlert
+export function useUploadPreAlertDocuments() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, files }: { id: string; files: File[] }) => 
+      preAlertService.uploadPreAlertDocuments(id, files),
+    onSuccess: (updatedPreAlert: PreAlert) => {
+      // Update the preAlert in the cache
+      queryClient.setQueryData(
+        preAlertKeys.detail(updatedPreAlert.id),
+        updatedPreAlert
+      );
+      
+      // Invalidate the preAlerts list to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
+    },
+  });
+}
+
+// Hook for removing a document from a preAlert
+export function useRemovePreAlertDocument() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, documentIndex }: { id: string; documentIndex: number }) => 
+      preAlertService.removePreAlertDocument(id, documentIndex),
+    onSuccess: (updatedPreAlert: PreAlert) => {
+      // Update the preAlert in the cache
+      queryClient.setQueryData(
+        preAlertKeys.detail(updatedPreAlert.id),
+        updatedPreAlert
+      );
+      
+      // Invalidate the preAlerts list to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
+    },
+  });
+}
+
 // Hook for updating a preAlert
 export function useUpdatePreAlert() {
   const queryClient = useQueryClient();

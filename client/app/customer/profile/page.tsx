@@ -626,12 +626,6 @@ export default function ProfilePage() {
             </CardContent>
             <CardFooter className="flex justify-between border-t px-6 pt-4">
               <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout of All Devices
-                  </Button>
-                </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -749,19 +743,6 @@ export default function ProfilePage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between border-t px-6 pt-4">
-              <Button variant="outline">Reset to Default</Button>
-              <Button onClick={() => {}} disabled={savingPrefs}>
-                {savingPrefs ? (
-                  <>Saving...</>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Preferences
-                  </>
-                )}
-              </Button>
-            </CardFooter>
           </Card>
 
         </TabsContent>

@@ -1,9 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { PreAlertsService, createPreAlertSchema, updatePreAlertSchema } from '../services/pre-alerts-service';
 import { ApiResponse } from '../utils/response';
+import { UploadedFile } from 'express-fileupload';
 
 interface AuthRequest extends Request {
   companyId?: string;
+  files?: {
+    documents?: UploadedFile | UploadedFile[];
+  };
 }
 
 export class PreAlertsController {
@@ -232,6 +236,74 @@ export class PreAlertsController {
       
       const result = await this.service.searchPreAlerts(companyId, searchParams);
       return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * Upload documents to a pre-alert
+   */
+  uploadDocuments = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      
+      // Check if files were uploaded
+      if (!req.files || !req.files.documents) {
+        return ApiResponse.badRequest(res, 'No documents uploaded');
+      }
+      
+      // Convert to array if single file
+      const documentFiles = Array.isArray(req.files.documents) 
+        ? req.files.documents 
+        : [req.files.documents];
+      
+      // Validate file types
+      const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+      for (const file of documentFiles) {
+        if (!allowedTypes.includes(file.mimetype)) {
+          return ApiResponse.badRequest(
+            res, 
+            `File type not allowed: ${file.name}. Allowed types: JPEG, PNG, PDF.`
+          );
+        }
+      }
+      
+      // Convert files to base64 strings
+      const documentStrings = documentFiles.map(file => {
+        const base64String = `data:${file.mimetype};base64,${file.data.toString('base64')}`;
+        return base64String;
+      });
+      
+      // Add documents to pre-alert
+      const preAlert = await this.service.addDocuments(id, documentStrings, companyId);
+      
+      return ApiResponse.success(res, preAlert, 'Documents uploaded successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * Remove a document from a pre-alert
+   */
+  removeDocument = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id, index } = req.params;
+      const companyId = req.companyId as string;
+      
+      const documentIndex = parseInt(index, 10);
+      
+      if (isNaN(documentIndex)) {
+        return ApiResponse.badRequest(res, 'Invalid document index');
+      }
+      
+      const preAlert = await this.service.removeDocument(id, documentIndex, companyId);
+      
+      return ApiResponse.success(res, preAlert, 'Document removed successfully');
     } catch (error) {
       next(error);
       return undefined;

@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import fileUpload from 'express-fileupload';
 import { errorHandler } from './middleware/error-handler';
 import { notFoundHandler } from './middleware/not-found-handler';
 import routes from './routes';
@@ -31,8 +32,18 @@ app.use(cors({
 })); // CORS handling with credentials
 app.use(compression()); // Compress responses
 app.use(morgan('dev')); // HTTP request logging
-app.use(express.json()); // Parse JSON bodies
+app.use(express.json({ limit: '50mb' })); // Parse JSON bodies with increased limit
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// File upload middleware
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  abortOnLimit: true,
+  useTempFiles: false, // Store files in memory
+  createParentPath: true,
+  safeFileNames: true,
+  preserveExtension: true,
+}) as any);
 
 // Apply rate limiting
 const limiter = rateLimit({

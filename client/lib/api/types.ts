@@ -141,6 +141,7 @@ export interface PreAlert extends BaseEntity {
   estimatedArrival?: string;
   packageId?: string;
   status: PreAlertStatus;
+  documents?: string[];
 }
 
 // Invoice related types

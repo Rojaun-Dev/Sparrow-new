@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useUserStatistics, useUserPackages, useCreatePreAlert } from "@/hooks";
+import { useUserStatistics, useUserPackages, useCreatePreAlertWithDocuments } from "@/hooks";
 import { PreAlert, Package as PackageType } from "@/lib/api/types";
 import { useToast } from "@/components/ui/use-toast";
+import { FileUpload } from "@/components/ui/file-upload";
 
 export default function CustomerDashboard() {
   const router = useRouter();
@@ -34,6 +35,9 @@ export default function CustomerDashboard() {
     description: '',
     weight: 0,
   });
+  
+  // State for document files
+  const [documents, setDocuments] = useState<File[]>([]);
 
   // Fetch user statistics
   const { 
@@ -51,8 +55,8 @@ export default function CustomerDashboard() {
     error: packagesError
   } = useUserPackages({ limit: 4, sortBy: 'createdAt', sortOrder: 'desc' });
 
-  // Create pre-alert mutation
-  const createPreAlert = useCreatePreAlert();
+  // Create pre-alert with documents mutation
+  const createPreAlert = useCreatePreAlertWithDocuments();
 
   // Handle form input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -63,7 +67,7 @@ export default function CustomerDashboard() {
     }));
   };
 
-  // Handle pre-alert submission
+  // Handle form submission
   const handlePreAlertSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -80,10 +84,13 @@ export default function CustomerDashboard() {
     
     try {
       await createPreAlert.mutateAsync({
-        trackingNumber: preAlertForm.trackingNumber,
-        courier: preAlertForm.courier,
-        description: preAlertForm.description,
-        weight: preAlertForm.weight > 0 ? preAlertForm.weight : undefined,
+        preAlert: {
+          trackingNumber: preAlertForm.trackingNumber,
+          courier: preAlertForm.courier,
+          description: preAlertForm.description,
+          weight: preAlertForm.weight > 0 ? preAlertForm.weight : undefined,
+        },
+        files: documents
       });
       
       // Show success message
@@ -99,6 +106,9 @@ export default function CustomerDashboard() {
         description: '',
         weight: 0,
       });
+      
+      // Clear documents
+      setDocuments([]);
       
       // Navigate to pre-alerts page
       router.push('/customer/prealerts');
@@ -410,6 +420,21 @@ export default function CustomerDashboard() {
                   placeholder="0.0"
                   step="0.1"
                   min="0"
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Invoice or Receipt (optional)
+                </label>
+                <FileUpload
+                  onFilesChange={setDocuments}
+                  value={documents}
+                  maxFiles={3}
+                  variant="compact"
+                  disabled={isLoading}
+                  uploading={isLoading}
+                  label="Upload documents"
+                  description="Drag & drop or click to upload (PDF, JPG, PNG)"
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading || createPreAlert.isPending}>

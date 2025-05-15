@@ -13,6 +13,7 @@ export const createPreAlertSchema = z.object({
   estimatedWeight: z.number().positive().optional(),
   estimatedArrival: z.coerce.date().optional(),
   status: z.enum(preAlertStatusEnum.enumValues).default('pending'),
+  documents: z.array(z.string()).optional(),
 });
 
 // Validation schema for pre-alert update
@@ -185,5 +186,46 @@ export class PreAlertsService {
     }
   ) {
     return this.preAlertsRepository.search(companyId, searchParams);
+  }
+
+  /**
+   * Add documents to a pre-alert
+   */
+  async addDocuments(id: string, documents: string[], companyId: string) {
+    // Check if pre-alert exists
+    const preAlert = await this.preAlertsRepository.findById(id, companyId);
+    if (!preAlert) {
+      throw AppError.notFound('Pre-alert not found');
+    }
+    
+    // Combine existing documents with new ones
+    const updatedDocuments = [
+      ...(preAlert.documents || []),
+      ...documents
+    ];
+    
+    return this.preAlertsRepository.update(id, { documents: updatedDocuments }, companyId);
+  }
+  
+  /**
+   * Remove a document from a pre-alert
+   */
+  async removeDocument(id: string, documentIndex: number, companyId: string) {
+    // Check if pre-alert exists
+    const preAlert = await this.preAlertsRepository.findById(id, companyId);
+    if (!preAlert) {
+      throw AppError.notFound('Pre-alert not found');
+    }
+    
+    // Check if documents array exists and index is valid
+    if (!preAlert.documents || documentIndex < 0 || documentIndex >= preAlert.documents.length) {
+      throw AppError.badRequest('Invalid document index');
+    }
+    
+    // Remove the document at the specified index
+    const updatedDocuments = [...preAlert.documents];
+    updatedDocuments.splice(documentIndex, 1);
+    
+    return this.preAlertsRepository.update(id, { documents: updatedDocuments }, companyId);
   }
 } 

@@ -103,7 +103,68 @@ class PreAlertService {
    */
   async createPreAlert(preAlert: Partial<PreAlert>, companyId?: string): Promise<PreAlert> {
     const cId = companyId || await this.getCompanyId();
-    return apiClient.post<PreAlert>(`${this.baseUrl}/${cId}/prealerts`, preAlert);
+    
+    // Get the current user ID
+    const userProfile = await authService.getProfile();
+    
+    if (!userProfile || !userProfile.id) {
+      throw new Error('Unable to fetch user information');
+    }
+    
+    // Add the userId to the preAlert object
+    const preAlertWithUserId = {
+      ...preAlert,
+      userId: userProfile.id
+    };
+    
+    return apiClient.post<PreAlert>(`${this.baseUrl}/${cId}/prealerts`, preAlertWithUserId);
+  }
+
+  /**
+   * Create a new pre-alert with documents
+   */
+  async createPreAlertWithDocuments(preAlert: Partial<PreAlert>, files: File[], companyId?: string): Promise<PreAlert> {
+    const cId = companyId || await this.getCompanyId();
+    
+    // First create the pre-alert (userId will be added in createPreAlert)
+    const createdPreAlert = await this.createPreAlert(preAlert, cId);
+    
+    // Then upload documents if there are any
+    if (files && files.length > 0) {
+      await this.uploadPreAlertDocuments(createdPreAlert.id, files, cId);
+    }
+    
+    return createdPreAlert;
+  }
+
+  /**
+   * Upload documents to a pre-alert
+   */
+  async uploadPreAlertDocuments(id: string, files: File[], companyId?: string): Promise<PreAlert> {
+    const cId = companyId || await this.getCompanyId();
+    
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('documents', file);
+    });
+    
+    return apiClient.post<PreAlert>(
+      `${this.baseUrl}/${cId}/prealerts/${id}/documents`, 
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+  }
+
+  /**
+   * Remove a document from a pre-alert
+   */
+  async removePreAlertDocument(id: string, documentIndex: number, companyId?: string): Promise<PreAlert> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.delete<PreAlert>(`${this.baseUrl}/${cId}/prealerts/${id}/documents/${documentIndex}`);
   }
 
   /**

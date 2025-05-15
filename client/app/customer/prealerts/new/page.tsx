@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Calendar, Gift, Info, Package, PlusCircle, Truck } from "lucide-react"
 
@@ -43,9 +44,27 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { FileUpload } from "@/components/ui/file-upload"
+import { useCreatePreAlertWithDocuments } from "@/hooks"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function CreatePreAlertPage() {
+  const router = useRouter()
+  const { toast } = useToast()
   const [formStep, setFormStep] = useState(1)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [documents, setDocuments] = useState<File[]>([])
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    trackingNumber: '',
+    courier: '',
+    estimatedArrival: '',
+    description: '',
+    estimatedWeight: 0,
+    declaredValue: 0,
+    sender: '',
+  })
   
   // Example courier options
   const couriers = [
@@ -57,7 +76,22 @@ export default function CreatePreAlertPage() {
     { value: "other", label: "Other" },
   ]
 
+  // Create pre-alert mutation
+  const createPreAlert = useCreatePreAlertWithDocuments()
+
   const handleNextStep = () => {
+    // Validate current step before moving to next
+    if (formStep === 1) {
+      if (!formData.trackingNumber || !formData.courier) {
+        toast({
+          title: "Missing information",
+          description: "Please fill in all required fields.",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+    
     setFormStep(formStep + 1)
   }
 
@@ -65,12 +99,68 @@ export default function CreatePreAlertPage() {
     setFormStep(formStep - 1)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { id, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [id]: id === 'estimatedWeight' || id === 'declaredValue' 
+        ? parseFloat(value) || 0 
+        : value
+    }))
+  }
+
+  const handleSelectChange = (id: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [id]: value
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would submit the form data to an API
-    alert("Pre-alert created successfully!")
-    // Redirect to pre-alerts list
-    window.location.href = "/customer/prealerts"
+    
+    // Validate final step
+    if (!formData.description) {
+      toast({
+        title: "Missing information",
+        description: "Please provide a description for your package.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsSubmitting(true)
+    
+    try {
+      await createPreAlert.mutateAsync({
+        preAlert: {
+          trackingNumber: formData.trackingNumber,
+          courier: formData.courier,
+          description: formData.description,
+          weight: formData.estimatedWeight > 0 ? formData.estimatedWeight : undefined,
+          estimatedArrival: formData.estimatedArrival ? formData.estimatedArrival : undefined,
+        },
+        files: documents
+      })
+      
+      toast({
+        title: "Pre-alert created",
+        description: "Your pre-alert has been successfully submitted.",
+      })
+      
+      // Redirect to pre-alerts list
+      router.push("/customer/prealerts")
+    } catch (error) {
+      console.error('Failed to create pre-alert:', error)
+      
+      toast({
+        title: "Error",
+        description: "Failed to create pre-alert. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -106,7 +196,7 @@ export default function CreatePreAlertPage() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="tracking_number">
+                        <Label htmlFor="trackingNumber">
                           Tracking Number <span className="text-red-500">*</span>
                         </Label>
                         <TooltipProvider>
@@ -124,7 +214,9 @@ export default function CreatePreAlertPage() {
                         </TooltipProvider>
                       </div>
                       <Input 
-                        id="tracking_number" 
+                        id="trackingNumber" 
+                        value={formData.trackingNumber}
+                        onChange={handleInputChange}
                         placeholder="Enter tracking number" 
                         required 
                       />
@@ -134,7 +226,11 @@ export default function CreatePreAlertPage() {
                       <Label htmlFor="courier">
                         Courier <span className="text-red-500">*</span>
                       </Label>
-                      <Select required>
+                      <Select
+                        value={formData.courier}
+                        onValueChange={(value) => handleSelectChange('courier', value)}
+                        required
+                      >
                         <SelectTrigger id="courier">
                           <SelectValue placeholder="Select courier" />
                         </SelectTrigger>
@@ -149,10 +245,12 @@ export default function CreatePreAlertPage() {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="estimated_arrival">Estimated Arrival Date</Label>
+                      <Label htmlFor="estimatedArrival">Estimated Arrival Date</Label>
                       <Input 
-                        id="estimated_arrival" 
+                        id="estimatedArrival" 
                         type="date" 
+                        value={formData.estimatedArrival}
+                        onChange={handleInputChange}
                         min={new Date().toISOString().split('T')[0]}
                       />
                       <p className="text-xs text-muted-foreground">
@@ -161,7 +259,7 @@ export default function CreatePreAlertPage() {
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="invoice_upload">Upload Invoice or Receipt</Label>
+                        <Label>Upload Invoice or Receipt</Label>
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -175,23 +273,15 @@ export default function CreatePreAlertPage() {
                           </Tooltip>
                         </TooltipProvider>
                       </div>
-                      <div className="flex items-center justify-center w-full">
-                        <label htmlFor="invoice_upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-background hover:bg-accent/50">
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            <PlusCircle className="w-8 h-8 mb-2 text-muted-foreground" />
-                            <p className="mb-2 text-sm text-muted-foreground">
-                              <span className="font-semibold">Click to upload</span> or drag and drop
-                            </p>
-                            <p className="text-xs text-muted-foreground">PDF, PNG, JPG or JPEG (max. 5MB)</p>
-                          </div>
-                          <Input 
-                            id="invoice_upload" 
-                            type="file" 
-                            className="hidden" 
-                            accept=".pdf,.png,.jpg,.jpeg"
-                          />
-                        </label>
-                      </div>
+                      <FileUpload 
+                        onFilesChange={setDocuments}
+                        value={documents}
+                        maxFiles={5}
+                        disabled={isSubmitting}
+                        uploading={isSubmitting}
+                        label="Upload documents"
+                        description="Drag & drop or click to upload (PDF, JPG, PNG)"
+                      />
                       <p className="text-xs text-muted-foreground">
                         Optional: Providing an invoice helps with customs clearance.
                       </p>
@@ -207,6 +297,8 @@ export default function CreatePreAlertPage() {
                       </Label>
                       <Textarea 
                         id="description" 
+                        value={formData.description}
+                        onChange={handleInputChange}
                         placeholder="Describe the contents of your package" 
                         required
                         className="min-h-[100px]"
@@ -218,12 +310,14 @@ export default function CreatePreAlertPage() {
                     
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="estimated_weight">
+                        <Label htmlFor="estimatedWeight">
                           Estimated Weight (lbs)
                         </Label>
                         <Input 
-                          id="estimated_weight" 
+                          id="estimatedWeight" 
                           type="number" 
+                          value={formData.estimatedWeight || ''}
+                          onChange={handleInputChange}
                           placeholder="0.0" 
                           step="0.1"
                           min="0"
@@ -231,12 +325,14 @@ export default function CreatePreAlertPage() {
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="value">
+                        <Label htmlFor="declaredValue">
                           Declared Value ($)
                         </Label>
                         <Input 
-                          id="value" 
+                          id="declaredValue" 
                           type="number" 
+                          value={formData.declaredValue || ''}
+                          onChange={handleInputChange}
                           placeholder="0.00" 
                           step="0.01"
                           min="0"
@@ -248,43 +344,75 @@ export default function CreatePreAlertPage() {
                       <Label htmlFor="sender">Sender Information</Label>
                       <Input 
                         id="sender" 
-                        placeholder="Retailer or sender name" 
+                        value={formData.sender}
+                        onChange={handleInputChange}
+                        placeholder="Name, address, or other details about the sender" 
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Optional: Providing sender information helps with package identification.
+                      </p>
                     </div>
                   </div>
                 )}
                 
                 {formStep === 3 && (
                   <div className="space-y-6">
-                    <div className="space-y-2">
-                      <Label>Special Handling Instructions</Label>
-                      <Textarea 
-                        placeholder="Optional: Add any special handling instructions" 
-                        className="min-h-[100px]"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Let us know if your package requires any special handling or care.
-                      </p>
+                    <div className="rounded-lg border p-4">
+                      <h3 className="text-lg font-medium">Shipment Summary</h3>
+                      <div className="mt-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Tracking Number</p>
+                            <p>{formData.trackingNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Courier</p>
+                            <p>{couriers.find(c => c.value === formData.courier)?.label || formData.courier}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Description</p>
+                          <p>{formData.description}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Estimated Weight</p>
+                            <p>{formData.estimatedWeight > 0 ? `${formData.estimatedWeight} lbs` : 'Not provided'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Declared Value</p>
+                            <p>{formData.declaredValue > 0 ? `$${formData.declaredValue.toFixed(2)}` : 'Not provided'}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Estimated Arrival</p>
+                          <p>{formData.estimatedArrival ? new Date(formData.estimatedArrival).toLocaleDateString() : 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Attached Documents</p>
+                          <p>{documents.length > 0 ? `${documents.length} document(s) attached` : 'No documents attached'}</p>
+                        </div>
+                      </div>
                     </div>
                     
-                    <Separator />
-                    
-                    <div className="rounded-md bg-muted p-4">
-                      <div className="font-medium">Pre-Alert Summary</div>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        By submitting this pre-alert, you're notifying us of an incoming package. 
-                        We'll match it with your account when it arrives at our warehouse.
-                      </p>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        You'll receive notifications as your package moves through our system.
-                      </p>
+                    <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900 dark:bg-yellow-950">
+                      <div className="flex items-start gap-3">
+                        <Info className="mt-0.5 h-5 w-5 text-yellow-600 dark:text-yellow-500" />
+                        <div>
+                          <h3 className="font-medium text-yellow-800 dark:text-yellow-300">Important Information</h3>
+                          <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-400">
+                            By submitting this pre-alert, you confirm that all provided information is accurate. 
+                            This helps us process your package more efficiently when it arrives.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="flex justify-between border-t px-6 py-4">
+              <CardFooter className="flex justify-between">
                 {formStep > 1 ? (
-                  <Button variant="outline" onClick={handlePreviousStep}>
+                  <Button variant="outline" onClick={handlePreviousStep} disabled={isSubmitting}>
                     Back
                   </Button>
                 ) : (
@@ -294,13 +422,12 @@ export default function CreatePreAlertPage() {
                 )}
                 
                 {formStep < 3 ? (
-                  <Button onClick={handleNextStep}>
+                  <Button onClick={handleNextStep} disabled={isSubmitting}>
                     Continue
                   </Button>
                 ) : (
-                  <Button type="submit">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Pre-Alert
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Submitting...' : 'Submit Pre-Alert'}
                   </Button>
                 )}
               </CardFooter>
@@ -308,94 +435,51 @@ export default function CreatePreAlertPage() {
           </form>
         </div>
         
-        <div className="space-y-6">
+        <div>
           <Card>
             <CardHeader>
-              <CardTitle>Tracking Tips</CardTitle>
-              <CardDescription>
-                How to find your tracking number
-              </CardDescription>
+              <CardTitle>Pre-Alert Guide</CardTitle>
+              <CardDescription>Tips for submitting a pre-alert</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Accordion type="single" collapsible>
+            <CardContent>
+              <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="item-1">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Truck className="mr-2 h-4 w-4" />
-                      <span>USPS Tracking</span>
-                    </div>
-                  </AccordionTrigger>
+                  <AccordionTrigger>What is a pre-alert?</AccordionTrigger>
                   <AccordionContent>
-                    <p className="text-sm text-muted-foreground">
-                      USPS tracking numbers typically start with 9 and are 22 characters long.
-                      Example: 9400 1000 0000 0000 0000 00
-                    </p>
+                    A pre-alert is a notification about an incoming package. By providing details in advance, 
+                    we can process your package more quickly when it arrives at our facility.
                   </AccordionContent>
                 </AccordionItem>
-                
                 <AccordionItem value="item-2">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Truck className="mr-2 h-4 w-4" />
-                      <span>FedEx Tracking</span>
-                    </div>
-                  </AccordionTrigger>
+                  <AccordionTrigger>Why should I submit a pre-alert?</AccordionTrigger>
                   <AccordionContent>
-                    <p className="text-sm text-muted-foreground">
-                      FedEx tracking numbers are usually 12 or 15 digits long.
-                      Express: 123456789012
-                      Ground: 123456789012345
-                    </p>
+                    Pre-alerts help us identify your package faster, reducing processing time. 
+                    This means you'll receive your package sooner after it arrives at our facility.
                   </AccordionContent>
                 </AccordionItem>
-                
                 <AccordionItem value="item-3">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Truck className="mr-2 h-4 w-4" />
-                      <span>UPS Tracking</span>
-                    </div>
-                  </AccordionTrigger>
+                  <AccordionTrigger>What information do I need?</AccordionTrigger>
                   <AccordionContent>
-                    <p className="text-sm text-muted-foreground">
-                      UPS tracking numbers are 18 characters long and typically start with "1Z".
-                      Example: 1Z 999 AA1 01 2345 6784
-                    </p>
+                    At minimum, you'll need the tracking number and courier. Additional information like 
+                    package description, weight, and value helps us process your shipment more efficiently.
                   </AccordionContent>
                 </AccordionItem>
-                
                 <AccordionItem value="item-4">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Truck className="mr-2 h-4 w-4" />
-                      <span>DHL Tracking</span>
-                    </div>
-                  </AccordionTrigger>
+                  <AccordionTrigger>When should I send a pre-alert?</AccordionTrigger>
                   <AccordionContent>
-                    <p className="text-sm text-muted-foreground">
-                      DHL tracking numbers are 10 digits long.
-                      Example: 1234567890
-                    </p>
+                    Ideally, submit your pre-alert as soon as you have the tracking information for your package, 
+                    before it arrives at our facility.
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
             </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Need Help?</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                If you're having trouble creating a pre-alert or don't have all the information, 
-                please contact our customer support team.
-              </p>
-              <Button variant="outline" className="w-full justify-start mt-4">
-                <Info className="mr-2 h-4 w-4" />
-                Contact Support
+            <CardFooter>
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/customer/help/pre-alerts">
+                  Learn More About Pre-Alerts
+                </Link>
               </Button>
-            </CardContent>
+            </CardFooter>
           </Card>
         </div>
       </div>

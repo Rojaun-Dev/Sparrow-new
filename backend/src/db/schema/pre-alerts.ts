@@ -27,6 +27,7 @@ export const preAlerts = pgTable('pre_alerts', {
     onDelete: 'set null',
   }),
   status: preAlertStatusEnum('status').notNull().default('pending'),
+  documents: text('documents').array(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }); 

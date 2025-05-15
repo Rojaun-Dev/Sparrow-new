@@ -1,0 +1,1 @@
+ALTER TABLE "pre_alerts" ADD COLUMN "documents" text[];
