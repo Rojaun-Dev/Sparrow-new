@@ -21,7 +21,32 @@ export const createUserSchema = z.object({
 // Validation schema for user update
 export const updateUserSchema = createUserSchema
   .partial()
-  .omit({ auth0Id: true }); // Don't allow updating Auth0 ID
+  .omit({ auth0Id: true }) // Don't allow updating Auth0 ID
+  .extend({
+    resetToken: z.string().nullable().optional(),
+    resetTokenExpires: z.date().nullable().optional(),
+    notificationPreferences: z.object({
+      email: z.boolean().default(true),
+      sms: z.boolean().default(false),
+      push: z.boolean().default(false),
+      pickupLocationId: z.string().nullable().optional(),
+      packageUpdates: z.object({
+        email: z.boolean().default(true),
+        sms: z.boolean().default(false),
+        push: z.boolean().default(false),
+      }).optional(),
+      billingUpdates: z.object({
+        email: z.boolean().default(true),
+        sms: z.boolean().default(false),
+        push: z.boolean().default(false),
+      }).optional(),
+      marketingUpdates: z.object({
+        email: z.boolean().default(false),
+        sms: z.boolean().default(false),
+        push: z.boolean().default(false),
+      }).optional(),
+    }).optional(),
+  });
 
 export class UsersService {
   private repository: UsersRepository;
@@ -225,5 +250,19 @@ export class UsersService {
       usersByRole: usersByRoleResult,
       usersByCompany: usersByCompanyResult
     };
+  }
+
+  /**
+   * Get a user by email for password reset (no company isolation)
+   */
+  async getUserByEmailForPasswordReset(email: string) {
+    return this.repository.findByEmailWithoutCompanyIsolation(email);
+  }
+
+  /**
+   * Get a user by reset token
+   */
+  async getUserByResetToken(token: string) {
+    return this.repository.findByResetToken(token);
   }
 } 

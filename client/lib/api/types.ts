@@ -39,7 +39,13 @@ export interface PasswordResetRequest {
 
 export interface PasswordResetConfirm {
   token: string;
-  password: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface PasswordChangeRequest {
+  currentPassword: string;
+  newPassword: string;
   confirmPassword: string;
 }
 
@@ -65,9 +71,31 @@ export interface User extends BaseEntity {
   phone?: string;
   address?: string;
   trn?: string; // Tax Registration Number
-  pickupLocationId?: string; // ID for the selected pickup location
   role: 'customer' | 'admin_l1' | 'admin_l2' | 'super_admin';
   isActive: boolean;
+  notificationPreferences?: NotificationPreferences;
+}
+
+export interface NotificationPreferences {
+  email: boolean;
+  sms: boolean;
+  push: boolean;
+  pickupLocationId?: string | null;
+  packageUpdates?: {
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+  };
+  billingUpdates?: {
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+  };
+  marketingUpdates?: {
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+  };
 }
 
 // Package related types

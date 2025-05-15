@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { profileService } from '@/lib/api/profileService';
-import { User } from '@/lib/api/types';
+import { User, NotificationPreferences } from '@/lib/api/types';
 
 // Key factory for profile queries
 const profileKeys = {
@@ -57,10 +57,13 @@ export function useUpdateNotificationPreferences() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (preferences: any) => profileService.updateNotificationPreferences(preferences),
-    onSuccess: (updatedPreferences: any) => {
+    mutationFn: (preferences: NotificationPreferences) => profileService.updateNotificationPreferences(preferences),
+    onSuccess: (updatedPreferences: NotificationPreferences) => {
       // Update the preferences in the cache
       queryClient.setQueryData(profileKeys.notifications(), updatedPreferences);
+      
+      // Also fetch the user again to update any dependent data
+      queryClient.invalidateQueries({ queryKey: profileKeys.user() });
     },
   });
 }
@@ -79,9 +82,12 @@ export function useUpdatePickupLocation() {
   
   return useMutation({
     mutationFn: (pickupLocationId: string) => profileService.updatePickupLocation(pickupLocationId),
-    onSuccess: (updatedUser: User) => {
-      // Update the user in the cache
-      queryClient.setQueryData(profileKeys.user(), updatedUser);
+    onSuccess: (updatedPreferences: NotificationPreferences) => {
+      // Update the notification preferences in the cache
+      queryClient.setQueryData(profileKeys.notifications(), updatedPreferences);
+      
+      // Also invalidate the user query to ensure consistency
+      queryClient.invalidateQueries({ queryKey: profileKeys.user() });
     },
   });
 }

@@ -50,10 +50,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { useCurrentUser, useUpdateProfile } from "@/hooks/useProfile"
+import { useCurrentUser, useUpdateProfile, useUpdatePassword, useNotificationPreferences, useUpdateNotificationPreferences } from "@/hooks/useProfile"
 import { useToast } from "@/hooks/use-toast"
 import { PickupLocationModal } from "@/components/customer/pickup-location-modal"
 import { Skeleton } from "@/components/ui/skeleton"
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { PasswordChangeSchema } from "@/lib/validations/auth"
+import { Badge } from "@/components/ui/badge"
+import { NotificationPreferences } from "@/lib/api/types"
+
+// Custom type for category updates
+type CategoryUpdates = {
+  email: boolean;
+  sms: boolean;
+  push: boolean;
+};
 
 // Skeleton loader component for profile cards
 const ProfileSkeleton = () => {
@@ -100,6 +114,9 @@ const ProfileSkeleton = () => {
 export default function ProfilePage() {
   const { data: user, isLoading } = useCurrentUser()
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile()
+  const { mutate: updatePassword, isPending: changingPassword } = useUpdatePassword()
+  const { data: notificationPrefs, isLoading: loadingPrefs } = useNotificationPreferences()
+  const { mutate: updateNotificationPrefs, isPending: savingPrefs } = useUpdateNotificationPreferences()
   const { toast } = useToast()
   
   const [formData, setFormData] = useState({
@@ -185,6 +202,85 @@ export default function ProfilePage() {
         toast({
           title: "Failed to update",
           description: "There was a problem updating your address. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  // Password change form
+  const passwordForm = useForm<z.infer<typeof PasswordChangeSchema>>({
+    resolver: zodResolver(PasswordChangeSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: ""
+    }
+  })
+
+  // Handler for password change
+  const handlePasswordChange = (values: z.infer<typeof PasswordChangeSchema>) => {
+    updatePassword(values, {
+      onSuccess: () => {
+        toast({
+          title: "Password updated",
+          description: "Your password has been changed successfully.",
+        })
+        passwordForm.reset()
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Failed to update password",
+          description: error.message || "There was a problem updating your password. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  // Handler for notification preferences
+  const handleNotificationChange = (type: string, channel: string, value: boolean) => {
+    if (!notificationPrefs) return
+
+    // Create a deep copy of the notification preferences
+    const updatedPrefs = JSON.parse(JSON.stringify(notificationPrefs)) as NotificationPreferences
+    
+    if (type === 'general') {
+      // Update general preference
+      (updatedPrefs as any)[channel] = value
+    } else {
+      // Update specific category preference
+      const categoryKey = `${type}Updates` as keyof NotificationPreferences
+      
+      // Make sure the category exists
+      if (!updatedPrefs[categoryKey]) {
+        const newCategoryUpdate = {
+          email: type === 'package' || type === 'billing',
+          sms: false,
+          push: false
+        }
+        // Use type assertion to bypass type checking for the specific update
+        (updatedPrefs as any)[categoryKey] = newCategoryUpdate
+      }
+      
+      // Update the specific channel in the category
+      const category = (updatedPrefs as any)[categoryKey]
+      if (category) {
+        category[channel] = value
+      }
+    }
+    
+    updateNotificationPrefs(updatedPrefs, {
+      onSuccess: () => {
+        toast({
+          title: "Preferences updated",
+          description: "Your notification preferences have been updated.",
+        })
+      },
+      onError: (error: Error) => {
+        toast({
+          title: "Failed to update",
+          description: "There was a problem updating your preferences. Please try again.",
           variant: "destructive"
         })
       }
@@ -411,36 +507,92 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
-                <Input id="current-password" type="password" />
-              </div>
+              <Form {...passwordForm}>
+                <form onSubmit={passwordForm.handleSubmit(handlePasswordChange)} className="space-y-4">
+                  <FormField
+                    control={passwordForm.control}
+                    name="currentPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Current Password</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="password" 
+                            placeholder="Enter your current password" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <Separator />
+                  <Separator />
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input id="new-password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input id="confirm-password" type="password" />
-                </div>
-              </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={passwordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="password" 
+                              placeholder="Enter new password" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="password" 
+                              placeholder="Confirm new password" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-              <div className="rounded-md bg-muted p-4">
-                <div className="flex gap-2 text-sm font-medium">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span>Password Requirements:</span>
-                </div>
-                <ul className="mt-2 ml-6 text-xs text-muted-foreground list-disc">
-                  <li>Minimum 8 characters</li>
-                  <li>At least one uppercase letter</li>
-                  <li>At least one number</li>
-                  <li>At least one special character</li>
-                </ul>
-              </div>
+                  <div className="rounded-md bg-muted p-4">
+                    <div className="flex gap-2 text-sm font-medium">
+                      <Shield className="h-4 w-4 text-muted-foreground" />
+                      <span>Password Requirements:</span>
+                    </div>
+                    <ul className="mt-2 ml-6 text-xs text-muted-foreground list-disc">
+                      <li>Minimum 8 characters</li>
+                      <li>At least one uppercase letter</li>
+                      <li>At least one number</li>
+                      <li>At least one special character</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={changingPassword}>
+                      {changingPassword ? (
+                        <>Updating...</>
+                      ) : (
+                        <>
+                          <Lock className="mr-2 h-4 w-4" />
+                          Update Password
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
 
               <Separator />
 
@@ -453,7 +605,10 @@ export default function ProfilePage() {
                       Use an authenticator app to generate one-time codes.
                     </div>
                   </div>
-                  <Button variant="outline">Set Up</Button>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Coming Soon</Badge>
+                    <Button variant="outline" disabled>Set Up</Button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
@@ -462,7 +617,10 @@ export default function ProfilePage() {
                       Receive a code via SMS to verify your identity.
                     </div>
                   </div>
-                  <Button variant="outline">Set Up</Button>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Coming Soon</Badge>
+                    <Button variant="outline" disabled>Set Up</Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -487,10 +645,6 @@ export default function ProfilePage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              <Button>
-                <Lock className="mr-2 h-4 w-4" />
-                Update Password
-              </Button>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -512,21 +666,35 @@ export default function ProfilePage() {
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="package-email">Email Notifications</Label>
                     </div>
-                    <Switch id="package-email" defaultChecked />
+                    <Switch 
+                      id="package-email" 
+                      checked={notificationPrefs?.packageUpdates?.email ?? true}
+                      onCheckedChange={(checked) => handleNotificationChange('package', 'email', checked)}
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="package-sms">SMS Notifications</Label>
+                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
                     </div>
-                    <Switch id="package-sms" defaultChecked />
+                    <Switch 
+                      id="package-sms" 
+                      disabled 
+                      checked={notificationPrefs?.packageUpdates?.sms ?? false}
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Bell className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="package-push">Push Notifications</Label>
+                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
                     </div>
-                    <Switch id="package-push" />
+                    <Switch 
+                      id="package-push" 
+                      disabled 
+                      checked={notificationPrefs?.packageUpdates?.push ?? false}
+                    />
                   </div>
                 </div>
               </div>
@@ -541,14 +709,23 @@ export default function ProfilePage() {
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="billing-email">Email Notifications</Label>
                     </div>
-                    <Switch id="billing-email" defaultChecked />
+                    <Switch 
+                      id="billing-email" 
+                      checked={notificationPrefs?.billingUpdates?.email ?? true}
+                      onCheckedChange={(checked) => handleNotificationChange('billing', 'email', checked)}
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="billing-sms">SMS Notifications</Label>
+                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
                     </div>
-                    <Switch id="billing-sms" />
+                    <Switch 
+                      id="billing-sms" 
+                      disabled 
+                      checked={notificationPrefs?.billingUpdates?.sms ?? false}
+                    />
                   </div>
                 </div>
               </div>
@@ -563,15 +740,19 @@ export default function ProfilePage() {
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="marketing-email">Email Newsletter</Label>
                     </div>
-                    <Switch id="marketing-email" />
+                    <Switch 
+                      id="marketing-email" 
+                      checked={notificationPrefs?.marketingUpdates?.email ?? false}
+                      onCheckedChange={(checked) => handleNotificationChange('marketing', 'email', checked)}
+                    />
                   </div>
                 </div>
               </div>
             </CardContent>
             <CardFooter className="flex justify-between border-t px-6 pt-4">
               <Button variant="outline">Reset to Default</Button>
-              <Button onClick={handleSavePersonalInfo} disabled={saving}>
-                {saving ? (
+              <Button onClick={() => {}} disabled={savingPrefs}>
+                {savingPrefs ? (
                   <>Saving...</>
                 ) : (
                   <>

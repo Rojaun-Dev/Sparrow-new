@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, boolean, pgEnum, jsonb } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 
 // Define the user role enum
@@ -21,10 +21,20 @@ export const users = pgTable('users', {
   phone: text('phone'),
   address: text('address'),
   trn: text('trn'), // Tax Registration Number
-  pickupLocationId: text('pickup_location_id'), // Reference to selected pickup location
   role: userRoleEnum('role').notNull().default('customer'),
   auth0Id: text('auth0_id'), // Optional now with JWT implementation
   isActive: boolean('is_active').notNull().default(true),
+  notificationPreferences: jsonb('notification_preferences').default({
+    email: true,
+    sms: false,
+    push: false,
+    packageUpdates: { email: true, sms: false, push: false },
+    billingUpdates: { email: true, sms: false, push: false },
+    marketingUpdates: { email: false, sms: false, push: false },
+    pickupLocationId: null
+  }),
+  resetToken: text('reset_token'),
+  resetTokenExpires: timestamp('reset_token_expires', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }); 

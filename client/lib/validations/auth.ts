@@ -92,3 +92,85 @@ export type LoginFormValues = z.infer<typeof loginSchema>
 export type RegistrationFormValues = z.infer<typeof registrationSchema>
 export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
+
+export const LoginSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  password: z.string().min(1, { message: "Please enter your password" }),
+  rememberMe: z.boolean().optional().default(false)
+})
+
+export const RegisterSchema = z.object({
+  firstName: z.string().min(2, {
+    message: "First name must be at least 2 characters.",
+  }),
+  lastName: z.string().min(2, {
+    message: "Last name must be at least 2 characters.",
+  }),
+  email: z.string().email({
+    message: "Please enter a valid email address.",
+  }),
+  password: z.string().min(8, {
+    message: "Password must be at least 8 characters.",
+  }).refine(password => {
+    return /[A-Z]/.test(password) &&
+           /[0-9]/.test(password) &&
+           /[^A-Za-z0-9]/.test(password);
+  }, {
+    message: "Password must include at least one uppercase letter, one number, and one special character"
+  }),
+  confirmPassword: z.string().min(1, {
+    message: "Please confirm your password.",
+  }),
+  agreeToTerms: z.boolean().refine(val => val === true, {
+    message: "You must agree to the terms and conditions.",
+  }),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+})
+
+export const ForgotPasswordSchema = z.object({
+  email: z.string().email({
+    message: "Please enter a valid email address."
+  })
+})
+
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(1, { message: "Reset token is required" }),
+  newPassword: z.string().min(8, {
+    message: "Password must be at least 8 characters.",
+  }).refine(password => {
+    return /[A-Z]/.test(password) &&
+           /[0-9]/.test(password) &&
+           /[^A-Za-z0-9]/.test(password);
+  }, {
+    message: "Password must include at least one uppercase letter, one number, and one special character"
+  }),
+  confirmPassword: z.string().min(1, {
+    message: "Please confirm your password.",
+  }),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+})
+
+export const PasswordChangeSchema = z.object({
+  currentPassword: z.string().min(1, { 
+    message: "Current password is required" 
+  }),
+  newPassword: z.string().min(8, {
+    message: "Password must be at least 8 characters.",
+  }).refine(password => {
+    return /[A-Z]/.test(password) &&
+           /[0-9]/.test(password) &&
+           /[^A-Za-z0-9]/.test(password);
+  }, {
+    message: "Password must include at least one uppercase letter, one number, and one special character"
+  }),
+  confirmPassword: z.string().min(1, {
+    message: "Please confirm your password.",
+  }),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+})

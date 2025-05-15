@@ -47,4 +47,32 @@ router.put('/profile', checkJwt, controller.updateProfile.bind(controller));
  */
 router.put('/change-password', checkJwt, controller.changePassword.bind(controller));
 
+/**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Request password reset email
+ * @access  Public
+ */
+router.post('/forgot-password', controller.requestPasswordReset.bind(controller));
+
+/**
+ * @route   POST /api/auth/reset-password
+ * @desc    Reset password with token
+ * @access  Public
+ */
+router.post('/reset-password', controller.resetPassword.bind(controller));
+
+/**
+ * @route   GET /api/auth/me/notifications
+ * @desc    Get current user notification preferences
+ * @access  Private
+ */
+router.get('/me/notifications', checkJwt, controller.getNotificationPreferences.bind(controller));
+
+/**
+ * @route   PUT /api/auth/me/notifications
+ * @desc    Update current user notification preferences
+ * @access  Private
+ */
+router.put('/me/notifications', checkJwt, controller.updateNotificationPreferences.bind(controller));
+
 export default router; 

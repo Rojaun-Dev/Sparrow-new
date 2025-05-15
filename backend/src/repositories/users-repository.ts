@@ -221,4 +221,47 @@ export class UsersRepository extends BaseRepository<typeof users> {
   getDatabaseInstance() {
     return this.db;
   }
+
+  /**
+   * Find a user by email without company isolation (for password reset)
+   */
+  async findByEmailWithoutCompanyIsolation(email: string) {
+    const result = await this.db.select({
+      id: users.id,
+      companyId: users.companyId,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      phone: users.phone,
+      resetToken: users.resetToken,
+      resetTokenExpires: users.resetTokenExpires,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+    
+    return result.length > 0 ? result[0] : null;
+  }
+
+  /**
+   * Find a user by reset token
+   */
+  async findByResetToken(token: string) {
+    const result = await this.db.select({
+      id: users.id,
+      companyId: users.companyId,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      resetToken: users.resetToken,
+      resetTokenExpires: users.resetTokenExpires
+    })
+    .from(users)
+    .where(eq(users.resetToken, token))
+    .limit(1);
+    
+    return result.length > 0 ? result[0] : null;
+  }
 } 

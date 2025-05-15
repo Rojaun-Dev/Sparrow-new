@@ -22,6 +22,13 @@
       "when": 1747254274937,
       "tag": "0002_curvy_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1747262954295,
+      "tag": "0003_silent_patch",
+      "breakpoints": true
     }
   ]
 }

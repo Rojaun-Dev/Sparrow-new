@@ -12,7 +12,7 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { usePickupLocations, useUpdatePickupLocation, useCurrentUser } from "@/hooks/useProfile"
+import { usePickupLocations, useUpdatePickupLocation, useCurrentUser, useNotificationPreferences } from "@/hooks/useProfile"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
@@ -24,17 +24,18 @@ interface PickupLocationModalProps {
 export const PickupLocationModal = ({ trigger }: PickupLocationModalProps) => {
   const { data: locations, isLoading: isLoadingLocations } = usePickupLocations()
   const { data: user } = useCurrentUser()
+  const { data: preferences } = useNotificationPreferences()
   const { mutate: updatePickupLocation, isPending: isUpdating } = useUpdatePickupLocation()
-  const [selectedLocation, setSelectedLocation] = useState<string | undefined>(user?.pickupLocationId)
+  const [selectedLocation, setSelectedLocation] = useState<string | undefined>(undefined)
   const [isOpen, setIsOpen] = useState(false)
   const { toast } = useToast()
 
-  // Update selected location when user data loads
+  // Update selected location when preferences data loads
   useEffect(() => {
-    if (user) {
-      setSelectedLocation(user.pickupLocationId)
+    if (preferences) {
+      setSelectedLocation(preferences.pickupLocationId || undefined)
     }
-  }, [user])
+  }, [preferences])
 
   const handleSave = () => {
     if (selectedLocation) {

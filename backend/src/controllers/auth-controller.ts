@@ -4,6 +4,8 @@ import { UsersService, createUserSchema } from '../services/users-service';
 import bcrypt from 'bcrypt';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { jwt as jwtConfig } from '../config';
+import { EmailService } from '../services/email-service';
+import crypto from 'crypto';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -12,9 +14,11 @@ interface AuthRequest extends Request {
 
 export class AuthController {
   private usersService: UsersService;
+  private emailService: EmailService;
 
   constructor() {
     this.usersService = new UsersService();
+    this.emailService = new EmailService();
   }
 
   /**
@@ -188,11 +192,11 @@ export class AuthController {
           phone: user.phone,
           address: user.address,
           trn: user.trn,
-          pickupLocationId: user.pickupLocationId,
           role: user.role,
           companyId: user.companyId,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
+          notificationPreferences: user.notificationPreferences
         }
       });
     } catch (error) {
@@ -229,11 +233,11 @@ export class AuthController {
           phone: user.phone,
           address: user.address,
           trn: user.trn,
-          pickupLocationId: user.pickupLocationId,
           role: user.role,
           companyId: user.companyId,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
+          notificationPreferences: user.notificationPreferences
         }
       }, 'Profile updated successfully');
     } catch (error) {
@@ -274,7 +278,188 @@ export class AuthController {
       // Update password
       await this.usersService.updateUser(userId, { passwordHash }, companyId);
 
+      // Send confirmation email
+      try {
+        await this.emailService.sendPasswordChangedEmail(user.email, user.firstName);
+      } catch (emailError) {
+        console.error('Failed to send password changed email:', emailError);
+        // Continue processing - this is not critical
+      }
+
       return ApiResponse.success(res, null, 'Password changed successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Request a password reset (forgot password)
+   */
+  async requestPasswordReset(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return ApiResponse.badRequest(res, 'Email is required');
+      }
+
+      // Find user by email
+      const user = await this.usersService.getUserByEmailForPasswordReset(email);
+      
+      // If no user found, still return success to avoid email enumeration
+      if (!user) {
+        return ApiResponse.success(res, null, 'If your email exists in our system, you will receive a password reset link');
+      }
+
+      // Generate a reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour
+
+      // Update user with reset token
+      await this.usersService.updateUser(
+        user.id,
+        {
+          resetToken,
+          resetTokenExpires
+        },
+        user.companyId
+      );
+
+      // Get frontend URL from environment or config
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const resetUrl = `${frontendUrl}/reset-password`;
+
+      // Send reset email
+      await this.emailService.sendPasswordResetEmail(
+        user.email,
+        resetToken,
+        user.firstName,
+        resetUrl
+      );
+
+      return ApiResponse.success(res, null, 'If your email exists in our system, you will receive a password reset link');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, newPassword } = req.body;
+      
+      if (!token || !newPassword) {
+        return ApiResponse.badRequest(res, 'Token and new password are required');
+      }
+
+      // Find user by reset token
+      const user = await this.usersService.getUserByResetToken(token);
+      
+      if (!user) {
+        return ApiResponse.badRequest(res, 'Invalid or expired token');
+      }
+
+      // Check if token is expired
+      if (!user.resetTokenExpires || new Date(user.resetTokenExpires) < new Date()) {
+        return ApiResponse.badRequest(res, 'Reset token has expired');
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      // Update user password and clear reset token
+      await this.usersService.updateUser(
+        user.id,
+        {
+          passwordHash,
+          resetToken: null,
+          resetTokenExpires: null
+        },
+        user.companyId
+      );
+
+      // Send confirmation email
+      try {
+        await this.emailService.sendPasswordChangedEmail(user.email, user.firstName);
+      } catch (emailError) {
+        console.error('Failed to send password changed email:', emailError);
+        // Continue processing - this is not critical
+      }
+
+      return ApiResponse.success(res, null, 'Password has been reset successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get user notification preferences
+   */
+  async getNotificationPreferences(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.userId;
+      const companyId = req.companyId;
+
+      if (!userId || !companyId) {
+        return ApiResponse.unauthorized(res, 'Authentication required');
+      }
+
+      const user = await this.usersService.getUserById(userId, companyId);
+
+      if (!user) {
+        return ApiResponse.notFound(res, 'User not found');
+      }
+
+      return ApiResponse.success(res, {
+        preferences: user.notificationPreferences || {
+          email: true,
+          sms: false,
+          push: false,
+          packageUpdates: { email: true, sms: false, push: false },
+          billingUpdates: { email: true, sms: false, push: false },
+          marketingUpdates: { email: false, sms: false, push: false }
+        }
+      });
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Update user notification preferences
+   */
+  async updateNotificationPreferences(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.userId;
+      const companyId = req.companyId;
+      const { preferences } = req.body;
+
+      if (!userId || !companyId) {
+        return ApiResponse.unauthorized(res, 'Authentication required');
+      }
+
+      if (!preferences) {
+        return ApiResponse.badRequest(res, 'Notification preferences are required');
+      }
+
+      // Update user with notification preferences
+      const user = await this.usersService.updateUser(userId, { 
+        notificationPreferences: preferences 
+      }, companyId);
+
+      if (!user) {
+        return ApiResponse.notFound(res, 'User not found');
+      }
+
+      return ApiResponse.success(res, {
+        preferences: user.notificationPreferences
+      }, 'Notification preferences updated successfully');
     } catch (error) {
       next(error);
       return undefined;

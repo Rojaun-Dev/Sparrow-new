@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { User } from './types';
+import { User, NotificationPreferences, PasswordChangeRequest } from './types';
 
 class ProfileService {
   private baseUrl = '/auth';
@@ -23,26 +23,32 @@ class ProfileService {
   /**
    * Update user password
    */
-  async updatePassword(passwordData: { 
-    currentPassword: string; 
-    newPassword: string; 
-    confirmPassword: string; 
-  }): Promise<void> {
-    return apiClient.put<void>(`${this.baseUrl}/password`, passwordData);
+  async updatePassword(passwordData: PasswordChangeRequest): Promise<void> {
+    return apiClient.put<void>(`${this.baseUrl}/change-password`, passwordData);
   }
 
   /**
    * Get user notification preferences
    */
-  async getNotificationPreferences(): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/me/notifications`);
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    const response = await apiClient.get<{ preferences: NotificationPreferences }>(`${this.baseUrl}/me/notifications`);
+    return response.preferences || {
+      email: true,
+      sms: false,
+      push: false,
+      pickupLocationId: null,
+      packageUpdates: { email: true, sms: false, push: false },
+      billingUpdates: { email: true, sms: false, push: false },
+      marketingUpdates: { email: false, sms: false, push: false }
+    };
   }
 
   /**
    * Update user notification preferences
    */
-  async updateNotificationPreferences(preferences: any): Promise<any> {
-    return apiClient.put<any>(`${this.baseUrl}/me/notifications`, preferences);
+  async updateNotificationPreferences(preferences: NotificationPreferences): Promise<NotificationPreferences> {
+    const response = await apiClient.put<{ preferences: NotificationPreferences }>(`${this.baseUrl}/me/notifications`, { preferences });
+    return response.preferences;
   }
 
   /**
@@ -63,9 +69,18 @@ class ProfileService {
   /**
    * Update user pickup location
    */
-  async updatePickupLocation(pickupLocationId: string): Promise<User> {
-    const response = await apiClient.put<{ user: User }>(`${this.baseUrl}/profile`, { pickupLocationId });
-    return response.user;
+  async updatePickupLocation(pickupLocationId: string): Promise<NotificationPreferences> {
+    // Get current notification preferences
+    const currentPrefs = await this.getNotificationPreferences();
+    
+    // Update pickup location in preferences
+    const updatedPrefs = {
+      ...currentPrefs,
+      pickupLocationId
+    };
+    
+    // Save updated preferences
+    return this.updateNotificationPreferences(updatedPrefs);
   }
 
   /**
