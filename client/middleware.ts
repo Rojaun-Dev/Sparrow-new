@@ -14,6 +14,7 @@ function debugToken(token: string | undefined | null) {
   
   try {
     // Extract first 10 chars and last 10 chars for identification
+    // This allows us to identify the token without exposing the full value in logs
     const maskedToken = token.length > 20 
       ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}`
       : token;
@@ -35,22 +36,25 @@ function debugToken(token: string | undefined | null) {
 
 export async function middleware(request: NextRequest) {
   // Log all cookies for debugging
+  // This helps identify if cookies are being properly sent with each request
   console.log('All cookies:', Array.from(request.cookies.getAll()).map(c => c.name));
   
   // Get the token from cookie or authorization header - focus on cookie first
+  // We check multiple locations because tokens might be stored in different ways
   const tokenFromCookie = request.cookies.get('token')?.value;
   const tokenFromAuthHeader = request.headers.get('Authorization')?.split(' ')[1] ||
                              request.headers.get('authorization')?.split(' ')[1];
   
   const token = tokenFromCookie || tokenFromAuthHeader;
   
-  // Debug token sources
+  // Debug token sources - helps identify where the token is being found
   console.log('Token from cookie:', debugToken(tokenFromCookie));
   console.log('Token from auth header:', debugToken(tokenFromAuthHeader));
 
   const path = request.nextUrl.pathname;
   
-  // Check if path needs to be protected
+  // Check if path needs to be protected - this avoids unnecessary processing
+  // for public routes
   const protectedPathPrefix = Object.keys(ROUTE_ACCESS_MAP).find(
     prefix => path === prefix || path.startsWith(`${prefix}/`)
   );
@@ -73,11 +77,19 @@ export async function middleware(request: NextRequest) {
 
   try {
     // Decode token to get user role
-    const decodedToken = jwtDecode<{ role?: string; user?: { role: string } }>(token);
+    const decodedToken = jwtDecode<{ role?: string; user?: { role: string }; exp?: number }>(token);
     
     console.log('Full token contents:', decodedToken);
     
+    // Check if token is expired - important security check
+    // This prevents access with expired tokens even if they're technically valid format
+    if (decodedToken.exp && decodedToken.exp * 1000 < Date.now()) {
+      console.log('Token is expired, redirecting to login');
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    
     // Handle different token formats - some APIs put role at top level, others nested in user object
+    // This flexibility allows our middleware to work with different JWT structures
     const userRole = decodedToken.role || (decodedToken.user?.role);
     
     console.log('Decoded user role:', userRole);
@@ -92,7 +104,7 @@ export async function middleware(request: NextRequest) {
     // Get allowed roles for this path (safely typed)
     const allowedRoles = ROUTE_ACCESS_MAP[protectedPathPrefix];
     
-    // Check if user role is allowed for this path
+    // Check if user role is allowed for this path - this is the core RBAC logic
     if (!allowedRoles.includes(userRole)) {
       console.log(`Role ${userRole} not allowed for ${protectedPathPrefix}, allowed roles:`, allowedRoles);
       const url = new URL('/unauthorized', request.url);

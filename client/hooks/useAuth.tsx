@@ -127,25 +127,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('useAuth: Logout initiated');
     
     try {
-      // Call the auth service logout method
+      // Call the auth service logout method to properly clean up server-side
       await authService.logout();
       
-      // Clear user state
+      // Clear user state from React context to update UI
       setUser(null);
       setIsAuthenticated(false);
       
       // Clear any cached data in localStorage
       if (typeof window !== 'undefined') {
         // Force clear token again for redundancy
+        // This handles cases where the authService.logout() might have failed
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         
-        // Clear React Query cache
+        // Clear React Query cache to prevent stale data from persisting
+        // This is critical as React Query caches API results that might
+        // contain user data or authorized content
         queryClient.clear();
+        
+        // Force clear cookies using raw document.cookie
+        // This is a fallback mechanism in case js-cookie library didn't 
+        // successfully clear the cookies
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        
+        console.log('Logout complete, all tokens removed');
+        console.log('Token in localStorage after logout:', localStorage.getItem('token'));
+        
+        // Force a page reload to clear any memory cache or React state
+        // This is important to force middleware to re-evaluate auth state
+        // and prevent "phantom" authenticated states in the app
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
       }
       
     } catch (err) {
       // Even if there's an error, still remove tokens and reset auth state
+      // This ensures users can logout even if the server-side logout fails
       setUser(null);
       setIsAuthenticated(false);
       
@@ -153,8 +173,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         
+        // Force clear cookies
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        
         // Still clear cache on error
         queryClient.clear();
+        
+        // Force a page reload to clear any memory cache
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
       }
     } finally {
       setIsLoading(false);

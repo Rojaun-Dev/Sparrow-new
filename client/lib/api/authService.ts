@@ -66,23 +66,51 @@ class AuthService {
   
   /**
    * Log out the current user
+   * This function handles both server-side and client-side logout operations,
+   * with multiple fallback mechanisms to ensure tokens are properly removed.
    */
   async logout(): Promise<void> {
+    console.log('AuthService: Logout initiated');
+    
     try {
       // Make the API call but don't wait for it to complete
       // This prevents issues if the server is unavailable
+      // We use catch to handle failures silently to ensure client-side logout still works
       apiClient.post<void>(`${this.baseUrl}/logout`).catch(err => {
+        console.warn('Logout API call failed, continuing with client-side logout', err);
       });
     } finally {
       // Critical step: Always remove token to ensure client-side logout works
+      // This will be executed even if the API call fails
       apiClient.removeToken();
       
       // Clear any other auth-related data from localStorage
       if (typeof window !== 'undefined') {
+        console.log('Clearing all auth data from localStorage');
+        
+        // Remove all possible auth tokens
+        // We remove multiple token types to ensure backward compatibility
+        // with any legacy token storage mechanisms
         localStorage.removeItem('auth_data');
         localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         
-        // Force a delay to ensure localStorage updates are processed
+        // Force cookie removal at document level for redundancy
+        // This provides a backup if the apiClient.removeToken() method fails
+        if (typeof document !== 'undefined') {
+          document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        }
+        
+        // Double check token removal
+        // This verification helps identify cases where token removal fails
+        const tokenStillExists = localStorage.getItem('token');
+        if (tokenStillExists) {
+          console.error('WARNING: Token still exists in localStorage after logout!');
+        } else {
+          console.log('Token successfully removed from localStorage');
+        }
       }
     }
   }

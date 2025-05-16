@@ -30,25 +30,49 @@ export function CustomerHeader() {
   // Handle logout
   const handleLogout = async () => {
     try {
-      // Wait for the logout to complete
+      console.log('Customer Header: Logging out');
+      
+      // Call the auth hook's logout function
+      // This updates context state and removes tokens via the auth context
       await logout();
+      
+      // Also directly call the auth service for redundancy
+      // This provides a fallback if the hook's logout function fails
+      // or if the hook's context state isn't properly synchronized
+      const { authService } = await import('@/lib/api/authService');
+      await authService.logout();
+      
+      // Direct cookie manipulation
+      // This is a belt-and-suspenders approach to ensure cookies are removed
+      // even if the hook and service methods failed to remove them
+      if (typeof document !== 'undefined') {
+        // Force expire all possible auth cookies with various paths
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        
+        // Try alternative paths
+        // This handles cases where cookies might have been set with different paths
+        // e.g., specific to the customer route
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/customer;';
+        document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/customer;';
+      }
       
       // Force any additional local storage cleanup
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
+        localStorage.clear(); // Clear everything to be thorough
+        
+        // Log out what's happening
+        console.log('All local storage and cookies cleared');
+        console.log('Hard redirecting to login page');
+        
+        // Use window.location.replace for a full page reload that bypasses cache
+        // This is more robust than router.push() which might preserve some state
+        window.location.replace('/');
       }
-      
-      // Add a small delay to ensure everything is cleared before redirecting
-      setTimeout(() => {
-        console.log('Header: Redirecting after logout');
-        // Redirect to login page (not home) to ensure proper auth flow
-        window.location.href = '/';
-      }, 100);
     } catch (error) {
       console.error('Error during logout:', error);
       // Still redirect even if there's an error
-      window.location.href = '/';
+      window.location.replace('/');
     }
   }
   

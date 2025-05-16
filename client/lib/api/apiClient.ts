@@ -63,6 +63,8 @@ export class ApiClient {
       const token = localStorage.getItem('token');
       
       // If not in localStorage but in cookies, update localStorage
+      // This creates a bridge between cookies (needed for middleware/server) 
+      // and localStorage (used by client-side code)
       if (!token) {
         const cookieToken = Cookies.get('token');
         if (cookieToken) {
@@ -79,11 +81,12 @@ export class ApiClient {
   // Set token in localStorage and cookie
   public setToken(token: string): void {
     if (typeof window !== 'undefined') {
-      // Store in localStorage for existing code
+      // Store in localStorage for existing code that depends on it
       localStorage.setItem('token', token);
       
-      // Also store in cookie for middleware to access
-      // Set secure and httpOnly for production
+      // Also store in cookie for middleware to access 
+      // Middleware runs on the server and can't access localStorage,
+      // but can access cookies sent with the request
       const isProduction = process.env.NODE_ENV === 'production';
       Cookies.set('token', token, { 
         expires: 7, // 7 days
@@ -97,12 +100,38 @@ export class ApiClient {
   // Remove token from localStorage and cookie
   public removeToken(): void {
     if (typeof window !== 'undefined') {
+      console.log('Removing tokens from storage and cookies');
+      
+      // Clear from localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       
-      // Also remove from cookies
-      Cookies.remove('token');
-      Cookies.remove('refreshToken');
+      // Also remove from cookies - important to use same path/domain options as when setting
+      // Otherwise cookie deletion might not work if paths don't match
+      const isProduction = process.env.NODE_ENV === 'production';
+      Cookies.remove('token', {
+        path: '/',
+        secure: isProduction,
+        sameSite: 'strict'
+      });
+      
+      Cookies.remove('refreshToken', {
+        path: '/',
+        secure: isProduction,
+        sameSite: 'strict'
+      });
+      
+      // Double-check cookies were removed - an additional safety check
+      // Sometimes cookies don't get removed due to browser quirks,
+      // so we add this verification step
+      const tokenStillExists = Cookies.get('token');
+      if (tokenStillExists) {
+        console.warn('Cookie removal failed! Trying alternative method...');
+        // Fallback: overwrite with expired cookie
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      }
+      
+      console.log('Token removal complete. Token cookie exists:', !!Cookies.get('token'));
     }
   }
 
