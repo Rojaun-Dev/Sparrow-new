@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ApiResponse } from './types';
+import Cookies from 'js-cookie';
 
 // Define error types for better handling
 export interface ApiError {
@@ -58,24 +59,50 @@ export class ApiClient {
   // Get token from localStorage
   public getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token');
+      // First try to get from localStorage (backward compatibility)
+      const token = localStorage.getItem('token');
+      
+      // If not in localStorage but in cookies, update localStorage
+      if (!token) {
+        const cookieToken = Cookies.get('token');
+        if (cookieToken) {
+          localStorage.setItem('token', cookieToken);
+          return cookieToken;
+        }
+      }
+      
+      return token;
     }
     return null;
   }
 
-  // Set token in localStorage
+  // Set token in localStorage and cookie
   public setToken(token: string): void {
     if (typeof window !== 'undefined') {
+      // Store in localStorage for existing code
       localStorage.setItem('token', token);
+      
+      // Also store in cookie for middleware to access
+      // Set secure and httpOnly for production
+      const isProduction = process.env.NODE_ENV === 'production';
+      Cookies.set('token', token, { 
+        expires: 7, // 7 days
+        path: '/',
+        secure: isProduction,
+        sameSite: 'strict'
+      });
     }
   }
 
-  // Remove token from localStorage
+  // Remove token from localStorage and cookie
   public removeToken(): void {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
-      // Also remove refresh token if it exists
       localStorage.removeItem('refreshToken');
+      
+      // Also remove from cookies
+      Cookies.remove('token');
+      Cookies.remove('refreshToken');
     }
   }
 

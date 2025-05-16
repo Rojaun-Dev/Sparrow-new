@@ -1,27 +1,122 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { auth0 } from "./lib/auth0";
+import { NextRequest, NextResponse } from 'next/server';
+import { jwtDecode } from 'jwt-decode';
+
+// Define the route access map with proper type
+const ROUTE_ACCESS_MAP: Record<string, string[]> = {
+  '/customer': ['customer'],
+  '/admin': ['admin_l1', 'admin_l2'],
+  '/superadmin': ['super_admin'],
+};
+
+// Debug function that shows token contents, with optional masking
+function debugToken(token: string | undefined | null) {
+  if (!token) return 'No token present';
+  
+  try {
+    // Extract first 10 chars and last 10 chars for identification
+    const maskedToken = token.length > 20 
+      ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}`
+      : token;
+    
+    const decoded = jwtDecode(token);
+    return {
+      maskedToken,
+      contents: decoded
+    };
+  } catch (e) {
+    return {
+      maskedToken: token.length > 20 
+        ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}`
+        : token,
+      error: 'Invalid JWT format'
+    };
+  }
+}
 
 export async function middleware(request: NextRequest) {
-  try {
-    // Add proper error handling for edge runtime
-    return await auth0.middleware(request);
-  } catch (error) {
-    console.error("Middleware error:", error);
-    // Return a simple response to prevent the 500 error
+  // Log all cookies for debugging
+  console.log('All cookies:', Array.from(request.cookies.getAll()).map(c => c.name));
+  
+  // Get the token from cookie or authorization header - focus on cookie first
+  const tokenFromCookie = request.cookies.get('token')?.value;
+  const tokenFromAuthHeader = request.headers.get('Authorization')?.split(' ')[1] ||
+                             request.headers.get('authorization')?.split(' ')[1];
+  
+  const token = tokenFromCookie || tokenFromAuthHeader;
+  
+  // Debug token sources
+  console.log('Token from cookie:', debugToken(tokenFromCookie));
+  console.log('Token from auth header:', debugToken(tokenFromAuthHeader));
+
+  const path = request.nextUrl.pathname;
+  
+  // Check if path needs to be protected
+  const protectedPathPrefix = Object.keys(ROUTE_ACCESS_MAP).find(
+    prefix => path === prefix || path.startsWith(`${prefix}/`)
+  );
+  
+  if (!protectedPathPrefix) {
+    // Not a protected route, proceed
     return NextResponse.next();
+  }
+  
+  console.log('Middleware checking path:', path);
+  console.log('Token present:', !!token);
+  
+  // No token, redirect to unauthorized
+  if (!token) {
+    console.log('No token found, redirecting to unauthorized');
+    const url = new URL('/unauthorized', request.url);
+    url.searchParams.set('message', 'You need to be logged in to access this page');
+    return NextResponse.redirect(url);
+  }
+
+  try {
+    // Decode token to get user role
+    const decodedToken = jwtDecode<{ role?: string; user?: { role: string } }>(token);
+    
+    console.log('Full token contents:', decodedToken);
+    
+    // Handle different token formats - some APIs put role at top level, others nested in user object
+    const userRole = decodedToken.role || (decodedToken.user?.role);
+    
+    console.log('Decoded user role:', userRole);
+    
+    if (!userRole) {
+      console.log('No role found in token');
+      const url = new URL('/unauthorized', request.url);
+      url.searchParams.set('message', 'Authentication error: Unable to determine user role');
+      return NextResponse.redirect(url);
+    }
+
+    // Get allowed roles for this path (safely typed)
+    const allowedRoles = ROUTE_ACCESS_MAP[protectedPathPrefix];
+    
+    // Check if user role is allowed for this path
+    if (!allowedRoles.includes(userRole)) {
+      console.log(`Role ${userRole} not allowed for ${protectedPathPrefix}, allowed roles:`, allowedRoles);
+      const url = new URL('/unauthorized', request.url);
+      url.searchParams.set('message', 'You do not have permission to access this page');
+      return NextResponse.redirect(url);
+    }
+
+    console.log('Access granted for role', userRole);
+    // User has correct role, proceed
+    return NextResponse.next();
+  } catch (error) {
+    console.error("Token validation error:", error);
+    // Invalid token, redirect to login
+    return NextResponse.redirect(new URL('/', request.url));
   }
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
-     * - api/auth (temporary exclude auth endpoints to troubleshoot)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/auth).*)",
+    // Apply middleware to these routes
+    '/customer/:path*',
+    '/admin/:path*',
+    '/superadmin/:path*',
+    // Exclude these routes
+    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
   ],
 }; 

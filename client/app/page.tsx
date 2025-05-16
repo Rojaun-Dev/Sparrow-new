@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { authService } from "@/lib/api/authService"
+import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const router = useRouter()
   const { login, error, clearError } = useAuth()
+  const { toast } = useToast()
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<LoginFormValues>({
@@ -38,6 +40,21 @@ export default function LoginPage() {
     mode: "onChange",
   })
 
+  // Get route based on user role
+  const getRouteFromRole = (role: string): string => {
+    switch (role) {
+      case 'customer':
+        return '/customer';
+      case 'admin_l1':
+      case 'admin_l2':
+        return '/admin';
+      case 'super_admin':
+        return '/superadmin';
+      default:
+        return '/unauthorized';
+    }
+  };
+
   // Manual form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,15 +64,31 @@ export default function LoginPage() {
     try {
       const values = form.getValues()
       
-      // Use authService instead of direct fetch
+      // Use authService directly to login
       const result = await authService.login({
         email: values.email,
         password: values.password,
         rememberMe: values.rememberMe || false
       })
       
-      // Auth service already stores the token, just redirect to dashboard
-      router.push('/customer')
+      // Get the user role from the response
+      const userRole = result.user.role;
+      
+      // Determine which dashboard to redirect to based on role
+      const redirectPath = getRouteFromRole(userRole);
+      
+      // Show success notification
+      toast({
+        title: "Login successful",
+        description: `Welcome back, ${result.user.firstName}! Redirecting you to your dashboard...`,
+        variant: "default",
+      });
+      
+      // Short delay for toast to be visible
+      setTimeout(() => {
+        router.push(redirectPath);
+      }, 1000);
+      
     } catch (error: any) {
       console.error("Login error:", error)
       setFormError(error?.message || 'An unexpected error occurred. Please try again.')

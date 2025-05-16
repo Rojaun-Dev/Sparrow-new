@@ -23,6 +23,17 @@ class AuthService {
       // Store token for future API calls
       if (response.accessToken) {
         console.log('Setting token:', response.accessToken);
+        
+        // Examine token content before saving
+        try {
+          // This is just for debugging
+          const decoded = require('jwt-decode')(response.accessToken);
+          console.log('Decoded token content:', decoded);
+          console.log('User role in token:', decoded.role || (decoded.user && decoded.user.role));
+        } catch (decodeError) {
+          console.error('Token decode error:', decodeError);
+        }
+        
         apiClient.setToken(response.accessToken);
       } else {
         console.error('No access token in response');
