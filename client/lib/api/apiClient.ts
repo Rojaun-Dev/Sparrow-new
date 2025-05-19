@@ -79,7 +79,7 @@ export class ApiClient {
   }
 
   // Set token in localStorage and cookie
-  public setToken(token: string): void {
+  public setToken(token: string, rememberMe = false): void {
     if (typeof window !== 'undefined') {
       // Store in localStorage for existing code that depends on it
       localStorage.setItem('token', token);
@@ -88,8 +88,12 @@ export class ApiClient {
       // Middleware runs on the server and can't access localStorage,
       // but can access cookies sent with the request
       const isProduction = process.env.NODE_ENV === 'production';
+      
+      // Use longer expiration for "remember me" option
+      const expirationDays = rememberMe ? 30 : 7; // 30 days if rememberMe, otherwise 7 days
+      
       Cookies.set('token', token, { 
-        expires: 7, // 7 days
+        expires: expirationDays,
         path: '/',
         secure: isProduction,
         sameSite: 'strict'

@@ -26,7 +26,7 @@ export class AuthController {
    */
   async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, password } = req.body;
+      const { email, password, rememberMe } = req.body;
 
       if (!email || !password) {
         return ApiResponse.badRequest(res, 'Email and password are required');
@@ -50,8 +50,8 @@ export class AuthController {
         return ApiResponse.unauthorized(res, 'Account is disabled');
       }
 
-      // Generate tokens
-      const { accessToken, refreshToken } = this.generateTokens(user);
+      // Generate tokens with rememberMe flag
+      const { accessToken, refreshToken } = this.generateTokens(user, !!rememberMe);
 
       return ApiResponse.success(res, {
         user: {
@@ -105,7 +105,7 @@ export class AuthController {
       }
 
       // Generate tokens
-      const { accessToken, refreshToken } = this.generateTokens(user);
+      const { accessToken, refreshToken } = this.generateTokens(user, false);
 
       return ApiResponse.success(
         res, 
@@ -153,7 +153,7 @@ export class AuthController {
         const user = await this.usersService.getUserById(decoded.userId, decoded.companyId);
 
         // Generate new tokens
-        const tokens = this.generateTokens(user);
+        const tokens = this.generateTokens(user, false);
 
         return ApiResponse.success(res, tokens);
       } catch (error) {
@@ -469,7 +469,7 @@ export class AuthController {
   /**
    * Generate JWT access and refresh tokens
    */
-  private generateTokens(user: any) {
+  private generateTokens(user: any, rememberMe = false) {
     // Access token payload
     const accessPayload = {
       userId: user.id,
@@ -486,17 +486,21 @@ export class AuthController {
       role: user.role
     };
 
+    // Set expiration times based on rememberMe flag
+    const accessTokenExpiry = rememberMe ? '7d' : jwtConfig.expiresIn; // 7 days if rememberMe, otherwise default (1h)
+    const refreshTokenExpiry = rememberMe ? '30d' : jwtConfig.refreshExpiresIn; // 30 days if rememberMe, otherwise default (7d)
+
     // Generate tokens
     const accessToken = jwt.sign(
       accessPayload,
       jwtConfig.secret,
-      { expiresIn: jwtConfig.expiresIn } as SignOptions
+      { expiresIn: accessTokenExpiry } as SignOptions
     );
 
     const refreshToken = jwt.sign(
       refreshPayload,
       jwtConfig.refreshSecret,
-      { expiresIn: jwtConfig.refreshExpiresIn } as SignOptions
+      { expiresIn: refreshTokenExpiry } as SignOptions
     );
 
     return { accessToken, refreshToken };

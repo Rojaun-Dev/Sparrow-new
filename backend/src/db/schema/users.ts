@@ -24,6 +24,9 @@ export const users = pgTable('users', {
   role: userRoleEnum('role').notNull().default('customer'),
   auth0Id: text('auth0_id'), // Optional now with JWT implementation
   isActive: boolean('is_active').notNull().default(true),
+  isVerified: boolean('is_verified').notNull().default(false),
+  verificationToken: text('verification_token'),
+  verificationTokenExpires: timestamp('verification_token_expires', { withTimezone: true }),
   notificationPreferences: jsonb('notification_preferences').default({
     email: true,
     sms: false,

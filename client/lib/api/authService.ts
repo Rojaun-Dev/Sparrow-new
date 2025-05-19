@@ -34,7 +34,8 @@ class AuthService {
           console.error('Token decode error:', decodeError);
         }
         
-        apiClient.setToken(response.accessToken);
+        // Pass the rememberMe flag to setToken to adjust cookie expiration
+        apiClient.setToken(response.accessToken, !!credentials.rememberMe);
       } else {
         console.error('No access token in response');
       }
@@ -54,7 +55,8 @@ class AuthService {
       const response = await apiClient.post<AuthResponse>(`${this.baseUrl}/register`, userData);
       
       if (response.accessToken) {
-        apiClient.setToken(response.accessToken);
+        // Pass false for rememberMe since it's not specified during signup
+        apiClient.setToken(response.accessToken, false);
       }
       
       return response;

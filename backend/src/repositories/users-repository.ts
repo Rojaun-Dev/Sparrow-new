@@ -264,4 +264,16 @@ export class UsersRepository extends BaseRepository<typeof users> {
     
     return result.length > 0 ? result[0] : null;
   }
+
+  /**
+   * Find a user by verification token
+   */
+  async findByVerificationToken(token: string) {
+    const result = await this.db.select()
+      .from(this.table)
+      .where(eq(this.table.verificationToken, token))
+      .limit(1);
+    
+    return result.length > 0 ? result[0] : null;
+  }
 } 

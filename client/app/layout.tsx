@@ -6,7 +6,7 @@ import type React from "react"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { FeedbackProvider } from "@/components/ui/toast-provider"
-import { AuthProvider } from "@/components/auth/auth-provider"
+import { AuthProvider } from "@/hooks/useAuth"
 import "./globals.css"
 import { QueryProvider } from "@/lib/providers/QueryProvider"
 import type { Metadata } from "next"
@@ -30,11 +30,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthProvider>
             <QueryProvider>
+          <AuthProvider>
               <FeedbackProvider>{children}</FeedbackProvider>
-            </QueryProvider>
           </AuthProvider>
+            </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
