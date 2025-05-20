@@ -202,12 +202,49 @@ export class PackagesController {
     try {
       const { invoiceId } = req.params;
       const companyId = req.companyId as string;
+      const packages = await this.service.getPackagesByInvoiceId(invoiceId, companyId);
+      return ApiResponse.success(res, packages);
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * SUPERADMIN: Get all packages for a specific company with filtering
+   */
+  getCompanyPackages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id: companyId } = req.params;
       
-      if (!invoiceId) {
-        return ApiResponse.badRequest(res, 'Invoice ID is required');
+      // Create a new object for filters
+      const filters: Record<string, any> = {};
+      
+      // Copy query parameters
+      Object.assign(filters, req.query);
+      
+      // Convert numeric query parameters
+      if (filters.page) {
+        filters.page = Number(filters.page);
       }
       
-      const packages = await this.service.getPackagesByInvoiceId(invoiceId, companyId);
+      if (filters.limit) {
+        filters.limit = Number(filters.limit);
+      }
+      
+      // Convert date parameters if present
+      if (filters.dateFrom) {
+        filters.dateFrom = filters.dateFrom as string;
+      }
+      
+      if (filters.dateTo) {
+        filters.dateTo = filters.dateTo as string;
+      }
+      
+      // Add companyId to filters
+      filters.companyId = companyId;
+      
+      const packages = await this.service.getPackagesForCompany(filters);
       return ApiResponse.success(res, packages);
     } catch (error) {
       next(error);

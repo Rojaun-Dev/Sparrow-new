@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { UsersService, createUserSchema, updateUserSchema } from '../services/users-service';
+import { UsersService, createUserSchema, updateUserSchema, UserRole } from '../services/users-service';
 import { ApiResponse } from '../utils/response';
 import bcrypt from 'bcrypt';
 
@@ -186,39 +186,37 @@ export class UsersController {
   /**
    * SUPERADMIN: Get all users across all companies
    */
-  getAllUsersAcrossCompanies = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  getAllUsersAcrossCompanies = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Extract query parameters
-      const { 
-        page, 
-        limit, 
-        sort, 
-        order, 
-        role, 
-        companyId, 
-        isActive, 
+      const {
+        page,
+        limit,
+        sort,
+        order,
+        role,
+        companyId,
+        isActive,
         search,
         createdFrom,
         createdTo
       } = req.query;
-      
-      // Convert query parameters to correct types
+
+      // Convert query parameters to the correct types
       const params = {
-        page: page ? parseInt(page as string, 10) : undefined,
-        limit: limit ? parseInt(limit as string, 10) : undefined,
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
         sort: sort as string,
         order: order as 'asc' | 'desc',
         role: role as string,
         companyId: companyId as string,
-        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+        isActive: isActive ? isActive === 'true' : undefined,
         search: search as string,
         createdFrom: createdFrom as string,
         createdTo: createdTo as string
       };
-      
-      const result = await this.service.getAllUsersAcrossCompanies(params);
-      
-      return ApiResponse.success(res, result);
+
+      const users = await this.service.getAllUsersAcrossCompanies(params);
+      return ApiResponse.success(res, users);
     } catch (error) {
       next(error);
       return undefined;
@@ -236,9 +234,9 @@ export class UsersController {
         return ApiResponse.badRequest(res, 'Company ID is required');
       }
       
-      // Force role to be admin_l1 or admin_l2
-      if (!userData.role || !['admin_l1', 'admin_l2'].includes(userData.role)) {
-        return ApiResponse.badRequest(res, 'Role must be either admin_l1 or admin_l2');
+      // Allow super_admin as well
+      if (!userData.role || !['admin_l1', 'admin_l2', 'super_admin'].includes(userData.role)) {
+        return ApiResponse.badRequest(res, 'Role must be admin_l1, admin_l2, or super_admin');
       }
       
       // Validate request body
@@ -275,6 +273,68 @@ export class UsersController {
     try {
       const stats = await this.service.getSystemStatistics();
       return ApiResponse.success(res, stats);
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * SUPERADMIN: Get users for a specific company with filtering
+   */
+  getCompanyUsers = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id: companyId } = req.params;
+      
+      // Extract query parameters
+      const { 
+        page, 
+        limit, 
+        sort, 
+        order, 
+        role, 
+        isActive, 
+        search
+      } = req.query;
+      
+      // Validate and parse role
+      let parsedRole: UserRole | UserRole[] | undefined = undefined;
+      const validRoles: UserRole[] = ['customer', 'admin_l1', 'admin_l2', 'super_admin'];
+
+      if (role) {
+        if (typeof role === 'string') {
+          const rolesArray = role.split(',').map(r => r.trim());
+          const invalidRoles = rolesArray.filter(r => !validRoles.includes(r as UserRole));
+          if (invalidRoles.length > 0) {
+            return ApiResponse.badRequest(res, `Invalid role value(s): ${invalidRoles.join(', ')}. Valid roles are: ${validRoles.join(', ')}`);
+          }
+          parsedRole = rolesArray.length === 1 ? rolesArray[0] as UserRole : rolesArray as UserRole[];
+        } else if (Array.isArray(role)) {
+           const invalidRoles = role.filter(r => !validRoles.includes(r as UserRole));
+           if (invalidRoles.length > 0) {
+            return ApiResponse.badRequest(res, `Invalid role value(s): ${invalidRoles.join(', ')}. Valid roles are: ${validRoles.join(', ')}`);
+          }
+          parsedRole = role as UserRole[];
+        } else {
+          return ApiResponse.badRequest(res, 'Invalid role format. Role should be a string or an array of strings.');
+        }
+      }
+      
+      // Convert query parameters to correct types
+      const params = {
+        page: page ? parseInt(page as string, 10) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
+        sort: sort as string,
+        order: order as 'asc' | 'desc',
+        role: parsedRole, // Use the validated and parsed role
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+        search: search as string,
+        companyId // Always filter by the company ID from params
+      };
+      
+      const result = await this.service.getUsersForCompany(params);
+      
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;

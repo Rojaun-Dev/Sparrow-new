@@ -10,7 +10,16 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ClipboardCheck,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink,
+  Mail,
+  Phone,
+  Globe,
+  MapPin,
+  Calendar,
+  Search,
+  UserPlus,
+  ArrowRight
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -18,13 +27,61 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
+import { TableSkeleton } from "@/components/ui/loading-skeletons"
+import { Input } from "@/components/ui/input"
 import { useCompany } from "@/hooks/useCompanies"
 import { useCompanyStatistics } from "@/hooks/useCompanyStatistics"
+import { useCompanyUsers } from "@/hooks/useCompanyUsers"
+import { useCompanyPackages } from "@/hooks/useCompanyPackages"
+import { formatDate } from "@/lib/utils"
+
+interface UserData {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Package {
+  id: string;
+  trackingNumber: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    name: string;
+    email: string;
+  };
+}
 
 export default function CompanyDetailsPage({ params }: { params: { id: string } }) {
   const { data: company, isLoading: companyLoading } = useCompany(params.id);
   const { data: statistics, isLoading: statsLoading } = useCompanyStatistics(params.id);
   const [activeTab, setActiveTab] = useState("overview");
+  
+  // Users table state
+  const [usersSearch, setUsersSearch] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
+  const { data: adminUsers, isLoading: usersLoading } = useCompanyUsers(params.id, {
+    role: ["super_admin", "admin_l1", "admin_l2"],
+    page: usersPage,
+    limit: 10,
+    search: usersSearch,
+  });
+  
+  // Packages table state
+  const [packagesSearch, setPackagesSearch] = useState("");
+  const [packagesPage, setPackagesPage] = useState(1);
+  const { data: packages, isLoading: packagesLoading } = useCompanyPackages(params.id, {
+    page: packagesPage,
+    limit: 10,
+    search: packagesSearch,
+  });
 
   if (companyLoading || statsLoading) {
     return (
@@ -82,12 +139,6 @@ export default function CompanyDetailsPage({ params }: { params: { id: string } 
             <p className="text-muted-foreground">{company.subdomain}.sparrowx.com</p>
           </div>
         </div>
-        <Button asChild>
-          <Link href={`/superadmin/users/admins?company=${company.id}`}>
-            <Users className="mr-2 h-4 w-4" />
-            View Admins
-          </Link>
-        </Button>
       </div>
 
       {/* Tabs */}
@@ -161,58 +212,254 @@ export default function CompanyDetailsPage({ params }: { params: { id: string } 
               </CardContent>
             </Card>
           </div>
+
+          {/* Company Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Details</CardTitle>
+              <CardDescription>General information and configuration</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {companyLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {Array(4).fill(0).map((_, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <Skeleton className="h-4 w-4 mt-1" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-32" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {company.email && (
+                    <div className="flex items-start gap-2">
+                      <Mail className="h-4 w-4 mt-1 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Email</p>
+                        <p className="text-sm text-muted-foreground">{company.email}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {company.phone && (
+                    <div className="flex items-start gap-2">
+                      <Phone className="h-4 w-4 mt-1 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Phone</p>
+                        <p className="text-sm text-muted-foreground">{company.phone}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {company.website && (
+                    <div className="flex items-start gap-2">
+                      <Globe className="h-4 w-4 mt-1 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Website</p>
+                        <p className="text-sm text-muted-foreground">
+                          <Link 
+                            href={company.website.startsWith('http') ? company.website : `https://${company.website}`} 
+                            target="_blank" 
+                            className="flex items-center hover:underline"
+                          >
+                            {company.website}
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </Link>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {company.address && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Address</p>
+                        <p className="text-sm text-muted-foreground">{company.address}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Users Tab */}
         <TabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>User Statistics</CardTitle>
-              <CardDescription>Overview of user activity and distribution</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Total Users</h3>
-                  <p className="text-2xl font-bold">{statistics?.totalUsers || 0}</p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Active Users</h3>
-                  <p className="text-2xl font-bold">{statistics?.activeUsers || 0}</p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">New Users (30 days)</h3>
-                  <p className="text-2xl font-bold">{statistics?.newUsers || 0}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search users..."
+                value={usersSearch}
+                onChange={(e) => setUsersSearch(e.target.value)}
+                className="w-[300px]"
+              />
+            </div>
+            <Button asChild>
+              <Link href={`/superadmin/users/admins?company=${company.id}`}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add Admin
+              </Link>
+            </Button>
+          </div>
+
+          {usersLoading ? (
+            <TableSkeleton columns={5} rows={5} />
+          ) : adminUsers?.data ? (
+            <ResponsiveTable
+              data={adminUsers.data}
+              columns={[
+                {
+                  header: "Name",
+                  accessorKey: "firstName",
+                  cell: (row: UserData) => (
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{row.firstName} {row.lastName}</span>
+                        <span className="text-sm text-muted-foreground">{row.email}</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  header: "Role",
+                  accessorKey: "role",
+                  cell: (row: UserData) => (
+                    <Badge variant={row.role === 'super_admin' ? 'default' : 'secondary'}>
+                      {row.role.replace('_', ' ').toUpperCase()}
+                    </Badge>
+                  ),
+                },
+                {
+                  header: "Status",
+                  accessorKey: "isActive",
+                  cell: (row: UserData) => (
+                    <Badge variant={row.isActive ? 'success' : 'destructive'}>
+                      {row.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  ),
+                },
+                {
+                  header: "Created",
+                  accessorKey: "createdAt",
+                  cell: (row: UserData) => formatDate(row.createdAt),
+                },
+                {
+                  header: "Actions",
+                  accessorKey: "id",
+                  cell: (row: UserData) => (
+                    <Button variant="ghost" size="icon" asChild>
+                      <Link href={`/superadmin/users/${row.id}`}>
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  ),
+                },
+              ]}
+              pagination={{
+                currentPage: usersPage,
+                totalPages: adminUsers.pagination.totalPages,
+                onPageChange: setUsersPage,
+              }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-4 py-12">
+              <Users className="h-12 w-12 text-muted-foreground" />
+              <h2 className="text-2xl font-semibold">No Users Found</h2>
+              <p className="text-muted-foreground">This company doesn't have any admin users yet.</p>
+            </div>
+          )}
         </TabsContent>
 
         {/* Packages Tab */}
         <TabsContent value="packages" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Package Statistics</CardTitle>
-              <CardDescription>Overview of package processing and status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Total Packages</h3>
-                  <p className="text-2xl font-bold">{statistics?.totalPackages || 0}</p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Active Packages</h3>
-                  <p className="text-2xl font-bold">{statistics?.activePackages || 0}</p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Ready for Pickup</h3>
-                  <p className="text-2xl font-bold">{statistics?.readyForPickup || 0}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search packages..."
+                value={packagesSearch}
+                onChange={(e) => setPackagesSearch(e.target.value)}
+                className="w-[300px]"
+              />
+            </div>
+          </div>
+
+          {packagesLoading ? (
+            <TableSkeleton columns={6} rows={5} />
+          ) : packages?.data ? (
+            <ResponsiveTable
+              data={packages.data}
+              columns={[
+                {
+                  header: "Tracking Number",
+                  accessorKey: "trackingNumber",
+                  cell: (row: Package) => (
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{row.trackingNumber}</span>
+                        <span className="text-sm text-muted-foreground">{row.user?.name || 'N/A'}</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  header: "Status",
+                  accessorKey: "status",
+                  cell: (row: Package) => (
+                    <Badge variant={row.status === 'delivered' ? 'success' : 'secondary'}>
+                      {row.status.toUpperCase()}
+                    </Badge>
+                  ),
+                },
+                {
+                  header: "Customer",
+                  accessorKey: "id",
+                  cell: (row: Package) => (
+                    <div className="flex flex-col">
+                      <span className="font-medium">{row.user?.name || 'N/A'}</span>
+                      <span className="text-sm text-muted-foreground">{row.user?.email || 'N/A'}</span>
+                    </div>
+                  ),
+                },
+                {
+                  header: "Created",
+                  accessorKey: "createdAt",
+                  cell: (row: Package) => formatDate(row.createdAt),
+                },
+                {
+                  header: "Updated",
+                  accessorKey: "updatedAt",
+                  cell: (row: Package) => formatDate(row.updatedAt),
+                },
+                {
+                  header: "Actions",
+                  accessorKey: "id",
+                  cell: (row: Package) => (
+                    <Button variant="ghost" size="icon" asChild>
+                      <Link href={`/superadmin/packages/${row.id}`}>
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  ),
+                },
+              ]}
+              pagination={{
+                currentPage: packagesPage,
+                totalPages: packages.pagination.totalPages,
+                onPageChange: setPackagesPage,
+              }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-4 py-12">
+              <Package className="h-12 w-12 text-muted-foreground" />
+              <h2 className="text-2xl font-semibold">No Packages Found</h2>
+              <p className="text-muted-foreground">This company doesn't have any packages yet.</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

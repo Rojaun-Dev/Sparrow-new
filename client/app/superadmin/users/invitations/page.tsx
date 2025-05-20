@@ -42,49 +42,58 @@ const invitations = [
   {
     id: "1",
     email: "john.doe@example.com",
-    role: "Super Admin",
-    sentAt: "2023-09-15 14:32",
+    role: "admin_l1",
     status: "pending",
+    sentAt: "2023-09-15 14:32",
   },
   {
     id: "2",
     email: "jane.smith@example.com",
-    role: "Super Admin",
+    role: "admin_l2",
+    status: "pending",
     sentAt: "2023-09-14 09:45",
-    status: "accepted",
   },
   {
     id: "3",
     email: "robert.johnson@example.com",
-    role: "Super Admin",
-    sentAt: "2023-08-30 16:20",
+    role: "super_admin",
     status: "expired",
+    sentAt: "2023-08-30 16:20",
   },
   {
     id: "4",
     email: "emily.davis@example.com",
-    role: "Super Admin",
-    sentAt: "2023-09-12 11:15",
+    role: "admin_l1",
     status: "pending",
+    sentAt: "2023-09-12 11:15",
   },
 ]
 
-// Form schema for sending an invitation
+// Form schema for adding/editing an invitation
 const invitationFormSchema = z.object({
   email: z
     .string({ required_error: "Email is required" })
     .email({ message: "Please enter a valid email address" })
     .trim(),
-  role: z.enum(["Owner", "Super Admin"], {
+  role: z.enum(["admin_l1", "admin_l2", "super_admin"], {
     required_error: "Please select a role",
   }),
-  sendEmail: z.boolean().default(true),
-})
+  sendEmail: z.boolean(),
+}).required();
+
+// Role display mapping
+const roleDisplayMap = {
+  admin_l1: "Admin Level 1",
+  admin_l2: "Admin Level 2",
+  super_admin: "Super Admin"
+} as const;
 
 type InvitationFormValues = z.infer<typeof invitationFormSchema>
 
 export default function InvitationsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [currentInvitation, setCurrentInvitation] = useState<(typeof invitations)[0] | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
   // Filter invitations based on search query
@@ -99,26 +108,31 @@ export default function InvitationsPage() {
     resolver: zodResolver(invitationFormSchema),
     defaultValues: {
       email: "",
-      role: "Super Admin",
+      role: "admin_l1",
       sendEmail: true,
     },
-    mode: "onChange",
   })
 
   // Form submission handler
   async function onSubmit(data: InvitationFormValues) {
-    setIsSubmitting(true)
-    console.log("Form submitted:", data)
+    try {
+      setIsSubmitting(true)
+      console.log("Form submitted:", data)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    // In a real implementation, this would call an API to send the invitation
-    setIsSubmitting(false)
+      // In a real implementation, this would call an API to send the invitation
+      setIsSubmitting(false)
 
-    // Reset form and close dialog
-    form.reset()
-    document.getElementById("close-invitation-dialog")?.click()
+      // Reset form and close dialog
+      form.reset()
+      document.getElementById("close-invitation-dialog")?.click()
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Get status badge
@@ -276,8 +290,9 @@ export default function InvitationsPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Owner">Owner</SelectItem>
-                          <SelectItem value="Super Admin">Super Admin</SelectItem>
+                          <SelectItem value="admin_l1">{roleDisplayMap.admin_l1}</SelectItem>
+                          <SelectItem value="admin_l2">{roleDisplayMap.admin_l2}</SelectItem>
+                          <SelectItem value="super_admin">{roleDisplayMap.super_admin}</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>The role determines the level of access.</FormDescription>

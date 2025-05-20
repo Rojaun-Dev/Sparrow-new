@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -45,49 +45,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ResponsiveTable } from "@/components/ui/responsive-table"
+import { TableSkeleton } from '@/components/ui/loading-skeletons'
 
-// Import the useFeedback hook
+// Import hooks
 import { useFeedback } from "@/components/ui/toast-provider"
-
-// Mock data for admins
-const admins = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "Owner",
-    status: "active",
-    lastLogin: "2023-09-15 14:32",
-    avatarUrl: "",
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    role: "Super Admin",
-    status: "active",
-    lastLogin: "2023-09-14 09:45",
-    avatarUrl: "",
-  },
-  {
-    id: "3",
-    name: "Robert Johnson",
-    email: "robert.johnson@example.com",
-    role: "Super Admin",
-    status: "suspended",
-    lastLogin: "2023-08-30 16:20",
-    avatarUrl: "",
-  },
-  {
-    id: "4",
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    role: "Super Admin",
-    status: "active",
-    lastLogin: "2023-09-12 11:15",
-    avatarUrl: "",
-  },
-]
+import { useSuperAdminUsers } from "@/hooks/useSuperAdminUsers"
+import { useSuperAdminCompanies } from "@/hooks/useSuperAdminCompanies"
 
 // Form schema for adding/editing an admin
 const adminFormSchema = z.object({
@@ -95,11 +58,18 @@ const adminFormSchema = z.object({
     .string({ required_error: "Email is required" })
     .email({ message: "Please enter a valid email address" })
     .trim(),
-  role: z.enum(["Owner", "Super Admin"], {
+  role: z.enum(["admin_l1", "admin_l2", "super_admin"], {
     required_error: "Please select a role",
   }),
-  sendEmail: z.boolean().default(true),
-})
+  sendEmail: z.boolean(),
+}).required();
+
+// Role display mapping
+const roleDisplayMap = {
+  admin_l1: "Admin Level 1",
+  admin_l2: "Admin Level 2",
+  super_admin: "Super Admin"
+} as const;
 
 type AdminFormValues = z.infer<typeof adminFormSchema>
 
@@ -107,15 +77,40 @@ type AdminFormValues = z.infer<typeof adminFormSchema>
 export default function AdminsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [currentAdmin, setCurrentAdmin] = useState<(typeof admins)[0] | null>(null)
+  const [currentAdmin, setCurrentAdmin] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const { showFeedback } = useFeedback()
+  
+  // Use the hooks
+  const { createAdminUser, fetchUsers, loading: usersLoading, users } = useSuperAdminUsers()
+  const { companies, fetchCompanies, loading: companiesLoading } = useSuperAdminCompanies()
+  
+  // Load real data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await fetchUsers({ 
+          role: ['admin_l1', 'admin_l2', 'super_admin'].join(',')
+        });
+        
+        // Load companies for the dropdown
+        await fetchCompanies();
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        showFeedback('Failed to load admin users', 'error');
+      }
+    };
+    
+    loadData();
+  }, [fetchUsers, fetchCompanies, showFeedback]);
 
   // Filter admins based on search query
-  const filteredAdmins = admins.filter(
-    (admin) =>
-      admin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      admin.email.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredAdmins = users.filter(
+    (admin) => {
+      const name = `${admin.firstName || ''} ${admin.lastName || ''}`.trim();
+      return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        admin.email.toLowerCase().includes(searchQuery.toLowerCase())
+    }
   )
 
   // Initialize form with React Hook Form and Zod resolver
@@ -123,22 +118,38 @@ export default function AdminsPage() {
     resolver: zodResolver(adminFormSchema),
     defaultValues: {
       email: "",
-      role: "Super Admin",
+      role: "admin_l1",
       sendEmail: true,
     },
-    mode: "onChange",
   })
 
-  // Update the onSubmit function to use feedback
+  // Update the onSubmit function to use the API
   async function onSubmit(data: AdminFormValues) {
-    setIsSubmitting(true)
-    console.log("Form submitted:", data)
-
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      setIsSubmitting(true)
+      console.log("Form submitted:", data)
 
-      // In a real implementation, this would call an API to create/update the admin
+      // Get the first company from the list (this should be improved with a company selector)
+      const targetCompany = companies[0] || { id: '' };
+      
+      if (!targetCompany.id) {
+        showFeedback('No company selected. Please select a company.', 'error');
+        return;
+      }
+      
+      // Prepare the data for API call
+      const userData = {
+        email: data.email,
+        role: data.role,
+        firstName: 'New', // These should be added to the form
+        lastName: 'Admin',
+        companyId: targetCompany.id,
+        password: 'Password123!', // This should be auto-generated or asked in the form
+      };
+
+      // Create the admin via API
+      const newUser = await createAdminUser(userData);
+      
       showFeedback(
         isEditing
           ? `Admin "${data.email}" has been updated successfully.`
@@ -146,13 +157,23 @@ export default function AdminsPage() {
         "success",
       )
 
+      // Refresh the admin list
+      fetchUsers({ role: ['admin_l1', 'admin_l2', 'super_admin'].join(',') })
+        .then(response => {
+          // Assuming response.data is the updated list of users
+          // Update the users state with the new list
+          // This is a placeholder and should be replaced with actual implementation
+          // For example, you can use a state management library like Redux or a local state
+          // to update the users state
+        });
+
       // Reset form and close dialog
       form.reset()
       document.getElementById("close-admin-dialog")?.click()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting form:", error)
       showFeedback(
-        isEditing ? "Failed to update admin. Please try again." : "Failed to add admin. Please try again.",
+        error.message || (isEditing ? "Failed to update admin. Please try again." : "Failed to add admin. Please try again."),
         "error",
       )
     } finally {
@@ -161,12 +182,12 @@ export default function AdminsPage() {
   }
 
   // Edit admin handler
-  function handleEditAdmin(admin: (typeof admins)[0]) {
+  function handleEditAdmin(admin: any) {
     setIsEditing(true)
     setCurrentAdmin(admin)
     form.reset({
       email: admin.email,
-      role: admin.role as "Owner" | "Super Admin",
+      role: admin.role as "admin_l1" | "admin_l2" | "super_admin",
       sendEmail: false,
     })
     document.getElementById("open-admin-dialog")?.click()
@@ -178,23 +199,21 @@ export default function AdminsPage() {
     setCurrentAdmin(null)
     form.reset({
       email: "",
-      role: "Super Admin",
+      role: "admin_l1",
       sendEmail: true,
     })
     document.getElementById("open-admin-dialog")?.click()
   }
 
   // Get initials for avatar
-  function getInitials(name: string) {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
+  function getInitials(first: string, last: string) {
+    const firstName = first || '';
+    const lastName = last || '';
+    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
   }
 
   // Actions dropdown
-  function ActionsDropdown({ admin }: { admin: (typeof admins)[0] }) {
+  function ActionsDropdown({ admin }: { admin: any }) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -213,7 +232,7 @@ export default function AdminsPage() {
             Send Email
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {admin.status === "active" ? (
+          {admin.isActive ? (
             <DropdownMenuItem className="text-amber-600">
               <Ban className="mr-2 h-4 w-4" />
               Suspend
@@ -224,7 +243,7 @@ export default function AdminsPage() {
               Activate
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem className="text-red-600" disabled={admin.role === "Owner"}>
+          <DropdownMenuItem className="text-red-600">
             <Trash className="mr-2 h-4 w-4" />
             Remove
           </DropdownMenuItem>
@@ -237,41 +256,41 @@ export default function AdminsPage() {
   const columns = [
     {
       header: "Name",
-      accessorKey: "name" as const,
-      cell: (admin: (typeof admins)[0]) => (
+      accessorKey: "firstName" as keyof UserData,
+      cell: (admin: UserData) => (
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={admin.avatarUrl || "/placeholder.svg"} alt={admin.name} />
-            <AvatarFallback>{getInitials(admin.name)}</AvatarFallback>
+            <AvatarImage src={admin.avatarUrl || "/placeholder.svg"} alt={`${admin.firstName} ${admin.lastName}`} />
+            <AvatarFallback>{getInitials(admin.firstName, admin.lastName)}</AvatarFallback>
           </Avatar>
-          <span className="font-medium">{admin.name}</span>
+          <span className="font-medium">{`${admin.firstName || ''} ${admin.lastName || ''}`}</span>
         </div>
       ),
     },
     {
       header: "Email",
-      accessorKey: "email" as const,
+      accessorKey: "email" as keyof UserData,
     },
     {
       header: "Role",
-      accessorKey: "role" as const,
-      cell: (admin: (typeof admins)[0]) => (
+      accessorKey: "role" as keyof UserData,
+      cell: (admin: UserData) => (
         <div className="flex items-center gap-2">
-          {admin.role === "Owner" ? (
-            <ShieldAlert className="h-4 w-4 text-amber-500" />
-          ) : (
+          {admin.role === "super_admin" ? (
             <Shield className="h-4 w-4 text-primary" />
+          ) : (
+            <Shield className="h-4 w-4 text-primary/50" />
           )}
-          {admin.role}
+          {roleDisplayMap[admin.role as keyof typeof roleDisplayMap] || admin.role}
         </div>
       ),
     },
     {
       header: "Status",
-      accessorKey: "status" as const,
-      cell: (admin: (typeof admins)[0]) => (
-        <Badge variant={admin.status === "active" ? "success" : "destructive"}>
-          {admin.status === "active" ? (
+      accessorKey: "isActive" as keyof UserData,
+      cell: (admin: UserData) => (
+        <Badge variant={admin.isActive ? "success" : "destructive"}>
+          {admin.isActive ? (
             <div className="flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" />
               Active
@@ -287,12 +306,17 @@ export default function AdminsPage() {
     },
     {
       header: "Last Login",
-      accessorKey: "lastLogin" as const,
+      accessorKey: "lastLogin" as keyof UserData,
+      cell: (admin: any) => (
+        <div>
+          {admin.lastLogin ? new Date(admin.lastLogin).toLocaleString() : 'Never'}
+        </div>
+      ),
     },
     {
       header: "Actions",
-      accessorKey: "id" as const,
-      cell: (admin: (typeof admins)[0]) => <ActionsDropdown admin={admin} />,
+      accessorKey: "id" as keyof UserData,
+      cell: (admin: UserData) => <ActionsDropdown admin={admin} />,
       className: "text-right",
     },
   ]
@@ -356,8 +380,9 @@ export default function AdminsPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Owner">Owner</SelectItem>
-                          <SelectItem value="Super Admin">Super Admin</SelectItem>
+                          <SelectItem value="admin_l1">{roleDisplayMap.admin_l1}</SelectItem>
+                          <SelectItem value="admin_l2">{roleDisplayMap.admin_l2}</SelectItem>
+                          <SelectItem value="super_admin">{roleDisplayMap.super_admin}</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>The role determines the level of access.</FormDescription>
@@ -420,7 +445,11 @@ export default function AdminsPage() {
             />
           </div>
 
-          <ResponsiveTable data={filteredAdmins} columns={columns} />
+          {usersLoading ? (
+            <TableSkeleton columns={6} rows={5} />
+          ) : (
+            <ResponsiveTable data={filteredAdmins} columns={columns} />
+          )}
         </CardContent>
       </Card>
     </div>

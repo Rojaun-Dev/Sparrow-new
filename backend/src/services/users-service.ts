@@ -1,9 +1,14 @@
 import { z } from 'zod';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
-import { and, eq, sql, or, like, asc, desc, gte, lte } from 'drizzle-orm';
+import { and, eq, sql, or, like, asc, desc, gte, lte, SQL } from 'drizzle-orm';
 import { users } from '../db/schema/users';
 import { companies } from '../db/schema/companies';
+import { ilike } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
+
+// Define valid roles
+export type UserRole = 'customer' | 'admin_l1' | 'admin_l2' | 'super_admin';
 
 // Validation schema for user creation
 export const createUserSchema = z.object({
@@ -14,7 +19,7 @@ export const createUserSchema = z.object({
   address: z.string().optional(),
   trn: z.string().optional(),
   pickupLocationId: z.string().optional(),
-  role: z.enum(['customer', 'admin_l1', 'admin_l2', 'super_admin']).default('customer'),
+  role: z.enum(['customer', 'admin_l1', 'admin_l2', 'super_admin'] as const).default('customer'),
   auth0Id: z.string().optional(), // Optional because it might be set by Auth0 integration
   passwordHash: z.string().optional(), // For JWT authentication
 });
@@ -100,7 +105,13 @@ export class UsersService {
     const conditions = [];
     
     if (role) {
-      conditions.push(eq(users.role, role as any));
+      // Handle role as either a single value or comma-separated string
+      const roles = typeof role === 'string' ? role.split(',') : [role];
+      const validRoles = roles.filter(r => ['customer', 'admin_l1', 'admin_l2', 'super_admin'].includes(r));
+      
+      if (validRoles.length > 0) {
+        conditions.push(inArray(users.role, validRoles));
+      }
     }
     
     if (companyId) {
@@ -250,7 +261,7 @@ export class UsersService {
   async getUsersByRole(role: string, companyId: string) {
     // Validate role
     if (!['customer', 'admin_l1', 'admin_l2', 'super_admin'].includes(role)) {
-      throw AppError.badRequest('Invalid role');
+      throw AppError.badRequest('Invalid role. Must be one of: customer, admin_l1, admin_l2, super_admin');
     }
     
     return this.repository.findByRole(role as "customer" | "admin_l1" | "admin_l2" | "super_admin", companyId);
@@ -338,25 +349,36 @@ export class UsersService {
     
     // Get total user counts
     const userCountResult = await db.select({
-      count: sql`count(*)`.mapWith(Number)
+      count: sql<number>`count(*)`.mapWith(Number)
     }).from(users);
     
     // Get total active user count
     const activeUserCountResult = await db.select({
-      count: sql`count(*)`.mapWith(Number)
+      count: sql<number>`count(*)`.mapWith(Number)
     }).from(users).where(eq(users.isActive, true));
     
     // Get total users by role
     const usersByRoleResult = await db.select({
       role: users.role,
-      count: sql`count(*)`.mapWith(Number)
+      count: sql<number>`count(*)`.mapWith(Number)
     }).from(users).groupBy(users.role);
+    
+    // Get admin-specific statistics
+    const adminStatsResult = await db.select({
+      totalAdmins: sql<number>`count(*)`.mapWith(Number),
+      activeAdmins: sql<number>`count(*) filter (where ${users.isActive} = true)`.mapWith(Number),
+      adminL1Count: sql<number>`count(*) filter (where ${users.role} = 'admin_l1')`.mapWith(Number),
+      adminL2Count: sql<number>`count(*) filter (where ${users.role} = 'admin_l2')`.mapWith(Number),
+      superAdminCount: sql<number>`count(*) filter (where ${users.role} = 'super_admin')`.mapWith(Number)
+    })
+    .from(users)
+    .where(inArray(users.role, ['admin_l1', 'admin_l2', 'super_admin']));
     
     // Get total users by company
     const usersByCompanyResult = await db.select({
       companyId: users.companyId,
       companyName: companies.name,
-      count: sql`count(*)`.mapWith(Number)
+      count: sql<number>`count(*)`.mapWith(Number)
     })
     .from(users)
     .leftJoin(companies, eq(users.companyId, companies.id))
@@ -364,7 +386,7 @@ export class UsersService {
     
     // Get companies count
     const companiesCountResult = await db.select({
-      count: sql`count(*)`.mapWith(Number)
+      count: sql<number>`count(*)`.mapWith(Number)
     }).from(companies);
     
     // Get users created in the last 30 days
@@ -372,7 +394,7 @@ export class UsersService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const newUsersResult = await db.select({
-      count: sql`count(*)`.mapWith(Number)
+      count: sql<number>`count(*)`.mapWith(Number)
     }).from(users).where(gte(users.createdAt, thirtyDaysAgo));
     
     // Get users by creation date (last 12 months)
@@ -384,7 +406,7 @@ export class UsersService {
       const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
       
       const monthlyUsersResult = await db.select({
-        count: sql`count(*)`.mapWith(Number)
+        count: sql<number>`count(*)`.mapWith(Number)
       })
       .from(users)
       .where(
@@ -419,21 +441,139 @@ export class UsersService {
       usersByRole: roleDistribution,
       usersByCompany: usersByCompanyResult,
       usersByMonth: usersByMonth,
-      activePercentage: Math.round((activeUserCountResult[0].count / userCountResult[0].count) * 100)
+      activePercentage: Math.round((activeUserCountResult[0].count / userCountResult[0].count) * 100),
+      adminStats: {
+        totalAdmins: adminStatsResult[0].totalAdmins,
+        activeAdmins: adminStatsResult[0].activeAdmins,
+        adminL1Count: adminStatsResult[0].adminL1Count,
+        adminL2Count: adminStatsResult[0].adminL2Count,
+        superAdminCount: adminStatsResult[0].superAdminCount,
+        adminActivePercentage: Math.round((adminStatsResult[0].activeAdmins / adminStatsResult[0].totalAdmins) * 100)
+      }
     };
   }
 
   /**
-   * Get a user by email for password reset (no company isolation)
+   * Get users for a specific company with filtering and pagination (for superadmin)
    */
-  async getUserByEmailForPasswordReset(email: string) {
-    return this.repository.findByEmailWithoutCompanyIsolation(email);
+  async getUsersForCompany(params: {
+    companyId: string;
+    page?: number;
+    limit?: number;
+    sort?: string;
+    order?: 'asc' | 'desc';
+    role?: 'customer' | 'admin_l1' | 'admin_l2' | 'super_admin' | Array<'customer' | 'admin_l1' | 'admin_l2' | 'super_admin'>;
+    isActive?: boolean;
+    search?: string;
+  }) {
+    const db = this.repository.getDatabaseInstance();
+    
+    // Set up pagination parameters
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const offset = (page - 1) * limit;
+    
+    // Set up sorting
+    const orderBy: SQL[] = [];
+    if (params.sort) {
+      const direction = params.order === 'desc' ? desc : asc;
+      
+      // Match the sort parameter to a valid column
+      switch(params.sort) {
+        case 'firstName':
+          orderBy.push(direction(users.firstName));
+          break;
+        case 'lastName':
+          orderBy.push(direction(users.lastName));
+          break;
+        case 'email':
+          orderBy.push(direction(users.email));
+          break;
+        case 'role':
+          orderBy.push(direction(users.role));
+          break;
+        case 'createdAt':
+          orderBy.push(direction(users.createdAt));
+          break;
+        default:
+          orderBy.push(desc(users.createdAt)); // Default sort
+      }
+    } else {
+      orderBy.push(desc(users.createdAt)); // Default sort if none specified
+    }
+    
+    // Build the filter conditions
+    const conditions: SQL[] = [eq(users.companyId, params.companyId)];
+    
+    // Add role filter if provided
+    if (params.role) {
+      if (Array.isArray(params.role)) {
+        // Handle multiple roles
+        const roleConditions = params.role.map((r) => eq(users.role, r));
+        if (roleConditions.length > 0) {
+          conditions.push(or(...roleConditions));
+        }
+      } else {
+        // Handle single role
+        conditions.push(eq(users.role, params.role));
+      }
+    }
+    
+    // Add active/inactive filter if provided
+    if (params.isActive !== undefined) {
+      conditions.push(eq(users.isActive, params.isActive));
+    }
+    
+    // Add search filter if provided
+    if (params.search) {
+      const searchTerm = `%${params.search}%`;
+      const searchConditions = [
+        ilike(users.firstName, searchTerm),
+        ilike(users.lastName, searchTerm),
+        ilike(users.email, searchTerm)
+      ];
+      conditions.push(or(...searchConditions));
+    }
+    
+    // Combine all conditions
+    const whereCondition = and(...conditions);
+    
+    // Get total count for pagination
+    const [{ count: totalItems }] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(users)
+      .where(whereCondition);
+      
+    // Calculate total pages
+    const totalPages = Math.ceil(totalItems / limit);
+    
+    // Get the data with pagination
+    const data = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        role: users.role,
+        isActive: users.isActive,
+        phone: users.phone,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(whereCondition)
+      .orderBy(...orderBy)
+      .limit(limit)
+      .offset(offset);
+    
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages
+      }
+    };
   }
-
-  /**
-   * Get a user by reset token
-   */
-  async getUserByResetToken(token: string) {
-    return this.repository.findByResetToken(token);
-  }
-} 
+}

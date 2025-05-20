@@ -4,6 +4,7 @@ import type React from "react"
 import { cn } from "@/lib/utils"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 
 interface Column<T> {
   header: string
@@ -17,9 +18,14 @@ interface ResponsiveTableProps<T> {
   columns: Column<T>[]
   className?: string
   onRowClick?: (item: T) => void
+  pagination?: {
+    currentPage: number
+    totalPages: number
+    onPageChange: (page: number) => void
+  }
 }
 
-export function ResponsiveTable<T>({ data, columns, className, onRowClick }: ResponsiveTableProps<T>) {
+export function ResponsiveTable<T>({ data, columns, className, onRowClick, pagination }: ResponsiveTableProps<T>) {
   // For desktop: Regular table
   const DesktopTable = (
     <div className={cn("hidden rounded-md border md:block", className)}>
@@ -49,6 +55,29 @@ export function ResponsiveTable<T>({ data, columns, className, onRowClick }: Res
           ))}
         </TableBody>
       </Table>
+      {pagination && (
+        <div className="flex items-center justify-end space-x-2 p-4 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage <= 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+            disabled={pagination.currentPage >= pagination.totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   )
 
@@ -73,6 +102,29 @@ export function ResponsiveTable<T>({ data, columns, className, onRowClick }: Res
           </div>
         </Card>
       ))}
+      {pagination && (
+        <div className="flex items-center justify-between p-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage <= 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+            disabled={pagination.currentPage >= pagination.totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   )
 

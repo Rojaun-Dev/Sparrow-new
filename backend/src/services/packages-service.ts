@@ -3,8 +3,9 @@ import { PackagesRepository } from '../repositories/packages-repository';
 import { PreAlertsRepository } from '../repositories/pre-alerts-repository';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
-import { packageStatusEnum } from '../db/schema/packages';
+import { packageStatusEnum, packages } from '../db/schema/packages';
 import { randomUUID } from 'crypto';
+import { SQL, eq, and, gte, lte, or, ilike, desc, asc, sql } from 'drizzle-orm';
 
 // Validation schema for package creation
 export const createPackageSchema = z.object({
@@ -375,15 +376,132 @@ export class PackagesService {
   }
 
   /**
-   * Get packages by invoice ID
-   * @param invoiceId - The invoice ID
-   * @param companyId - The company ID
+   * Get packages by invoice ID with company isolation
    */
   async getPackagesByInvoiceId(invoiceId: string, companyId: string) {
-    try {
-      return await this.packagesRepository.findByInvoiceId(invoiceId, companyId);
-    } catch (error: any) {
-      throw new Error(`Failed to get packages for invoice: ${error.message}`);
+    return this.packagesRepository.findByInvoiceId(invoiceId, companyId);
+  }
+  
+  /**
+   * Get packages for a specific company with filtering and pagination (for superadmin)
+   */
+  async getPackagesForCompany(params: {
+    companyId: string;
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    const db = this.packagesRepository.getDatabaseInstance();
+    
+    // Set up pagination parameters
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const offset = (page - 1) * limit;
+    
+    // Set up sorting
+    const orderBy: SQL[] = [];
+    if (params.sortBy) {
+      const direction = params.sortOrder === 'desc' ? desc : asc;
+      
+      // Match the sort parameter to a valid column
+      switch(params.sortBy) {
+        case 'trackingNumber':
+          orderBy.push(direction(packages.trackingNumber));
+          break;
+        case 'status':
+          orderBy.push(direction(packages.status));
+          break;
+        case 'receivedDate':
+          orderBy.push(direction(packages.receivedDate));
+          break;
+        case 'createdAt':
+          orderBy.push(direction(packages.createdAt));
+          break;
+        default:
+          orderBy.push(desc(packages.createdAt)); // Default sort
+      }
+    } else {
+      orderBy.push(desc(packages.createdAt)); // Default sort if none specified
     }
+    
+    // Build the filter conditions
+    let conditions = eq(packages.companyId, params.companyId);
+    
+    // Add status filter if provided
+    if (params.status) {
+      conditions = and(conditions, eq(packages.status, params.status));
+    }
+    
+    // Add date range filters if provided
+    if (params.dateFrom) {
+      const fromDate = new Date(params.dateFrom);
+      conditions = and(conditions, gte(packages.createdAt, fromDate));
+    }
+    
+    if (params.dateTo) {
+      const toDate = new Date(params.dateTo);
+      // Set to end of day
+      toDate.setHours(23, 59, 59, 999);
+      conditions = and(conditions, lte(packages.createdAt, toDate));
+    }
+    
+    // Add search filter if provided
+    if (params.search) {
+      const searchTerm = `%${params.search}%`;
+      conditions = and(
+        conditions,
+        or(
+          ilike(packages.trackingNumber, searchTerm),
+          ilike(packages.internalTrackingId, searchTerm),
+          ilike(packages.description, searchTerm)
+        )
+      );
+    }
+    
+    // Get total count for pagination
+    const [{ count: totalItems }] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(packages)
+      .where(conditions);
+      
+    // Calculate total pages
+    const totalPages = Math.ceil(totalItems / limit);
+    
+    // Get the data with pagination
+    const data = await db
+      .select({
+        id: packages.id,
+        userId: packages.userId,
+        trackingNumber: packages.trackingNumber,
+        internalTrackingId: packages.internalTrackingId,
+        status: packages.status,
+        description: packages.description,
+        weight: packages.weight,
+        dimensions: packages.dimensions,
+        receivedDate: packages.receivedDate,
+        processingDate: packages.processingDate,
+        createdAt: packages.createdAt,
+        updatedAt: packages.updatedAt,
+      })
+      .from(packages)
+      .where(conditions)
+      .orderBy(...orderBy)
+      .limit(limit)
+      .offset(offset);
+    
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages
+      }
+    };
   }
 } 

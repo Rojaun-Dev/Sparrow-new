@@ -2,10 +2,15 @@ import { and, eq, desc, asc, like, gte, lte, sql, not, exists, or, SQL } from 'd
 import { packages, packageStatusEnum } from '../db/schema/packages';
 import { BaseRepository } from './base-repository';
 import { invoiceItems } from '../db/schema/invoice-items';
+import { db } from '../db';
 
 export class PackagesRepository extends BaseRepository<typeof packages> {
   constructor() {
     super(packages);
+  }
+
+  getDatabaseInstance() {
+    return db;
   }
 
   /**

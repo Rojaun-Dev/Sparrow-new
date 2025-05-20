@@ -138,19 +138,37 @@ export default function UsersPage() {
             <CardDescription>Manage platform administrators across all companies</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Admin Management</h3>
-                <p className="text-sm text-muted-foreground">
-                  Manage admin users with different permission levels
-                </p>
-              </div>
-              <UserCog className="h-12 w-12 text-primary/20" />
-            </div>
+            {loading ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Admin Management</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Manage admin users with different permission levels
+                    </p>
+                  </div>
+                  <UserCog className="h-12 w-12 text-primary/20" />
+                </div>
+              </>
+            )}
           </CardContent>
           <CardFooter>
             <Link href="/superadmin/users/admins" className="w-full">
-              <Button variant="default" className="w-full gap-2">
+              <Button variant="default" className="w-full gap-2" disabled={loading}>
                 <span>Manage Admins</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -165,19 +183,37 @@ export default function UsersPage() {
             <CardDescription>Manage end users of the platform</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Customer Management</h3>
-                <p className="text-sm text-muted-foreground">
-                  Manage customer accounts and their activities
-                </p>
-              </div>
-              <UserPlus className="h-12 w-12 text-primary/20" />
-            </div>
+            {loading ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Customer Management</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Manage customer accounts and their activities
+                    </p>
+                  </div>
+                  <UserPlus className="h-12 w-12 text-primary/20" />
+                </div>
+              </>
+            )}
           </CardContent>
           <CardFooter>
             <Link href="/superadmin/users/customers" className="w-full">
-              <Button variant="default" className="w-full gap-2">
+              <Button variant="default" className="w-full gap-2" disabled={loading}>
                 <span>Manage Customers</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -194,8 +230,19 @@ export default function UsersPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <Skeleton className="h-full w-full rounded-md" />
+              <div className="h-[300px] space-y-4">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="grid grid-cols-12 gap-2 h-[200px]">
+                  {Array(12).fill(0).map((_, i) => (
+                    <div key={i} className="flex flex-col items-center justify-end gap-2">
+                      <Skeleton className="h-full w-full" style={{ height: `${Math.random() * 100}%` }} />
+                      <Skeleton className="h-3 w-8" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : stats?.usersByMonth ? (
               <div className="h-[300px] flex items-center justify-center">

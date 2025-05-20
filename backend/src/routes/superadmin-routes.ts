@@ -10,10 +10,12 @@ import {
   getCompanyStatistics
 } from '../controllers/companies-controller';
 import { AuditLogsController } from '../controllers/audit-logs-controller';
+import { PackagesController } from '../controllers/packages-controller';
 
 const router = express.Router();
 const usersController = new UsersController();
 const auditLogsController = new AuditLogsController();
+const packagesController = new PackagesController();
 
 // Apply JWT authentication to all routes
 router.use(checkJwt);
@@ -37,6 +39,12 @@ router.get('/companies/:id', getCompanyById);
 router.put('/companies/:id', updateCompany);
 router.delete('/companies/:id', deleteCompany);
 router.get('/companies/:id/statistics', getCompanyStatistics);
+
+// Company users routes
+router.get('/companies/:id/users', usersController.getCompanyUsers);
+
+// Company packages routes
+router.get('/companies/:id/packages', packagesController.getCompanyPackages);
 
 // Audit logs routes
 router.get('/audit-logs', auditLogsController.getAllLogs);
