@@ -44,10 +44,18 @@ export function ResponsiveTable<T>({ data, columns, className, onRowClick, pagin
             <TableRow
               key={index}
               className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
-              onClick={() => onRowClick && onRowClick(item)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRowClick && onRowClick(item);
+              }}
             >
               {columns.map((column) => (
-                <TableCell key={String(column.accessorKey)} className={column.className}>
+                <TableCell 
+                  key={String(column.accessorKey)} 
+                  className={column.className}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {column.cell ? column.cell(item) : String(item[column.accessorKey] || "")}
                 </TableCell>
               ))}
@@ -55,29 +63,6 @@ export function ResponsiveTable<T>({ data, columns, className, onRowClick, pagin
           ))}
         </TableBody>
       </Table>
-      {pagination && (
-        <div className="flex items-center justify-end space-x-2 p-4 border-t">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
-            disabled={pagination.currentPage <= 1}
-          >
-            Previous
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {pagination.currentPage} of {pagination.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
-            disabled={pagination.currentPage >= pagination.totalPages}
-          >
-            Next
-          </Button>
-        </div>
-      )}
     </div>
   )
 
@@ -88,11 +73,19 @@ export function ResponsiveTable<T>({ data, columns, className, onRowClick, pagin
         <Card
           key={index}
           className={cn("overflow-hidden", onRowClick && "cursor-pointer hover:bg-muted/50")}
-          onClick={() => onRowClick && onRowClick(item)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRowClick && onRowClick(item);
+          }}
         >
           <div className="divide-y">
             {columns.map((column) => (
-              <div key={String(column.accessorKey)} className="flex items-start justify-between p-3">
+              <div 
+                key={String(column.accessorKey)} 
+                className="flex items-start justify-between p-3"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <span className="font-medium text-sm text-muted-foreground">{column.header}</span>
                 <div className="max-w-[60%] text-right">
                   {column.cell ? column.cell(item) : String(item[column.accessorKey] || "")}
@@ -102,36 +95,39 @@ export function ResponsiveTable<T>({ data, columns, className, onRowClick, pagin
           </div>
         </Card>
       ))}
-      {pagination && (
-        <div className="flex items-center justify-between p-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
-            disabled={pagination.currentPage <= 1}
-          >
-            Previous
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {pagination.currentPage} of {pagination.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
-            disabled={pagination.currentPage >= pagination.totalPages}
-          >
-            Next
-          </Button>
-        </div>
-      )}
+    </div>
+  )
+
+  // Pagination controls
+  const PaginationControls = pagination && (
+    <div className="flex items-center justify-end space-x-2 p-4 border-t mt-4">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+        disabled={pagination.currentPage <= 1}
+      >
+        Previous
+      </Button>
+      <span className="text-sm text-muted-foreground">
+        Page {pagination.currentPage} of {pagination.totalPages}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+        disabled={pagination.currentPage >= pagination.totalPages}
+      >
+        Next
+      </Button>
     </div>
   )
 
   return (
-    <>
+    <div className="space-y-4">
       {DesktopTable}
       {MobileTable}
-    </>
+      {PaginationControls}
+    </div>
   )
 }

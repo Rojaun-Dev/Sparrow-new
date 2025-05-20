@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -51,6 +50,13 @@ import { TableSkeleton } from '@/components/ui/loading-skeletons'
 import { useFeedback } from "@/components/ui/toast-provider"
 import { useSuperAdminUsers } from "@/hooks/useSuperAdminUsers"
 import { useSuperAdminCompanies } from "@/hooks/useSuperAdminCompanies"
+import { User } from "@/lib/api/types"
+
+// Extend User type for admin-specific properties
+interface AdminUser extends User {
+  avatarUrl?: string;
+  lastLogin?: string;
+}
 
 // Form schema for adding/editing an admin
 const adminFormSchema = z.object({
@@ -77,8 +83,10 @@ type AdminFormValues = z.infer<typeof adminFormSchema>
 export default function AdminsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [currentAdmin, setCurrentAdmin] = useState<any>(null)
+  const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const { showFeedback } = useFeedback()
   
   // Use the hooks
@@ -89,9 +97,17 @@ export default function AdminsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        await fetchUsers({ 
-          role: ['admin_l1', 'admin_l2', 'super_admin'].join(',')
+        const response = await fetchUsers({ 
+          role: ['admin_l1', 'admin_l2', 'super_admin'].join(','),
+          page: currentPage,
+          limit: 10, // Set appropriate page size
+          search: searchQuery || undefined
         });
+        
+        // Update pagination info
+        if (response?.pagination) {
+          setTotalPages(response.pagination.totalPages);
+        }
         
         // Load companies for the dropdown
         await fetchCompanies();
@@ -102,16 +118,27 @@ export default function AdminsPage() {
     };
     
     loadData();
-  }, [fetchUsers, fetchCompanies, showFeedback]);
+  }, [fetchUsers, fetchCompanies, showFeedback, currentPage, searchQuery]);
 
-  // Filter admins based on search query
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Handle search with debounce
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page on new search
+  };
+
+  // Filter admins based on search query (if not using server-side search)
   const filteredAdmins = users.filter(
     (admin) => {
       const name = `${admin.firstName || ''} ${admin.lastName || ''}`.trim();
       return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         admin.email.toLowerCase().includes(searchQuery.toLowerCase())
     }
-  )
+  ) as AdminUser[]
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<AdminFormValues>({
@@ -182,7 +209,7 @@ export default function AdminsPage() {
   }
 
   // Edit admin handler
-  function handleEditAdmin(admin: any) {
+  function handleEditAdmin(admin: AdminUser) {
     setIsEditing(true)
     setCurrentAdmin(admin)
     form.reset({
@@ -213,37 +240,76 @@ export default function AdminsPage() {
   }
 
   // Actions dropdown
-  function ActionsDropdown({ admin }: { admin: any }) {
+  function ActionsDropdown({ admin }: { admin: AdminUser }) {
+    const handleAction = (e: React.MouseEvent, action: () => void) => {
+      e.preventDefault();
+      e.stopPropagation();
+      action();
+    };
+
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={(e) => e.stopPropagation()}
+          >
             <span className="sr-only">Open menu</span>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleEditAdmin(admin)}>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem 
+            onSelect={(e) => {
+              e.preventDefault();
+              handleEditAdmin(admin);
+            }}
+          >
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem 
+            onSelect={(e) => {
+              e.preventDefault();
+              // TODO: Implement send email functionality
+            }}
+          >
             <Mail className="mr-2 h-4 w-4" />
             Send Email
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {admin.isActive ? (
-            <DropdownMenuItem className="text-amber-600">
+            <DropdownMenuItem 
+              className="text-amber-600"
+              onSelect={(e) => {
+                e.preventDefault();
+                // TODO: Implement suspend functionality
+              }}
+            >
               <Ban className="mr-2 h-4 w-4" />
               Suspend
             </DropdownMenuItem>
           ) : (
-            <DropdownMenuItem className="text-green-600">
+            <DropdownMenuItem 
+              className="text-green-600"
+              onSelect={(e) => {
+                e.preventDefault();
+                // TODO: Implement activate functionality
+              }}
+            >
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Activate
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem className="text-red-600">
+          <DropdownMenuItem 
+            className="text-red-600"
+            onSelect={(e) => {
+              e.preventDefault();
+              // TODO: Implement remove functionality
+            }}
+          >
             <Trash className="mr-2 h-4 w-4" />
             Remove
           </DropdownMenuItem>
@@ -256,8 +322,8 @@ export default function AdminsPage() {
   const columns = [
     {
       header: "Name",
-      accessorKey: "firstName" as keyof UserData,
-      cell: (admin: UserData) => (
+      accessorKey: "firstName" as keyof AdminUser,
+      cell: (admin: AdminUser) => (
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
             <AvatarImage src={admin.avatarUrl || "/placeholder.svg"} alt={`${admin.firstName} ${admin.lastName}`} />
@@ -269,12 +335,12 @@ export default function AdminsPage() {
     },
     {
       header: "Email",
-      accessorKey: "email" as keyof UserData,
+      accessorKey: "email" as keyof AdminUser,
     },
     {
       header: "Role",
-      accessorKey: "role" as keyof UserData,
-      cell: (admin: UserData) => (
+      accessorKey: "role" as keyof AdminUser,
+      cell: (admin: AdminUser) => (
         <div className="flex items-center gap-2">
           {admin.role === "super_admin" ? (
             <Shield className="h-4 w-4 text-primary" />
@@ -287,8 +353,8 @@ export default function AdminsPage() {
     },
     {
       header: "Status",
-      accessorKey: "isActive" as keyof UserData,
-      cell: (admin: UserData) => (
+      accessorKey: "isActive" as keyof AdminUser,
+      cell: (admin: AdminUser) => (
         <Badge variant={admin.isActive ? "success" : "destructive"}>
           {admin.isActive ? (
             <div className="flex items-center gap-1">
@@ -306,8 +372,8 @@ export default function AdminsPage() {
     },
     {
       header: "Last Login",
-      accessorKey: "lastLogin" as keyof UserData,
-      cell: (admin: any) => (
+      accessorKey: "lastLogin" as keyof AdminUser,
+      cell: (admin: AdminUser) => (
         <div>
           {admin.lastLogin ? new Date(admin.lastLogin).toLocaleString() : 'Never'}
         </div>
@@ -315,8 +381,12 @@ export default function AdminsPage() {
     },
     {
       header: "Actions",
-      accessorKey: "id" as keyof UserData,
-      cell: (admin: UserData) => <ActionsDropdown admin={admin} />,
+      accessorKey: "id" as keyof AdminUser,
+      cell: (admin: AdminUser) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ActionsDropdown admin={admin} />
+        </div>
+      ),
       className: "text-right",
     },
   ]
@@ -330,10 +400,6 @@ export default function AdminsPage() {
             Manage super admin users who have elevated access to all tenants and global settings.
           </p>
         </div>
-        <Button onClick={handleAddAdmin} className="mt-2 sm:mt-0">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Admin
-        </Button>
 
         {/* Hidden trigger for the dialog */}
         <Dialog>
@@ -441,14 +507,23 @@ export default function AdminsPage() {
               placeholder="Search admins..."
               className="w-full pl-8"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
 
           {usersLoading ? (
             <TableSkeleton columns={6} rows={5} />
           ) : (
-            <ResponsiveTable data={filteredAdmins} columns={columns} />
+            <ResponsiveTable 
+              data={filteredAdmins} 
+              columns={columns}
+              onRowClick={() => {}} // Prevent row click navigation
+              pagination={{
+                currentPage,
+                totalPages,
+                onPageChange: handlePageChange
+              }}
+            />
           )}
         </CardContent>
       </Card>
