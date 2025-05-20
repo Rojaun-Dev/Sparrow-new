@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -13,8 +16,44 @@ import {
   Bell,
 } from "lucide-react"
 import { FeatureInProgress } from "@/components/ui/feature-in-progress"
+import { useSuperAdminUsers } from '@/hooks/useSuperAdminUsers';
+import { useSuperAdminCompanies } from '@/hooks/useSuperAdminCompanies';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminDashboard() {
+  const { getSystemStatistics, loading: statsLoading } = useSuperAdminUsers();
+  const { fetchCompanies, companies, loading: companiesLoading } = useSuperAdminCompanies();
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    // Fetch dashboard statistics
+    const fetchStats = async () => {
+      try {
+        const data = await getSystemStatistics();
+        setStats(data);
+      } catch (error) {
+        console.error('Failed to fetch statistics:', error);
+      }
+    };
+
+    // Fetch recent companies
+    const loadRecentCompanies = async () => {
+      try {
+        await fetchCompanies({
+          page: 1,
+          limit: 4,
+          sort: 'createdAt',
+          order: 'desc'
+        });
+      } catch (error) {
+        console.error('Failed to fetch companies:', error);
+      }
+    };
+
+    fetchStats();
+    loadRecentCompanies();
+  }, [getSystemStatistics, fetchCompanies]);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -43,62 +82,85 @@ export default function AdminDashboard() {
         </div>
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {/* Total Companies Card */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
                 <Building2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">24</div>
+                {statsLoading ? (
+                  <Skeleton className="h-6 w-20" />
+                ) : (
+                  <div className="text-2xl font-bold">{stats?.totalCompanies || 0}</div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   <span className="text-green-500 flex items-center">
                     <ArrowUpRight className="mr-1 h-3 w-3" />
-                    +2 from last month
+                    Platform growing
                   </span>
                 </p>
               </CardContent>
             </Card>
+            
+            {/* Active Users Card */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Users</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">573</div>
+                {statsLoading ? (
+                  <Skeleton className="h-6 w-20" />
+                ) : (
+                  <div className="text-2xl font-bold">{stats?.activeUsers || 0}</div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   <span className="text-green-500 flex items-center">
                     <ArrowUpRight className="mr-1 h-3 w-3" />
-                    +18% from last month
+                    {stats?.activePercentage || 0}% of total users
                   </span>
                 </p>
               </CardContent>
             </Card>
+            
+            {/* New Users Card */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Packages</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">New Users (30d)</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">1,284</div>
+                {statsLoading ? (
+                  <Skeleton className="h-6 w-20" />
+                ) : (
+                  <div className="text-2xl font-bold">{stats?.newUsers30Days || 0}</div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   <span className="text-green-500 flex items-center">
                     <ArrowUpRight className="mr-1 h-3 w-3" />
-                    +7% from last month
+                    Growing user base
                   </span>
                 </p>
               </CardContent>
             </Card>
+            
+            {/* Total Users Card */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Platform Revenue</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$12,543</div>
+                {statsLoading ? (
+                  <Skeleton className="h-6 w-20" />
+                ) : (
+                  <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  <span className="text-red-500 flex items-center">
-                    <ArrowDownRight className="mr-1 h-3 w-3" />
-                    -2% from last month
+                  <span className="text-green-500 flex items-center">
+                    <ArrowUpRight className="mr-1 h-3 w-3" />
+                    Platform growth
                   </span>
                 </p>
               </CardContent>
@@ -127,31 +189,36 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { name: "Acme Shipping", packages: 128, users: 24 },
-                    { name: "Global Logistics", packages: 85, users: 16 },
-                    { name: "FastTrack Delivery", packages: 64, users: 12 },
-                    { name: "Island Express", packages: 42, users: 8 },
-                  ].map((company, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
-                        <Building2 className="h-6 w-6 text-primary" />
+                  {companiesLoading ? (
+                    Array(4).fill(0).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-12 w-12 rounded-md" />
+                        <div className="flex-1 space-y-1">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-3 w-32" />
+                        </div>
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">{company.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <div className="flex items-center">
-                            <Package2 className="mr-1 h-3 w-3" />
-                            {company.packages} packages
-                          </div>
-                          <div className="flex items-center">
-                            <Users className="mr-1 h-3 w-3" />
-                            {company.users} users
+                    ))
+                  ) : companies.length > 0 ? (
+                    companies.map((company) => (
+                      <div key={company.id} className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
+                          <Building2 className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm font-medium leading-none">{company.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center">
+                              <Users className="mr-1 h-3 w-3" />
+                              {company.email}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p>No companies found</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

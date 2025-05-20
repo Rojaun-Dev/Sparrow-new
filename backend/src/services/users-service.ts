@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, or, like, asc, desc, gte, lte } from 'drizzle-orm';
 import { users } from '../db/schema/users';
+import { companies } from '../db/schema/companies';
 
 // Validation schema for user creation
 export const createUserSchema = z.object({
@@ -48,6 +49,20 @@ export const updateUserSchema = createUserSchema
     }).optional(),
   });
 
+// Define types for query parameters
+export interface UserListParams {
+  page?: number;
+  limit?: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
+  role?: string;
+  companyId?: string;
+  isActive?: boolean;
+  search?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}
+
 export class UsersService {
   private repository: UsersRepository;
 
@@ -63,24 +78,123 @@ export class UsersService {
   }
 
   /**
-   * Get all users across all companies (for superadmin)
+   * Get all users across companies with pagination, sorting and filtering
    */
-  async getAllUsersAcrossCompanies(filters?: { role?: string; companyId?: string }) {
-    // Build the where conditions based on the filters
-    let conditions;
+  async getAllUsersAcrossCompanies(params: UserListParams = {}) {
+    const {
+      page = 1,
+      limit = 10,
+      sort = 'createdAt',
+      order = 'desc',
+      role,
+      companyId,
+      isActive,
+      search,
+      createdFrom,
+      createdTo
+    } = params;
+
+    const offset = (page - 1) * limit;
     
-    if (filters?.role && filters?.companyId) {
-      conditions = and(
-        eq(users.role, filters.role as any),
-        eq(users.companyId, filters.companyId)
-      );
-    } else if (filters?.role) {
-      conditions = eq(users.role, filters.role as any);
-    } else if (filters?.companyId) {
-      conditions = eq(users.companyId, filters.companyId);
+    // Build query conditions
+    const conditions = [];
+    
+    if (role) {
+      conditions.push(eq(users.role, role as any));
     }
     
-    return this.repository.findAllWithCondition(conditions);
+    if (companyId) {
+      conditions.push(eq(users.companyId, companyId));
+    }
+    
+    if (isActive !== undefined) {
+      conditions.push(eq(users.isActive, isActive));
+    }
+    
+    if (search) {
+      conditions.push(
+        or(
+          like(users.email, `%${search}%`),
+          like(users.firstName, `%${search}%`),
+          like(users.lastName, `%${search}%`)
+        )
+      );
+    }
+    
+    if (createdFrom) {
+      conditions.push(gte(users.createdAt, new Date(createdFrom)));
+    }
+    
+    if (createdTo) {
+      conditions.push(lte(users.createdAt, new Date(createdTo)));
+    }
+    
+    // Combine conditions
+    const whereCondition = conditions.length > 0 
+      ? and(...conditions) 
+      : undefined;
+    
+    // Get total count for pagination
+    const totalCountResult = await this.repository.getDatabaseInstance()
+      .select({ count: sql`count(*)`.mapWith(Number) })
+      .from(users)
+      .where(whereCondition);
+    
+    const totalItems = totalCountResult[0].count;
+    const totalPages = Math.ceil(totalItems / limit);
+    
+    // Build order by condition
+    let orderBy;
+    switch (sort) {
+      case 'firstName':
+        orderBy = order === 'asc' ? asc(users.firstName) : desc(users.firstName);
+        break;
+      case 'lastName':
+        orderBy = order === 'asc' ? asc(users.lastName) : desc(users.lastName);
+        break;
+      case 'email':
+        orderBy = order === 'asc' ? asc(users.email) : desc(users.email);
+        break;
+      case 'role':
+        orderBy = order === 'asc' ? asc(users.role) : desc(users.role);
+        break;
+      case 'createdAt':
+      default:
+        orderBy = order === 'asc' ? asc(users.createdAt) : desc(users.createdAt);
+    }
+    
+    // Get users with companies
+    const db = this.repository.getDatabaseInstance();
+    const data = await db.select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      phone: users.phone,
+      address: users.address,
+      role: users.role,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      companyId: users.companyId,
+      companyName: companies.name
+    })
+    .from(users)
+    .leftJoin(companies, eq(users.companyId, companies.id))
+    .where(whereCondition)
+    .orderBy(orderBy)
+    .limit(limit)
+    .offset(offset);
+    
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages
+      }
+    };
   }
 
   /**
@@ -217,12 +331,12 @@ export class UsersService {
   }
 
   /**
-   * Get system-wide statistics for superadmin dashboard
+   * Get comprehensive system-wide statistics for superadmin dashboard
    */
   async getSystemStatistics() {
     const db = this.repository.getDatabaseInstance();
     
-    // Get total user count
+    // Get total user counts
     const userCountResult = await db.select({
       count: sql`count(*)`.mapWith(Number)
     }).from(users);
@@ -241,14 +355,71 @@ export class UsersService {
     // Get total users by company
     const usersByCompanyResult = await db.select({
       companyId: users.companyId,
+      companyName: companies.name,
       count: sql`count(*)`.mapWith(Number)
-    }).from(users).groupBy(users.companyId);
+    })
+    .from(users)
+    .leftJoin(companies, eq(users.companyId, companies.id))
+    .groupBy(users.companyId, companies.name);
+    
+    // Get companies count
+    const companiesCountResult = await db.select({
+      count: sql`count(*)`.mapWith(Number)
+    }).from(companies);
+    
+    // Get users created in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const newUsersResult = await db.select({
+      count: sql`count(*)`.mapWith(Number)
+    }).from(users).where(gte(users.createdAt, thirtyDaysAgo));
+    
+    // Get users by creation date (last 12 months)
+    const usersByMonth = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 12; i++) {
+      const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+      
+      const monthlyUsersResult = await db.select({
+        count: sql`count(*)`.mapWith(Number)
+      })
+      .from(users)
+      .where(
+        and(
+          gte(users.createdAt, monthStart),
+          lte(users.createdAt, monthEnd)
+        )
+      );
+      
+      const monthName = monthStart.toLocaleString('default', { month: 'short' });
+      usersByMonth.push({
+        month: monthName,
+        year: monthStart.getFullYear(),
+        count: monthlyUsersResult[0].count
+      });
+    }
+    
+    // Get role distribution percentages
+    const totalUsers = userCountResult[0].count;
+    const roleDistribution = usersByRoleResult.map(item => ({
+      role: item.role,
+      count: item.count,
+      percentage: Math.round((item.count / totalUsers) * 100)
+    }));
     
     return {
       totalUsers: userCountResult[0].count,
       activeUsers: activeUserCountResult[0].count,
-      usersByRole: usersByRoleResult,
-      usersByCompany: usersByCompanyResult
+      inactiveUsers: userCountResult[0].count - activeUserCountResult[0].count,
+      totalCompanies: companiesCountResult[0].count,
+      newUsers30Days: newUsersResult[0].count,
+      usersByRole: roleDistribution,
+      usersByCompany: usersByCompanyResult,
+      usersByMonth: usersByMonth,
+      activePercentage: Math.round((activeUserCountResult[0].count / userCountResult[0].count) * 100)
     };
   }
 

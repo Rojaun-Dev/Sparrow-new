@@ -43,6 +43,13 @@
       "when": 1747666325643,
       "tag": "0005_aberrant_mandrill",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1747705698187,
+      "tag": "0006_lean_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

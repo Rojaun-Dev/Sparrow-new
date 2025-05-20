@@ -78,4 +78,11 @@ export class CompaniesRepository {
     
     return Array.isArray(result) && result.length > 0 ? result[0] : null;
   }
+
+  /**
+   * Get the database instance for custom queries
+   */
+  getDatabaseInstance() {
+    return this.db;
+  }
 } 

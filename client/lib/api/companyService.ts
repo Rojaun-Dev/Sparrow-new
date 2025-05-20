@@ -1,92 +1,115 @@
-import { apiClient } from './apiClient';
-import { authService } from './authService';
-import { Company } from './types';
+import { ApiClient } from './apiClient';
+import { PaginatedResponse } from './userService';
 
-/**
- * Service for handling company-specific resources in a multi-tenant environment
- */
-class CompanyService {
-  private baseUrl = '/companies';
+export interface CompanyListParams {
+  page?: number;
+  limit?: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
+  search?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}
+
+export interface CompanyData {
+  id: string;
+  name: string;
+  subdomain: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  website?: string;
+  locations?: string[];
+  bankInfo?: string;
+  createdAt: string;
+  updatedAt: string;
+  userCount: number;
+  packageCount: number;
+}
+
+export interface CompanyStatistics {
+  totalUsers: number;
+  activeUsers: number;
+  newUsers: number;
+  totalPackages: number;
+  activePackages: number;
+  readyForPickup: number;
+  pendingPreAlerts: number;
+}
+
+export class SuperAdminCompanyService {
+  private apiClient: ApiClient;
+
+  constructor() {
+    this.apiClient = new ApiClient();
+  }
 
   /**
-   * Helper to get the current company ID
+   * Get all companies with pagination and filtering
    */
-  private async getCompanyId(): Promise<string> {
-    const userProfile = await authService.getProfile();
+  async getAllCompanies(params: CompanyListParams = {}): Promise<PaginatedResponse<CompanyData>> {
+    const queryParams = new URLSearchParams();
     
-    if (!userProfile || !userProfile.companyId) {
-      throw new Error('Unable to fetch user company information');
-    }
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.sort) queryParams.append('sort', params.sort);
+    if (params.order) queryParams.append('order', params.order);
+    if (params.search) queryParams.append('search', params.search);
+    if (params.createdFrom) queryParams.append('createdFrom', params.createdFrom);
+    if (params.createdTo) queryParams.append('createdTo', params.createdTo);
     
-    return userProfile.companyId;
-  }
-  
-  /**
-   * Get all companies (super admin only)
-   */
-  async getAllCompanies(params?: any): Promise<any[]> {
-    return apiClient.get<any[]>(`${this.baseUrl}`, { params });
-  }
-
-  /**
-   * Get company details
-   */
-  async getCompanyDetails(companyId?: string): Promise<any> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.get<any>(`${this.baseUrl}/${id}`);
-  }
-  
-  /**
-   * Update company details
-   */
-  async updateCompanyDetails(data: any, companyId?: string): Promise<any> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.put<any>(`${this.baseUrl}/${id}`, data);
-  }
-  
-  /**
-   * Get company settings
-   */
-  async getCompanySettings(companyId?: string): Promise<any> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.get<any>(`${this.baseUrl}/${id}/settings`);
-  }
-  
-  /**
-   * Update company settings
-   */
-  async updateCompanySettings(data: any, companyId?: string): Promise<any> {
-    const id = companyId || await this.getCompanyId();
-    return apiClient.put<any>(`${this.baseUrl}/${id}/settings`, data);
-  }
-  
-  /**
-   * Create a new company (super admin only)
-   */
-  async createCompany(data: any): Promise<any> {
-    return apiClient.post<any>(`${this.baseUrl}`, data);
+    const url = `/superadmin/companies?${queryParams.toString()}`;
+    return this.apiClient.get<PaginatedResponse<CompanyData>>(url);
   }
 
   /**
    * Get a company by ID
    */
-  async getCompany(id: string): Promise<Company> {
-    return apiClient.get<Company>(`${this.baseUrl}/${id}`);
+  async getCompanyById(id: string): Promise<CompanyData> {
+    const url = `/superadmin/companies/${id}`;
+    return this.apiClient.get<CompanyData>(url);
+  }
+
+  /**
+   * Create a new company
+   */
+  async createCompany(data: Partial<CompanyData>): Promise<CompanyData> {
+    const url = '/superadmin/companies';
+    return this.apiClient.post<CompanyData>(url, data);
+  }
+
+  /**
+   * Update a company
+   */
+  async updateCompany(id: string, data: Partial<CompanyData>): Promise<CompanyData> {
+    const url = `/superadmin/companies/${id}`;
+    return this.apiClient.put<CompanyData>(url, data);
+  }
+
+  /**
+   * Delete a company
+   */
+  async deleteCompany(id: string): Promise<void> {
+    const url = `/superadmin/companies/${id}`;
+    return this.apiClient.delete<void>(url);
+  }
+
+  /**
+   * Get company statistics
+   */
+  async getCompanyStatistics(companyId: string): Promise<CompanyStatistics> {
+    const url = `/superadmin/companies/${companyId}/statistics`;
+    return this.apiClient.get<CompanyStatistics>(url);
   }
 
   /**
    * Get the current user's company
    */
-  async getCurrentCompany(): Promise<Company> {
-    const userProfile = await authService.getProfile();
-    
-    if (!userProfile || !userProfile.companyId) {
-      throw new Error('Unable to fetch user company information');
-    }
-    
-    return this.getCompany(userProfile.companyId);
+  async getCurrentCompany(): Promise<CompanyData> {
+    const url = '/companies/current';
+    return this.apiClient.get<CompanyData>(url);
   }
 }
 
-// Export as singleton
-export const companyService = new CompanyService(); 
+// Create and export a singleton instance
+export const companyService = new SuperAdminCompanyService(); 

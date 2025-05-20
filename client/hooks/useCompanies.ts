@@ -14,7 +14,7 @@ const companyKeys = {
 export function useCompany(id?: string) {
   return useQuery({
     queryKey: id ? companyKeys.detail(id) : companyKeys.details(),
-    queryFn: () => companyService.getCompany(id as string),
+    queryFn: () => companyService.getCompanyById(id as string),
     enabled: !!id, // Only run the query if we have an ID
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

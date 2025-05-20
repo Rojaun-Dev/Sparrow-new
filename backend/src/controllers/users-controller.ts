@@ -188,15 +188,37 @@ export class UsersController {
    */
   getAllUsersAcrossCompanies = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      // Optional filter params
-      const { role, companyId } = req.query;
+      // Extract query parameters
+      const { 
+        page, 
+        limit, 
+        sort, 
+        order, 
+        role, 
+        companyId, 
+        isActive, 
+        search,
+        createdFrom,
+        createdTo
+      } = req.query;
       
-      const users = await this.service.getAllUsersAcrossCompanies({
-        role: role as string | undefined,
-        companyId: companyId as string | undefined
-      });
+      // Convert query parameters to correct types
+      const params = {
+        page: page ? parseInt(page as string, 10) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
+        sort: sort as string,
+        order: order as 'asc' | 'desc',
+        role: role as string,
+        companyId: companyId as string,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+        search: search as string,
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string
+      };
       
-      return ApiResponse.success(res, users);
+      const result = await this.service.getAllUsersAcrossCompanies(params);
+      
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;
