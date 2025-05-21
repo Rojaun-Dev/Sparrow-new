@@ -301,4 +301,16 @@ export interface RegisterFromInvitationRequest {
     country: string;
     phone: string;
   };
+}
+
+export interface CompanyInvitation {
+  id: number;
+  email: string;
+  token?: string;
+  companyId?: string;
+  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
 } 

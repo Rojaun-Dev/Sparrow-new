@@ -145,4 +145,74 @@ export class CompanyInvitationsService {
       userData.firstName
     );
   }
+
+  /**
+   * List all invitations with pagination
+   */
+  async listInvitations(page: number = 1, limit: number = 10, status?: string, search?: string) {
+    const invitations = await this.companyInvitationsRepo.findAll(page, limit, status, search);
+    const total = await this.companyInvitationsRepo.countAll(status, search);
+
+    return {
+      invitations,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  /**
+   * Resend an invitation
+   */
+  async resendInvitation(id: number, currentUserId: string): Promise<void> {
+    const invitation = await this.companyInvitationsRepo.findById(id);
+    
+    if (!invitation) {
+      throw new AppError('Invitation not found', 404);
+    }
+
+    if (invitation.status !== 'pending') {
+      throw new AppError('Cannot resend an invitation that is not pending', 400);
+    }
+
+    // Generate a new token and expiration date
+    const token = this.generateToken();
+    const expiresAt = this.calculateExpirationDate();
+
+    // Update the invitation
+    await this.companyInvitationsRepo.update(id, {
+      token,
+      expiresAt,
+      updatedAt: new Date()
+    });
+
+    // Send invitation email
+    const invitationLink = `${process.env.APP_BASE_URL}/register/company/invite?token=${token}`;
+    
+    await this.emailService.sendCompanyInvitation(
+      invitation.email,
+      invitationLink
+    );
+  }
+
+  /**
+   * Revoke/cancel an invitation
+   */
+  async revokeInvitation(id: number): Promise<void> {
+    const invitation = await this.companyInvitationsRepo.findById(id);
+    
+    if (!invitation) {
+      throw new AppError('Invitation not found', 404);
+    }
+
+    if (invitation.status !== 'pending') {
+      throw new AppError('Cannot revoke an invitation that is not pending', 400);
+    }
+
+    // Cancel the invitation
+    await this.companyInvitationsRepo.updateStatus(id, 'cancelled');
+  }
 } 

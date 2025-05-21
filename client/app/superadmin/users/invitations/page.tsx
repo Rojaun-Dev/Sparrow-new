@@ -15,6 +15,7 @@ import {
   Loader2,
   Mail,
   Search,
+  Filter,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -36,104 +37,66 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { ResponsiveTable } from "@/components/ui/responsive-table"
+import { useCompanyInvitationsList } from "@/hooks/useCompanyInvitationsList"
+import { formatDistanceToNow, format } from "date-fns"
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
+import { CompanyInvitation } from "@/lib/api/types"
 
-// Mock data for invitations
-const invitations = [
-  {
-    id: "1",
-    email: "john.doe@example.com",
-    role: "admin_l1",
-    status: "pending",
-    sentAt: "2023-09-15 14:32",
-  },
-  {
-    id: "2",
-    email: "jane.smith@example.com",
-    role: "admin_l2",
-    status: "pending",
-    sentAt: "2023-09-14 09:45",
-  },
-  {
-    id: "3",
-    email: "robert.johnson@example.com",
-    role: "super_admin",
-    status: "expired",
-    sentAt: "2023-08-30 16:20",
-  },
-  {
-    id: "4",
-    email: "emily.davis@example.com",
-    role: "admin_l1",
-    status: "pending",
-    sentAt: "2023-09-12 11:15",
-  },
-]
-
-// Form schema for adding/editing an invitation
+// Form schema for adding an invitation
 const invitationFormSchema = z.object({
   email: z
     .string({ required_error: "Email is required" })
     .email({ message: "Please enter a valid email address" })
     .trim(),
-  role: z.enum(["admin_l1", "admin_l2", "super_admin"], {
-    required_error: "Please select a role",
-  }),
-  sendEmail: z.boolean(),
 }).required();
-
-// Role display mapping
-const roleDisplayMap = {
-  admin_l1: "Admin Level 1",
-  admin_l2: "Admin Level 2",
-  super_admin: "Super Admin"
-} as const;
 
 type InvitationFormValues = z.infer<typeof invitationFormSchema>
 
 export default function InvitationsPage() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [currentInvitation, setCurrentInvitation] = useState<(typeof invitations)[0] | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-
-  // Filter invitations based on search query
-  const filteredInvitations = invitations.filter(
-    (invitation) =>
-      invitation.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invitation.role.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const {
+    invitations,
+    pagination,
+    isLoading,
+    isError,
+    status,
+    search,
+    handlePageChange,
+    handleLimitChange,
+    handleStatusChange,
+    handleSearch,
+    sendInvitation,
+    isSendingInvitation,
+    resendInvitation,
+    isResendingInvitation,
+    revokeInvitation,
+    isRevokingInvitation,
+    refetch
+  } = useCompanyInvitationsList();
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<InvitationFormValues>({
     resolver: zodResolver(invitationFormSchema),
     defaultValues: {
       email: "",
-      role: "admin_l1",
-      sendEmail: true,
     },
-  })
+  });
 
   // Form submission handler
   async function onSubmit(data: InvitationFormValues) {
     try {
-      setIsSubmitting(true)
-      console.log("Form submitted:", data)
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // In a real implementation, this would call an API to send the invitation
-      setIsSubmitting(false)
-
-      // Reset form and close dialog
-      form.reset()
-      document.getElementById("close-invitation-dialog")?.click()
+      await sendInvitation(data.email);
+      form.reset();
+      setDialogOpen(false);
     } catch (error) {
-      console.error(error)
-    } finally {
-      setIsSubmitting(false)
+      console.error(error);
     }
   }
+
+  // Handle status filter change
+  const onStatusFilterChange = (value: string) => {
+    handleStatusChange(value === 'all' ? undefined : value);
+  };
 
   // Get status badge
   function getStatusBadge(status: string) {
@@ -159,54 +122,84 @@ export default function InvitationsPage() {
             Expired
           </Badge>
         )
+      case "cancelled":
+        return (
+          <Badge variant="destructive">
+            <XCircle className="mr-1 h-3 w-3" />
+            Cancelled
+          </Badge>
+        )
       default:
         return null
     }
   }
 
+  // Format date as relative or full
+  const formatDate = (dateString: string, showFull: boolean = false) => {
+    const date = new Date(dateString);
+    if (showFull) {
+      return format(date, 'PPP p'); // Full date and time
+    }
+    return formatDistanceToNow(date, { addSuffix: true });
+  };
+
   // Actions for invitations
-  function InvitationActions({ invitation }: { invitation: (typeof invitations)[0] }) {
+  function InvitationActions({ invitation }: { invitation: CompanyInvitation }) {
+    const [isActioning, setIsActioning] = useState<string | null>(null);
+
+    const handleResend = async () => {
+      setIsActioning('resend');
+      try {
+        await resendInvitation(invitation.id);
+      } finally {
+        setIsActioning(null);
+      }
+    };
+
+    const handleRevoke = async () => {
+      setIsActioning('revoke');
+      try {
+        await revokeInvitation(invitation.id);
+      } finally {
+        setIsActioning(null);
+      }
+    };
+
     if (invitation.status === "pending") {
       return (
         <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" className="h-8">
-            <RefreshCw className="mr-2 h-3 w-3" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8"
+            onClick={handleResend}
+            disabled={isActioning === 'resend'}
+          >
+            {isActioning === 'resend' ? (
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-3 w-3" />
+            )}
             Resend
           </Button>
-          <Button variant="ghost" size="sm" className="h-8 text-red-600">
-            <XCircle className="mr-2 h-3 w-3" />
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 text-red-600"
+            onClick={handleRevoke}
+            disabled={isActioning === 'revoke'}
+          >
+            {isActioning === 'revoke' ? (
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            ) : (
+              <XCircle className="mr-2 h-3 w-3" />
+            )}
             Revoke
           </Button>
         </div>
       )
-    } else if (invitation.status === "expired") {
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Resend
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <XCircle className="mr-2 h-4 w-4" />
-              Remove
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
     } else {
-      return (
-        <Button variant="ghost" size="sm" className="h-8">
-          <Mail className="mr-2 h-4 w-4" />
-          Contact
-        </Button>
-      )
+      return null;
     }
   }
 
@@ -215,28 +208,38 @@ export default function InvitationsPage() {
     {
       header: "Email",
       accessorKey: "email" as const,
-      cell: (invitation: (typeof invitations)[0]) => <span className="font-medium">{invitation.email}</span>,
-    },
-    {
-      header: "Role",
-      accessorKey: "role" as const,
-    },
-    {
-      header: "Sent At",
-      accessorKey: "sentAt" as const,
+      cell: (invitation: CompanyInvitation) => <span className="font-medium">{invitation.email}</span>,
     },
     {
       header: "Status",
       accessorKey: "status" as const,
-      cell: (invitation: (typeof invitations)[0]) => getStatusBadge(invitation.status),
+      cell: (invitation: CompanyInvitation) => getStatusBadge(invitation.status),
+    },
+    {
+      header: "Created",
+      accessorKey: "createdAt" as const,
+      cell: (invitation: CompanyInvitation) => (
+        <span title={formatDate(invitation.createdAt, true)}>
+          {formatDate(invitation.createdAt)}
+        </span>
+      ),
+    },
+    {
+      header: "Expires",
+      accessorKey: "expiresAt" as const,
+      cell: (invitation: CompanyInvitation) => (
+        <span title={formatDate(invitation.expiresAt, true)}>
+          {formatDate(invitation.expiresAt)}
+        </span>
+      ),
     },
     {
       header: "Actions",
       accessorKey: "id" as const,
-      cell: (invitation: (typeof invitations)[0]) => <InvitationActions invitation={invitation} />,
+      cell: (invitation: CompanyInvitation) => <InvitationActions invitation={invitation} />,
       className: "text-right",
     },
-  ]
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -244,25 +247,25 @@ export default function InvitationsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Invitations</h1>
           <p className="text-muted-foreground">
-            Send and manage pending invitations for new super admins or system-wide collaborators.
+            Send and manage pending invitations for new companies.
           </p>
         </div>
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="mt-2 sm:mt-0">
+            <Button className="pl-3">
               <Plus className="mr-2 h-4 w-4" />
               New Invitation
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Send Invitation</DialogTitle>
+              <DialogTitle>Send New Invitation</DialogTitle>
               <DialogDescription>
-                Invite a new admin to the platform. They will receive an email with instructions.
+                Send an invitation to create a new company. The recipient will receive an email with instructions.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
                   control={form.control}
                   name="email"
@@ -270,92 +273,160 @@ export default function InvitationsPage() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="admin@example.com" {...field} />
+                        <Input 
+                          placeholder="Enter email address" 
+                          {...field} 
+                          autoComplete="off" 
+                        />
                       </FormControl>
-                      <FormDescription>The email address of the person you want to invite.</FormDescription>
+                      <FormDescription>
+                        The invitation will be sent to this email address.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="admin_l1">{roleDisplayMap.admin_l1}</SelectItem>
-                          <SelectItem value="admin_l2">{roleDisplayMap.admin_l2}</SelectItem>
-                          <SelectItem value="super_admin">{roleDisplayMap.super_admin}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>The role determines the level of access.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sendEmail"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 pt-2">
-                      <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Send invitation email</FormLabel>
-                        <FormDescription>An email with instructions will be sent to the invitee.</FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter className="pt-4">
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      "Send Invitation"
+                <DialogFooter>
+                  <Button 
+                    type="submit" 
+                    disabled={isSendingInvitation}
+                    className="w-full sm:w-auto"
+                  >
+                    {isSendingInvitation && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
+                    Send Invitation
                   </Button>
                 </DialogFooter>
               </form>
             </Form>
           </DialogContent>
-          <DialogClose asChild>
-            <button className="hidden" id="close-invitation-dialog">
-              Close
-            </button>
-          </DialogClose>
         </Dialog>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>All Invitations</CardTitle>
-          <CardDescription>A list of all invitations sent to potential platform admins.</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle>Manage Invitations</CardTitle>
+          <CardDescription>
+            View and manage all pending and past invitations.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search invitations..."
-              className="w-full pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search by email..."
+                  className="pl-8 w-full md:w-[260px]"
+                  value={search || ''}
+                  onChange={(e) => handleSearch(e.target.value)}
+                />
+              </div>
+              <Select 
+                value={status || 'all'} 
+                onValueChange={onStatusFilterChange}
+              >
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="accepted">Accepted</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select 
+                value={pagination?.limit.toString() || '10'}
+                onValueChange={(value) => handleLimitChange(parseInt(value))}
+              >
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 / page</SelectItem>
+                  <SelectItem value="10">10 / page</SelectItem>
+                  <SelectItem value="20">20 / page</SelectItem>
+                  <SelectItem value="50">50 / page</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => refetch()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span className="sr-only">Refresh</span>
+              </Button>
+            </div>
           </div>
 
-          <ResponsiveTable data={filteredInvitations} columns={columns} />
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : isError ? (
+            <div className="text-center py-8 text-red-500">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>Failed to load invitations. Please try again.</p>
+            </div>
+          ) : invitations.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Mail className="h-8 w-8 mx-auto mb-2" />
+              <p>No invitations found.</p>
+            </div>
+          ) : (
+            <ResponsiveTable
+              data={invitations}
+              columns={columns}
+            />
+          )}
+
+          {pagination && pagination.totalPages > 1 && (
+            <div className="mt-4 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (pagination.page > 1) {
+                          handlePageChange(pagination.page - 1);
+                        }
+                      }}
+                      aria-disabled={pagination.page === 1}
+                      className={pagination.page === 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className="text-sm">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (pagination.page < pagination.totalPages) {
+                          handlePageChange(pagination.page + 1);
+                        }
+                      }}
+                      aria-disabled={pagination.page >= pagination.totalPages}
+                      className={pagination.page >= pagination.totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

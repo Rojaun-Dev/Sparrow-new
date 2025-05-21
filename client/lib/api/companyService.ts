@@ -3,11 +3,10 @@ import { PaginatedResponse } from './userService';
 import { apiClient } from './apiClient';
 import { 
   Company, 
-  CompanyCreateRequest, 
-  CompanyUpdateRequest, 
   CompanyInvitationRequest,
   VerifyInvitationResponse,
-  RegisterFromInvitationRequest
+  RegisterFromInvitationRequest,
+  CompanyInvitation
 } from './types';
 
 export interface CompanyListParams {
@@ -147,4 +146,44 @@ export const registerCompanyFromInvitation = async (
   data: Omit<RegisterFromInvitationRequest, 'token'>
 ): Promise<void> => {
   await apiClient.post(`/companies/register/${token}`, data);
+};
+
+// Company Invitation Methods for SuperAdmin
+/**
+ * List all invitations with pagination
+ */
+export const listCompanyInvitations = async (
+  page: number = 1, 
+  limit: number = 10,
+  status?: string,
+  search?: string
+): Promise<PaginatedResponse<CompanyInvitation>> => {
+  const queryParams = new URLSearchParams();
+  queryParams.append('page', page.toString());
+  queryParams.append('limit', limit.toString());
+  if (status) queryParams.append('status', status);
+  if (search) queryParams.append('search', search);
+  
+  return apiClient.get<PaginatedResponse<CompanyInvitation>>(`/superadmin/invitations?${queryParams.toString()}`);
+};
+
+/**
+ * Send a new company invitation
+ */
+export const sendSuperAdminCompanyInvitation = async (email: string): Promise<void> => {
+  await apiClient.post('/superadmin/invitations', { email });
+};
+
+/**
+ * Resend an invitation
+ */
+export const resendCompanyInvitation = async (id: number): Promise<void> => {
+  await apiClient.post(`/superadmin/invitations/${id}/resend`);
+};
+
+/**
+ * Revoke an invitation
+ */
+export const revokeCompanyInvitation = async (id: number): Promise<void> => {
+  await apiClient.post(`/superadmin/invitations/${id}/revoke`);
 }; 

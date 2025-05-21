@@ -11,11 +11,13 @@ import {
 } from '../controllers/companies-controller';
 import { AuditLogsController } from '../controllers/audit-logs-controller';
 import { PackagesController } from '../controllers/packages-controller';
+import { CompanyInvitationsController } from '../controllers/company-invitations-controller';
 
 const router = express.Router();
 const usersController = new UsersController();
 const auditLogsController = new AuditLogsController();
 const packagesController = new PackagesController();
+const companyInvitationsController = new CompanyInvitationsController();
 
 // Apply JWT authentication to all routes
 router.use(checkJwt);
@@ -45,6 +47,12 @@ router.get('/companies/:id/users', usersController.getCompanyUsers);
 
 // Company packages routes
 router.get('/companies/:id/packages', packagesController.getCompanyPackages);
+
+// Company invitations routes
+router.get('/invitations', companyInvitationsController.listInvitations);
+router.post('/invitations', companyInvitationsController.sendInvitation);
+router.post('/invitations/:id/resend', companyInvitationsController.resendInvitation);
+router.post('/invitations/:id/revoke', companyInvitationsController.revokeInvitation);
 
 // Audit logs routes
 router.get('/audit-logs', auditLogsController.getAllLogs);
