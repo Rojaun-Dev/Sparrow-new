@@ -102,4 +102,67 @@ export class EmailService {
       // Don't throw here, this is not critical for the user flow
     }
   }
+
+  /**
+   * Send a company invitation email
+   */
+  async sendCompanyInvitation(to: string, invitationLink: string): Promise<void> {
+    try {
+      // Load the email template
+      const templatePath = path.join(__dirname, '../templates/company-invitation.html');
+      const templateSource = fs.readFileSync(templatePath, 'utf8');
+      
+      // Compile the template
+      const template = handlebars.compile(templateSource);
+      
+      // Replace variables in the template
+      const html = template({
+        invitationLink,
+        year: new Date().getFullYear()
+      });
+      
+      // Send the email
+      await this.transporter.sendMail({
+        from: `"Cautious Robot" <${this.fromEmail}>`,
+        to,
+        subject: 'Invitation to Register Your Company',
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send company invitation email:', error);
+      throw new AppError('Failed to send company invitation email', 500);
+    }
+  }
+
+  /**
+   * Send a welcome email after company registration
+   */
+  async sendWelcomeEmail(to: string, firstName: string): Promise<void> {
+    try {
+      // Load the email template
+      const templatePath = path.join(__dirname, '../templates/company-welcome.html');
+      const templateSource = fs.readFileSync(templatePath, 'utf8');
+      
+      // Compile the template
+      const template = handlebars.compile(templateSource);
+      
+      // Replace variables in the template
+      const html = template({
+        firstName,
+        loginUrl: `${process.env.FRONTEND_URL}/login`,
+        year: new Date().getFullYear()
+      });
+      
+      // Send the email
+      await this.transporter.sendMail({
+        from: `"Cautious Robot" <${this.fromEmail}>`,
+        to,
+        subject: 'Welcome to Cautious Robot!',
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      // Don't throw here, this is not critical for the user flow
+    }
+  }
 } 

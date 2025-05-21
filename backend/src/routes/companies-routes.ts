@@ -4,11 +4,15 @@ import {
   getCompanyById,
   createCompany,
   updateCompany,
-  deleteCompany
+  deleteCompany,
+  getCompanyStatistics
 } from '../controllers/companies-controller';
+import { CompanyInvitationsController } from '../controllers/company-invitations-controller';
+import { checkJwt, checkRole } from '../middleware/auth';
 // import { checkJwt, checkRole } from '../middleware/auth';
 
 const router = express.Router();
+const companyInvitationsController = new CompanyInvitationsController();
 
 // Apply JWT authentication to all routes
 // router.use(checkJwt); NOTE: enable this and checkRole when we have login and auth implemented fully
@@ -27,5 +31,27 @@ router.put('/:id', /*checkRole(['admin_l2', 'super_admin']),*/ updateCompany);
 
 // Delete a company by ID (super admin only)
 router.delete('/:id', /*checkRole('super_admin'),*/ deleteCompany);
+
+// Get company statistics
+router.get('/:id/statistics', /*checkRole(['admin_l2', 'super_admin']),*/ getCompanyStatistics);
+
+// Company invitation routes (superadmin only)
+router.post(
+  '/invite',
+  checkJwt,
+  checkRole(['super_admin']),
+  companyInvitationsController.sendInvitation.bind(companyInvitationsController)
+);
+
+// Public routes for company registration from invitation
+router.get(
+  '/verify-invitation/:token',
+  companyInvitationsController.verifyInvitation.bind(companyInvitationsController)
+);
+
+router.post(
+  '/register/:token',
+  companyInvitationsController.registerFromInvitation.bind(companyInvitationsController)
+);
 
 export default router; 

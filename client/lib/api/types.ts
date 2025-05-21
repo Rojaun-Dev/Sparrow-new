@@ -272,4 +272,33 @@ export interface Company extends BaseEntity {
   phone?: string;
   email?: string;
   website?: string;
+}
+
+// Company Invitation Types
+export interface CompanyInvitationRequest {
+  email: string;
+}
+
+export interface VerifyInvitationResponse {
+  isValid: boolean;
+  email?: string;
+}
+
+export interface RegisterFromInvitationRequest {
+  token: string;
+  user: {
+    firstName: string;
+    lastName: string;
+    password: string;
+  };
+  company: {
+    name: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    phone: string;
+  };
 } 

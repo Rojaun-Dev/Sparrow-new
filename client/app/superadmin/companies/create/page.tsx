@@ -1,21 +1,19 @@
 "use client"
 
-// Config to prevent static optimization
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { Check, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useInitiateCompanyOnboarding } from "@/hooks/useInitiateCompanyOnboarding"
 
 // Define the form schema
 const createCompanySchema = z.object({
@@ -40,8 +38,9 @@ const createCompanySchema = z.object({
 type CreateCompanyFormValues = z.infer<typeof createCompanySchema>
 
 export default function CreateCompanyPage() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter()
   const [isSuccess, setIsSuccess] = useState(false)
+  const initiateOnboarding = useInitiateCompanyOnboarding()
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<CreateCompanyFormValues>({
@@ -56,15 +55,17 @@ export default function CreateCompanyPage() {
 
   // Form submission handler
   async function onSubmit(data: CreateCompanyFormValues) {
-    setIsSubmitting(true)
-    console.log("Form submitted:", data)
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    // In a real implementation, this would call an API to create the company
-    setIsSubmitting(false)
-    setIsSuccess(true)
+    try {
+      await initiateOnboarding.mutateAsync(data)
+      setIsSuccess(true)
+      // Redirect to companies list after 2 seconds
+      setTimeout(() => {
+        router.push('/superadmin/companies')
+      }, 2000)
+    } catch (error) {
+      // Error is handled by the hook
+      console.error('Error initiating onboarding:', error)
+    }
   }
 
   return (
@@ -78,16 +79,16 @@ export default function CreateCompanyPage() {
         <CardHeader>
           <CardTitle>Company Details</CardTitle>
           <CardDescription>
-            Enter the details for the new company. This will create a new tenant in the system.
+            Enter the details for the new company. This will create a new tenant in the system and send an invitation to the admin.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isSuccess ? (
             <Alert className="bg-green-50 border-green-500">
               <Check className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-green-800">Company created successfully!</AlertTitle>
+              <AlertTitle className="text-green-800">Onboarding Initiated!</AlertTitle>
               <AlertDescription className="text-green-700">
-                The company has been created and the admin has been invited.
+                The company has been created and an invitation has been sent to the admin.
               </AlertDescription>
             </Alert>
           ) : (
@@ -149,11 +150,11 @@ export default function CreateCompanyPage() {
             <Link href="/superadmin/companies">Cancel</Link>
           </Button>
           {!isSuccess && (
-            <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={initiateOnboarding.isPending}>
+              {initiateOnboarding.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  Initiating...
                 </>
               ) : (
                 "Create Company"

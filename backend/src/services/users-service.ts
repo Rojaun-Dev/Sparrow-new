@@ -10,8 +10,8 @@ import { inArray } from 'drizzle-orm';
 // Define valid roles
 export type UserRole = 'customer' | 'admin_l1' | 'admin_l2' | 'super_admin';
 
-// Validation schema for user creation
-export const createUserSchema = z.object({
+// Base schema for user fields
+const baseUserSchema = z.object({
   email: z.string().email(),
   firstName: z.string().min(2).max(50),
   lastName: z.string().min(2).max(50),
@@ -20,14 +20,15 @@ export const createUserSchema = z.object({
   trn: z.string().optional(),
   pickupLocationId: z.string().optional(),
   role: z.enum(['customer', 'admin_l1', 'admin_l2', 'super_admin'] as const).default('customer'),
-  auth0Id: z.string().optional(), // Optional because it might be set by Auth0 integration
-  passwordHash: z.string().optional(), // For JWT authentication
+  passwordHash: z.string()
 });
 
+// Validation schema for user creation
+export const createUserSchema = baseUserSchema;
+
 // Validation schema for user update
-export const updateUserSchema = createUserSchema
+export const updateUserSchema = baseUserSchema
   .partial()
-  .omit({ auth0Id: true }) // Don't allow updating Auth0 ID
   .extend({
     resetToken: z.string().nullable().optional(),
     resetTokenExpires: z.date().nullable().optional(),
@@ -281,8 +282,8 @@ export class UsersService {
     }
     
     // For JWT authentication, passwordHash must be provided
-    if (!validatedData.auth0Id && !validatedData.passwordHash) {
-      throw AppError.badRequest('Either Auth0 ID or password hash must be provided');
+    if (!validatedData.passwordHash) {
+      throw AppError.badRequest('Password hash must be provided');
     }
     
     return this.repository.create(validatedData, companyId);

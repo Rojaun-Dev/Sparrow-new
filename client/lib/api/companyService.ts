@@ -1,5 +1,14 @@
 import { ApiClient } from './apiClient';
 import { PaginatedResponse } from './userService';
+import { apiClient } from './apiClient';
+import { 
+  Company, 
+  CompanyCreateRequest, 
+  CompanyUpdateRequest, 
+  CompanyInvitationRequest,
+  VerifyInvitationResponse,
+  RegisterFromInvitationRequest
+} from './types';
 
 export interface CompanyListParams {
   page?: number;
@@ -112,4 +121,30 @@ export class SuperAdminCompanyService {
 }
 
 // Create and export a singleton instance
-export const companyService = new SuperAdminCompanyService(); 
+export const companyService = new SuperAdminCompanyService();
+
+// Company Invitation Methods
+/**
+ * Send an invitation to register a new company
+ */
+export const sendCompanyInvitation = async (data: CompanyInvitationRequest): Promise<void> => {
+  await apiClient.post('/companies/invite', data);
+};
+
+/**
+ * Verify an invitation token
+ */
+export const verifyCompanyInvitation = async (token: string): Promise<VerifyInvitationResponse> => {
+  const response = await apiClient.get<VerifyInvitationResponse>(`/companies/verify-invitation/${token}`);
+  return response;
+};
+
+/**
+ * Register a company from an invitation
+ */
+export const registerCompanyFromInvitation = async (
+  token: string, 
+  data: Omit<RegisterFromInvitationRequest, 'token'>
+): Promise<void> => {
+  await apiClient.post(`/companies/register/${token}`, data);
+}; 

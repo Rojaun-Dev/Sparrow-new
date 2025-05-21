@@ -8,6 +8,8 @@ import { invoiceItems } from './invoice-items';
 import { payments } from './payments';
 import { companySettings } from './company-settings';
 import { fees, feeTypeEnum, calculationMethodEnum } from './fees';
+import { auditLogs } from './audit-logs';
+import { companyInvitations } from './company-invitations';
 
 export {
   companies,
@@ -21,5 +23,7 @@ export {
   companySettings,
   fees,
   feeTypeEnum,
-  calculationMethodEnum
+  calculationMethodEnum,
+  auditLogs,
+  companyInvitations,
 }; 

@@ -50,6 +50,13 @@
       "when": 1747705698187,
       "tag": "0006_lean_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1747846734981,
+      "tag": "0007_remarkable_red_shift",
+      "breakpoints": true
     }
   ]
 }
