@@ -30,7 +30,7 @@ export default function InviteRegistrationPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/login');
+      router.push('/');
       return;
     }
 
@@ -81,7 +81,7 @@ export default function InviteRegistrationPage() {
       onSuccess: () => {
         // Redirect to login page after successful registration
         setTimeout(() => {
-          router.push('/login');
+          router.push('/');
         }, 1500);
       }
     });
@@ -116,7 +116,7 @@ export default function InviteRegistrationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <Button onClick={() => router.push('/login')}>
+            <Button onClick={() => router.push('/')}>
               Return to Login
             </Button>
           </CardContent>

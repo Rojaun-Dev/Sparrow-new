@@ -17,18 +17,6 @@ import { useInitiateCompanyOnboarding } from "@/hooks/useInitiateCompanyOnboardi
 
 // Define the form schema
 const createCompanySchema = z.object({
-  name: z
-    .string({ required_error: "Company name is required" })
-    .min(2, { message: "Company name must be at least 2 characters" })
-    .trim(),
-  subdomain: z
-    .string({ required_error: "Subdomain is required" })
-    .min(3, { message: "Subdomain must be at least 3 characters" })
-    .max(20, { message: "Subdomain must be at most 20 characters" })
-    .regex(/^[a-z0-9-]+$/, {
-      message: "Subdomain can only contain lowercase letters, numbers, and hyphens",
-    })
-    .trim(),
   adminEmail: z
     .string({ required_error: "Admin email is required" })
     .email({ message: "Please enter a valid email address" })
@@ -46,8 +34,6 @@ export default function CreateCompanyPage() {
   const form = useForm<CreateCompanyFormValues>({
     resolver: zodResolver(createCompanySchema),
     defaultValues: {
-      name: "",
-      subdomain: "",
       adminEmail: "",
     },
     mode: "onChange",
@@ -79,7 +65,7 @@ export default function CreateCompanyPage() {
         <CardHeader>
           <CardTitle>Company Details</CardTitle>
           <CardDescription>
-            Enter the details for the new company. This will create a new tenant in the system and send an invitation to the admin.
+            Enter the admin email to create a new company. An invitation will be sent to complete the setup.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -88,45 +74,12 @@ export default function CreateCompanyPage() {
               <Check className="h-4 w-4 text-green-600" />
               <AlertTitle className="text-green-800">Onboarding Initiated!</AlertTitle>
               <AlertDescription className="text-green-700">
-                The company has been created and an invitation has been sent to the admin.
+                An invitation has been sent to the admin to complete the company setup.
               </AlertDescription>
             </Alert>
           ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Acme Shipping" {...field} />
-                      </FormControl>
-                      <FormDescription>The full name of the company as it will appear in the system.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="subdomain"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Subdomain</FormLabel>
-                      <FormControl>
-                        <div className="flex items-center">
-                          <Input placeholder="acme" {...field} />
-                          <span className="ml-2 text-muted-foreground">.sparrowx.com</span>
-                        </div>
-                      </FormControl>
-                      <FormDescription>The subdomain will be used for the company's portal URL.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <FormField
                   control={form.control}
                   name="adminEmail"
@@ -136,7 +89,7 @@ export default function CreateCompanyPage() {
                       <FormControl>
                         <Input placeholder="admin@company.com" type="email" {...field} />
                       </FormControl>
-                      <FormDescription>The email of the primary admin who will receive an invitation.</FormDescription>
+                      <FormDescription>The email of the primary admin who will receive an invitation to complete the company setup.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
