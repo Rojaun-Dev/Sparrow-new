@@ -17,7 +17,7 @@ import {
   Database,
   KeySquare,
   Eye,
-  AlertTriangle
+  AlertTriangle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import Link from "next/link"
 
 export default function SuperadminProfilePage() {
   const [saving, setSaving] = useState(false)
@@ -219,80 +220,8 @@ export default function SuperadminProfilePage() {
                 </ul>
               </div>
 
-              <Separator />
 
-              <div className="space-y-4">
-                <div className="font-medium">Multi-Factor Authentication (Required)</div>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Authenticator App</div>
-                    <div className="text-xs text-muted-foreground">
-                      Use an authenticator app to generate one-time codes.
-                    </div>
-                  </div>
-                  <Badge variant={user.twoFactorEnabled ? "outline" : "destructive"} className={user.twoFactorEnabled ? "bg-green-50 text-green-700 border-green-200" : ""}>
-                    {user.twoFactorEnabled ? "Enabled" : "Required"}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Security Key (WebAuthn)</div>
-                    <div className="text-xs text-muted-foreground">
-                      Use a hardware security key for enhanced protection.
-                    </div>
-                  </div>
-                  <Button variant="outline">Set Up</Button>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-2">
-                <div className="font-medium">Login Activity</div>
-                <div className="rounded-md border p-4">
-                  <div className="flex flex-col space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Last Login</span>
-                      <span className="text-sm">{user.lastLogin}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">IP Address</span>
-                      <span className="text-sm">{user.ipAddress}</span>
-                    </div>
-                    <Button variant="outline" size="sm" className="mt-2">
-                      <Eye className="mr-2 h-4 w-4" /> View Full Login History
-                    </Button>
-                  </div>
-                </div>
-              </div>
             </CardContent>
-            <CardFooter className="flex justify-between border-t px-6 pt-4">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Revoke All Sessions
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Confirm Session Revocation</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will immediately terminate all active sessions across all devices. You will need to log in again.
-                      This is a security measure that should only be used if you suspect unauthorized access.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction>Revoke All Sessions</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <Button>
-                <Lock className="mr-2 h-4 w-4" />
-                Update Security Settings
-              </Button>
-            </CardFooter>
           </Card>
         </TabsContent>
 
@@ -319,103 +248,19 @@ export default function SuperadminProfilePage() {
                 <div className="text-sm text-muted-foreground">
                   <p className="mb-2">As a Super Administrator, you have:</p>
                   <ul className="list-disc ml-5 space-y-1">
-                    <li>Full access to all system features and settings</li>
                     <li>Ability to create and manage tenant companies</li>
                     <li>Access to system-wide metrics and logs</li>
                     <li>Permission to configure global settings</li>
-                    <li>Ability to manage all user accounts</li>
+                    <li>Ability to deativate or delete any tenant company</li>
+                    <li>Ability deactivate or delete any user account</li>
                   </ul>
                 </div>
               </div>
 
-              <Separator />
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">API Access Keys</h3>
-                <div className="grid gap-3">
-                  <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <div className="text-sm font-medium">Admin API Key</div>
-                      <div className="text-xs text-muted-foreground">Last generated on Oct 15, 2023</div>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      <KeySquare className="mr-2 h-4 w-4" />
-                      Regenerate
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <div className="text-sm font-medium">System Integration Key</div>
-                      <div className="text-xs text-muted-foreground">Last generated on Oct 1, 2023</div>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      <KeySquare className="mr-2 h-4 w-4" />
-                      Regenerate
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  <AlertTriangle className="h-3 w-3 inline-block mr-1" />
-                  Regenerating keys will invalidate any existing keys and may disrupt integrations.
-                </p>
-              </div>
 
-              <Separator />
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">IP Access Restrictions</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Switch id="ip-restrictions" />
-                    <Label htmlFor="ip-restrictions">Enable IP Access Restrictions</Label>
-                  </div>
-                  <div className="rounded-md bg-muted p-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="allowed-ips">Allowed IP Addresses (one per line)</Label>
-                      <Textarea 
-                        id="allowed-ips" 
-                        placeholder="e.g. 192.168.1.1&#10;10.0.0.1&#10;Office.example.com" 
-                        className="min-h-[100px] font-mono"
-                        disabled
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
             </CardContent>
-            <CardFooter className="flex justify-between border-t px-6 pt-4">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-amber-600 border-amber-200">
-                    <Lock className="mr-2 h-4 w-4" />
-                    Request Access Change
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Request Access Change</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Changes to access levels for Super Administrator accounts require approval from the security team.
-                      This request will be logged and reviewed.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction>Submit Request</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>Saving...</>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Access Settings
-                  </>
-                )}
-              </Button>
-            </CardFooter>
           </Card>
         </TabsContent>
 
@@ -436,21 +281,21 @@ export default function SuperadminProfilePage() {
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="system-email">Email Alerts</Label>
                     </div>
-                    <Switch id="system-email" defaultChecked />
+                    <Switch id="system-email" disabled />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Bell className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="system-dashboard">Dashboard Alerts</Label>
                     </div>
-                    <Switch id="system-dashboard" defaultChecked />
+                    <Switch id="system-dashboard" disabled />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="critical-alerts">Critical Alerts (24/7)</Label>
                     </div>
-                    <Switch id="critical-alerts" defaultChecked />
+                    <Switch id="critical-alerts" disabled />
                   </div>
                 </div>
               </div>
@@ -465,69 +310,18 @@ export default function SuperadminProfilePage() {
                       <Eye className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="dark-mode">Dark Mode</Label>
                     </div>
-                    <Switch id="dark-mode" />
+                    <Switch id="dark-mode" disabled />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Database className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="compact-view">Compact View</Label>
                     </div>
-                    <Switch id="compact-view" />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Language & Timezone</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="language">Language</Label>
-                    <Select defaultValue="en-US">
-                      <SelectTrigger id="language">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en-US">English (US)</SelectItem>
-                        <SelectItem value="en-GB">English (UK)</SelectItem>
-                        <SelectItem value="es">Spanish</SelectItem>
-                        <SelectItem value="fr">French</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <Select defaultValue="UTC">
-                      <SelectTrigger id="timezone">
-                        <SelectValue placeholder="Select timezone" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="UTC">UTC (Universal)</SelectItem>
-                        <SelectItem value="America/Jamaica">Jamaica (EST)</SelectItem>
-                        <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                        <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-                        <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-                        <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Switch id="compact-view" disabled />
                   </div>
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between border-t px-6 pt-4">
-              <Button variant="outline">Reset to Default</Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>Saving...</>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Preferences
-                  </>
-                )}
-              </Button>
-            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
@@ -540,16 +334,14 @@ export default function SuperadminProfilePage() {
         <CardContent className="pb-2 space-y-3">
           <div className="grid gap-3">
             <Button variant="outline" className="justify-start">
-              <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
-              System Configuration
+                <Users className="mr-2 h-4 w-4 text-muted-foreground inline" />
+              <Link href="/superadmin/users" className="inline">
+                User Management
+              </Link>
             </Button>
-            <Button variant="outline" className="justify-start">
-              <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-              User Management
-            </Button>
-            <Button variant="outline" className="justify-start">
+            <Button variant="outline" className="justify-start" disabled>
               <Shield className="mr-2 h-4 w-4 text-muted-foreground" />
-              Security Audit Log
+              Security Audit Log (Coming Soon)
             </Button>
             <Button variant="outline" className="justify-start text-red-500">
               <LogOut className="mr-2 h-4 w-4" />

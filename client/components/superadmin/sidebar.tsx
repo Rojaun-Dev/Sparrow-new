@@ -86,7 +86,7 @@ const navItems: NavItem[] = [
     submenu: [
 
       { title: "Menu", href: "/superadmin/settings", comingSoon: false},
-      { title: "Profile", href: "/superadmin/settings/profile", comingSoon: false },
+      { title: "Account", href: "/superadmin/settings/profile", comingSoon: false },
       { title: "Platform Branding", href: "/superadmin/settings/branding", comingSoon: true },
     ],
     comingSoon: false,

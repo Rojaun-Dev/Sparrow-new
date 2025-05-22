@@ -42,28 +42,9 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" asChild className="w-full">
+            <Button variant="outline" disabled className="w-full" >
               <Link href="/superadmin/settings/branding">
-                Configure Branding
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center">
-              <KeyRound className="mr-2 h-5 w-5 text-muted-foreground" />
-              Auth0 Integration
-            </CardTitle>
-            <CardDescription>
-              Configure authentication, organizations, and user management
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/superadmin/settings/auth0">
-                Configure Auth0
+                Coming Soon
               </Link>
             </Button>
           </CardContent>
@@ -80,28 +61,9 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" asChild className="w-full">
+            <Button variant="outline" className="w-full" disabled>
               <Link href="/superadmin/settings/environment">
-                Configure Environment
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center">
-              <Users className="mr-2 h-5 w-5 text-muted-foreground" />
-              Admin Access
-            </CardTitle>
-            <CardDescription>
-              Manage administrator accounts and permission levels
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/superadmin/users">
-                Manage Admins
+                Coming Soon
               </Link>
             </Button>
           </CardContent>
