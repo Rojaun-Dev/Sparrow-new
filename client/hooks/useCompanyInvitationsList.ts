@@ -7,7 +7,6 @@ import {
   revokeCompanyInvitation 
 } from '../lib/api/companyService';
 import { useToast } from './use-toast';
-import { CompanyInvitation } from '../lib/api/types';
 
 export const useCompanyInvitationsList = () => {
   const { toast } = useToast();

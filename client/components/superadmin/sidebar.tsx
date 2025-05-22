@@ -41,6 +41,7 @@ const navItems: NavItem[] = [
     href: "/superadmin/users",
     icon: Users,
     submenu: [
+      { title: "Users", href: "/superadmin/users" },
       { title: "Admins", href: "/superadmin/users/admins" },
       { title: "Invitations", href: "/superadmin/users/invitations" },
     ],
@@ -50,10 +51,11 @@ const navItems: NavItem[] = [
     href: "/superadmin/billing",
     icon: DollarSign,
     submenu: [
-      { title: "Global Fee Templates", href: "/superadmin/billing/templates" },
+      { title: "Global Fee Templates", href: "/superadmin/billing/templates", comingSoon: true },
       { title: "Billing Reports", href: "/superadmin/billing/reports", comingSoon: true },
       { title: "Payment Gateways", href: "/superadmin/billing/gateways", comingSoon: true },
     ],
+    comingSoon: true,
   },
   {
     title: "Metrics",
@@ -85,9 +87,7 @@ const navItems: NavItem[] = [
 
       { title: "Menu", href: "/superadmin/settings", comingSoon: false},
       { title: "Profile", href: "/superadmin/settings/profile", comingSoon: false },
-      { title: "Auth0 Config", href: "/superadmin/settings/auth0", comingSoon: true },
       { title: "Platform Branding", href: "/superadmin/settings/branding", comingSoon: true },
-      { title: "Environment Info", href: "/superadmin/settings/environment", comingSoon: true },
     ],
     comingSoon: false,
   },

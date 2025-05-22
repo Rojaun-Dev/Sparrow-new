@@ -1,12 +1,12 @@
 import { ApiClient } from './apiClient';
-import { PaginatedResponse } from './userService';
 import { apiClient } from './apiClient';
 import { 
   Company, 
   CompanyInvitationRequest,
   VerifyInvitationResponse,
   RegisterFromInvitationRequest,
-  CompanyInvitation
+  CompanyInvitation,
+  PaginatedResponse
 } from './types';
 
 export interface CompanyListParams {

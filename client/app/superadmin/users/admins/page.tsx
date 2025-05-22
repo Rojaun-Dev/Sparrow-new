@@ -266,7 +266,7 @@ export default function AdminsPage() {
               e.preventDefault();
               handleEditAdmin(admin);
             }}
-          >
+          disabled>
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
@@ -275,7 +275,7 @@ export default function AdminsPage() {
               e.preventDefault();
               // TODO: Implement send email functionality
             }}
-          >
+          disabled>
             <Mail className="mr-2 h-4 w-4" />
             Send Email
           </DropdownMenuItem>

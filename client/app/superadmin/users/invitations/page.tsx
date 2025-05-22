@@ -385,6 +385,11 @@ export default function InvitationsPage() {
             <ResponsiveTable
               data={invitations}
               columns={columns}
+              pagination={{
+                currentPage: pagination?.page || 1,
+                totalPages: pagination?.totalPages || 1,
+                onPageChange: handlePageChange
+              }}
             />
           )}
 

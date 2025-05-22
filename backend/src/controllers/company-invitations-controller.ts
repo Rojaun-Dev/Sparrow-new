@@ -27,13 +27,30 @@ export class CompanyInvitationsController {
         search
       );
 
-      res.json(result);
+      return res.status(200).json({
+        success: true,
+        message: 'Invitations retrieved successfully',
+        data: {
+          data: result.invitations,
+          pagination: {
+            page: result.pagination.page,
+            limit: result.pagination.limit,
+            total: result.pagination.total,
+            totalPages: result.pagination.totalPages
+          }
+        }
+      });
     } catch (error) {
       if (error instanceof AppError) {
-        res.status(error.statusCode).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
       }
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
     }
   };
 
@@ -45,7 +62,10 @@ export class CompanyInvitationsController {
       const { email } = req.body;
 
       if (!email) {
-        return res.status(400).json({ message: 'Email is required' });
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required'
+        });
       }
 
       await this.companyInvitationsService.sendInvitation(
@@ -53,13 +73,22 @@ export class CompanyInvitationsController {
         req.userId || ''
       );
 
-      res.status(201).json({ message: 'Invitation sent successfully' });
+      return res.status(201).json({
+        success: true,
+        message: 'Invitation sent successfully',
+        data: null
+      });
     } catch (error) {
       if (error instanceof AppError) {
-        res.status(error.statusCode).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
       }
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
     }
   };
 
@@ -71,18 +100,30 @@ export class CompanyInvitationsController {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return res.status(400).json({ message: 'Invalid invitation ID' });
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid invitation ID'
+        });
       }
 
       await this.companyInvitationsService.resendInvitation(id, req.userId || '');
 
-      res.json({ message: 'Invitation resent successfully' });
+      return res.status(200).json({
+        success: true,
+        message: 'Invitation resent successfully',
+        data: null
+      });
     } catch (error) {
       if (error instanceof AppError) {
-        res.status(error.statusCode).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
       }
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
     }
   };
 
@@ -94,18 +135,30 @@ export class CompanyInvitationsController {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return res.status(400).json({ message: 'Invalid invitation ID' });
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid invitation ID'
+        });
       }
 
       await this.companyInvitationsService.revokeInvitation(id);
 
-      res.json({ message: 'Invitation revoked successfully' });
+      return res.status(200).json({
+        success: true,
+        message: 'Invitation revoked successfully',
+        data: null
+      });
     } catch (error) {
       if (error instanceof AppError) {
-        res.status(error.statusCode).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
       }
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
     }
   };
 
@@ -117,17 +170,29 @@ export class CompanyInvitationsController {
       const { token } = req.params;
 
       if (!token) {
-        return res.status(400).json({ message: 'Token is required' });
+        return res.status(400).json({
+          success: false,
+          message: 'Token is required'
+        });
       }
 
       const result = await this.companyInvitationsService.verifyInvitation(token);
-      res.json(result);
+      return res.status(200).json({
+        success: true,
+        message: 'Invitation verified successfully',
+        data: result
+      });
     } catch (error) {
       if (error instanceof AppError) {
-        res.status(error.statusCode).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
       }
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
     }
   };
 
@@ -140,21 +205,36 @@ export class CompanyInvitationsController {
       const { user, company } = req.body;
 
       if (!token) {
-        return res.status(400).json({ message: 'Token is required' });
+        return res.status(400).json({
+          success: false,
+          message: 'Token is required'
+        });
       }
 
       if (!user || !company) {
-        return res.status(400).json({ message: 'User and company data are required' });
+        return res.status(400).json({
+          success: false,
+          message: 'User and company data are required'
+        });
       }
 
       await this.companyInvitationsService.registerFromInvitation(token, user, company);
-      res.status(201).json({ message: 'Company registered successfully' });
+      return res.status(201).json({
+        success: true,
+        message: 'Company registered successfully',
+        data: null
+      });
     } catch (error) {
       if (error instanceof AppError) {
-        res.status(error.statusCode).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
       }
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
     }
   };
 } 

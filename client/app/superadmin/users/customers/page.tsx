@@ -76,7 +76,7 @@ export default function CustomersPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCompany, setSelectedCompany] = useState<string>("");
+  const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const { showFeedback } = useFeedback();
 
   // Initialize form with React Hook Form and Zod resolver
@@ -125,7 +125,7 @@ export default function CustomersPage() {
       (customer.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.email.toLowerCase().includes(searchQuery.toLowerCase())) &&
-      (selectedCompany ? customer.companyId === selectedCompany : true)
+      (selectedCompany !== "all" ? customer.companyId === selectedCompany : true)
     );
 
   // Handle form submission
@@ -317,7 +317,7 @@ export default function CustomersPage() {
                   <SelectValue placeholder="Filter by company" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Companies</SelectItem>
+                  <SelectItem value="all">All Companies</SelectItem>
                   {companies.map((company) => (
                     <SelectItem key={company.id} value={company.id}>
                       {company.name}
