@@ -276,4 +276,46 @@ export class UsersRepository extends BaseRepository<typeof users> {
     
     return result.length > 0 ? result[0] : null;
   }
+
+  /**
+   * Find a user by ID without company isolation (for superadmin)
+   */
+  async findByIdIgnoreCompany(id: string) {
+    const result = await this.db
+      .select({
+        id: this.table.id,
+        email: this.table.email,
+        firstName: this.table.firstName,
+        lastName: this.table.lastName,
+        phone: this.table.phone,
+        address: this.table.address,
+        role: this.table.role,
+        companyId: this.table.companyId,
+        isActive: this.table.isActive,
+        createdAt: this.table.createdAt,
+        updatedAt: this.table.updatedAt,
+        auth0Id: this.table.auth0Id
+      })
+      .from(this.table)
+      .where(eq(this.table.id, id))
+      .limit(1);
+    
+    return result.length > 0 ? result[0] : null;
+  }
+
+  /**
+   * Update a user without company isolation (for superadmin)
+   */
+  async updateIgnoreCompany(id: string, data: Partial<typeof users.$inferInsert>) {
+    const result = await this.db
+      .update(this.table)
+      .set({
+        ...data,
+        updatedAt: new Date()
+      })
+      .where(eq(this.table.id, id))
+      .returning();
+    
+    return result[0];
+  }
 } 

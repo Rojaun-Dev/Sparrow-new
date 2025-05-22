@@ -340,4 +340,38 @@ export class UsersController {
       return undefined;
     }
   };
+
+  /**
+   * SUPERADMIN: Deactivate a user across all companies
+   */
+  deactivateUserSuperAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      
+      // Prevent self-deactivation
+      if (id === req.user?.id) {
+        return ApiResponse.badRequest(res, 'You cannot deactivate your own account');
+      }
+      
+      await this.service.deactivateUserSuperAdmin(id);
+      return ApiResponse.success(res, null, 'User deactivated successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * SUPERADMIN: Reactivate a user across all companies
+   */
+  reactivateUserSuperAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await this.service.reactivateUserSuperAdmin(id);
+      return ApiResponse.success(res, null, 'User reactivated successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 

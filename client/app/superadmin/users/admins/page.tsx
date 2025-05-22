@@ -16,6 +16,7 @@ import {
   XCircle,
   Loader2,
   Search,
+  AlertTriangle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -89,8 +90,13 @@ export default function AdminsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const { showFeedback } = useFeedback()
   
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate'>('deactivate')
+  const [selectedAdminId, setSelectedAdminId] = useState<string>('')
+  
   // Use the hooks
-  const { createAdminUser, fetchUsers, loading: usersLoading, users } = useSuperAdminUsers()
+  const { createAdminUser, fetchUsers, loading: usersLoading, users, deactivateUser, reactivateUser } = useSuperAdminUsers()
   const { companies, fetchCompanies, loading: companiesLoading } = useSuperAdminCompanies()
   
   // Load real data on component mount
@@ -239,6 +245,51 @@ export default function AdminsPage() {
     return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
   }
 
+  // Handle admin deactivation
+  async function handleDeactivateAdmin(id: string) {
+    try {
+      await deactivateUser(id);
+      showFeedback("Admin deactivated successfully", "success");
+      setShowConfirmDialog(false);
+    } catch (error) {
+      showFeedback("Failed to deactivate admin", "error");
+    }
+  }
+
+  // Handle admin reactivation
+  async function handleReactivateAdmin(id: string) {
+    try {
+      await reactivateUser(id);
+      showFeedback("Admin reactivated successfully", "success");
+      setShowConfirmDialog(false);
+    } catch (error) {
+      showFeedback("Failed to reactivate admin", "error");
+    }
+  }
+
+  // Open confirmation dialog for deactivation
+  function confirmDeactivateAdmin(id: string) {
+    setSelectedAdminId(id);
+    setConfirmAction('deactivate');
+    setShowConfirmDialog(true);
+  }
+
+  // Open confirmation dialog for activation
+  function confirmActivateAdmin(id: string) {
+    setSelectedAdminId(id);
+    setConfirmAction('activate');
+    setShowConfirmDialog(true);
+  }
+
+  // Confirm action handler
+  function handleConfirmAction() {
+    if (confirmAction === 'deactivate') {
+      handleDeactivateAdmin(selectedAdminId);
+    } else {
+      handleReactivateAdmin(selectedAdminId);
+    }
+  }
+
   // Actions dropdown
   function ActionsDropdown({ admin }: { admin: AdminUser }) {
     const handleAction = (e: React.MouseEvent, action: () => void) => {
@@ -285,34 +336,24 @@ export default function AdminsPage() {
               className="text-amber-600"
               onSelect={(e) => {
                 e.preventDefault();
-                // TODO: Implement suspend functionality
+                confirmDeactivateAdmin(admin.id);
               }}
             >
               <Ban className="mr-2 h-4 w-4" />
-              Suspend
+              Deactivate
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem 
               className="text-green-600"
               onSelect={(e) => {
                 e.preventDefault();
-                // TODO: Implement activate functionality
+                confirmActivateAdmin(admin.id);
               }}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Activate
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem 
-            className="text-red-600"
-            onSelect={(e) => {
-              e.preventDefault();
-              // TODO: Implement remove functionality
-            }}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            Remove
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     )
@@ -527,6 +568,41 @@ export default function AdminsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmAction === 'deactivate' ? (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Confirm Deactivation
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  Confirm Activation
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction === 'deactivate'
+                ? "Are you sure you want to deactivate this admin? They will no longer be able to access the platform."
+                : "Are you sure you want to activate this admin? They will regain access to the platform."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Cancel</Button>
+            <Button 
+              variant={confirmAction === 'deactivate' ? "destructive" : "default"}
+              onClick={handleConfirmAction}
+            >
+              {confirmAction === 'deactivate' ? "Deactivate" : "Activate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

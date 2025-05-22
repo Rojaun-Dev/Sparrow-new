@@ -20,6 +20,7 @@ import {
   User,
   UserCheck,
   Building2,
+  AlertTriangle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,11 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const { showFeedback } = useFeedback();
+  
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate'>('deactivate');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<CustomerFormValues>({
@@ -176,6 +182,7 @@ export default function CustomersPage() {
     try {
       await deactivateUser(id);
       showFeedback("Customer deactivated successfully", "success");
+      setShowConfirmDialog(false);
     } catch (error) {
       showFeedback("Failed to deactivate customer", "error");
     }
@@ -186,8 +193,32 @@ export default function CustomersPage() {
     try {
       await reactivateUser(id);
       showFeedback("Customer reactivated successfully", "success");
+      setShowConfirmDialog(false);
     } catch (error) {
       showFeedback("Failed to reactivate customer", "error");
+    }
+  }
+
+  // Open confirmation dialog for deactivation
+  function confirmDeactivateCustomer(id: string) {
+    setSelectedCustomerId(id);
+    setConfirmAction('deactivate');
+    setShowConfirmDialog(true);
+  }
+
+  // Open confirmation dialog for activation
+  function confirmActivateCustomer(id: string) {
+    setSelectedCustomerId(id);
+    setConfirmAction('activate');
+    setShowConfirmDialog(true);
+  }
+
+  // Confirm action handler
+  function handleConfirmAction() {
+    if (confirmAction === 'deactivate') {
+      handleDeactivateCustomer(selectedCustomerId);
+    } else {
+      handleReactivateCustomer(selectedCustomerId);
     }
   }
 
@@ -207,22 +238,22 @@ export default function CustomersPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleEditCustomer(customer)}>
+          <DropdownMenuItem onClick={() => handleEditCustomer(customer)} disabled>
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled>
             <Mail className="mr-2 h-4 w-4" />
             Send Email
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {customer.isActive ? (
-            <DropdownMenuItem className="text-amber-600" onClick={() => handleDeactivateCustomer(customer.id)}>
+            <DropdownMenuItem className="text-amber-600" onClick={() => confirmDeactivateCustomer(customer.id)}>
               <Ban className="mr-2 h-4 w-4" />
               Deactivate
             </DropdownMenuItem>
           ) : (
-            <DropdownMenuItem className="text-green-600" onClick={() => handleReactivateCustomer(customer.id)}>
+            <DropdownMenuItem className="text-green-600" onClick={() => confirmActivateCustomer(customer.id)}>
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Activate
             </DropdownMenuItem>
@@ -486,6 +517,41 @@ export default function CustomersPage() {
           </Form>
         </DialogContent>
         <DialogClose id="close-customer-dialog" />
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmAction === 'deactivate' ? (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Confirm Deactivation
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  Confirm Activation
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction === 'deactivate'
+                ? "Are you sure you want to deactivate this customer? They will no longer be able to access the platform."
+                : "Are you sure you want to activate this customer? They will regain access to the platform."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Cancel</Button>
+            <Button 
+              variant={confirmAction === 'deactivate' ? "destructive" : "default"}
+              onClick={handleConfirmAction}
+            >
+              {confirmAction === 'deactivate' ? "Deactivate" : "Activate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );

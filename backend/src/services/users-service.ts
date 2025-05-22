@@ -577,4 +577,32 @@ export class UsersService {
       }
     };
   }
+
+  /**
+   * SUPERADMIN: Deactivate a user across all companies
+   */
+  async deactivateUserSuperAdmin(id: string) {
+    // Check if user exists
+    const user = await this.repository.findByIdIgnoreCompany(id);
+    if (!user) {
+      throw AppError.notFound('User not found');
+    }
+    
+    // Soft delete by setting isActive to false
+    return this.repository.updateIgnoreCompany(id, { isActive: false });
+  }
+
+  /**
+   * SUPERADMIN: Reactivate a user across all companies
+   */
+  async reactivateUserSuperAdmin(id: string) {
+    // Check if user exists
+    const user = await this.repository.findByIdIgnoreCompany(id);
+    if (!user) {
+      throw AppError.notFound('User not found');
+    }
+    
+    // Reactivate by setting isActive to true
+    return this.repository.updateIgnoreCompany(id, { isActive: true });
+  }
 }

@@ -30,8 +30,8 @@ router.get('/users', usersController.getAllUsersAcrossCompanies);
 router.post('/users', usersController.createAdminUser);
 router.get('/users/:id', usersController.getUserById);
 router.put('/users/:id', usersController.updateUser);
-router.delete('/users/:id', usersController.deactivateUser);
-router.post('/users/:id/reactivate', usersController.reactivateUser);
+router.delete('/users/:id', usersController.deactivateUserSuperAdmin);
+router.post('/users/:id/reactivate', usersController.reactivateUserSuperAdmin);
 router.get('/users/:id/activity', auditLogsController.getUserActivity);
 
 // Company management routes
