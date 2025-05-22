@@ -138,7 +138,7 @@ export default function UsersPage() {
             <CardDescription>Manage platform administrators across all companies</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {loading ? (
+            {loading &&(
               <>
                 <div className="flex items-center justify-between">
                   <div className="space-y-2">
@@ -152,19 +152,8 @@ export default function UsersPage() {
                   <Skeleton className="h-4 w-3/4" />
                 </div>
               </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">Admin Management</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Manage admin users with different permission levels
-                    </p>
-                  </div>
-                  <UserCog className="h-12 w-12 text-primary/20" />
-                </div>
-              </>
-            )}
+            )  
+            }
           </CardContent>
           <CardFooter>
             <Link href="/superadmin/users/admins" className="w-full">
@@ -183,7 +172,7 @@ export default function UsersPage() {
             <CardDescription>Manage end users of the platform</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {loading ? (
+            {loading && (
               <>
                 <div className="flex items-center justify-between">
                   <div className="space-y-2">
@@ -197,19 +186,8 @@ export default function UsersPage() {
                   <Skeleton className="h-4 w-3/4" />
                 </div>
               </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">Customer Management</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Manage customer accounts and their activities
-                    </p>
-                  </div>
-                  <UserPlus className="h-12 w-12 text-primary/20" />
-                </div>
-              </>
-            )}
+            )  
+            }
           </CardContent>
           <CardFooter>
             <Link href="/superadmin/users/customers" className="w-full">

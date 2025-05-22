@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   Bell, 
   Globe, 
@@ -56,34 +56,210 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import Link from "next/link"
+import { useCurrentUser, useUpdateProfile, useUpdatePassword, useNotificationPreferences, useUpdateNotificationPreferences } from "@/hooks/useProfile"
+import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { PasswordChangeSchema } from "@/lib/validations/auth"
+import { NotificationPreferences } from "@/lib/api/types"
+
+// Skeleton loader component for profile cards
+const ProfileSkeleton = () => {
+  return (
+    <Card>
+      <CardHeader className="pb-4">
+        <Skeleton className="h-6 w-1/3 mb-2" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between border-t px-6 pt-4">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-32" />
+      </CardFooter>
+    </Card>
+  )
+}
 
 export default function SuperadminProfilePage() {
-  const [saving, setSaving] = useState(false)
+  const { data: user, isLoading } = useCurrentUser()
+  const { mutate: updateProfile, isPending: saving } = useUpdateProfile()
+  const { mutate: updatePassword, isPending: changingPassword } = useUpdatePassword()
+  const { data: notificationPrefs, isLoading: loadingPrefs } = useNotificationPreferences()
+  const { mutate: updateNotificationPrefs, isPending: savingPrefs } = useUpdateNotificationPreferences()
+  const { toast } = useToast()
+  
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    trn: ""
+  })
 
-  // Example superadmin profile data
-  const user = {
-    id: "admin-001",
-    firstName: "Admin",
-    lastName: "User",
-    email: "admin@sparrowx.io",
-    phone: "+1 (555) 987-6543",
-    role: "Super Administrator",
-    department: "IT Operations",
-    jobTitle: "System Administrator",
-    lastLogin: "October 28, 2023 at 10:45 AM",
-    ipAddress: "192.168.1.1",
-    twoFactorEnabled: true,
-    avatar: "/placeholder.svg?key=admin",
-    accessLevel: "Full Access"
+  // Update form when user data loads
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        trn: user.trn || ""
+      })
+    }
+  }, [user])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.id]: e.target.value
+    })
   }
 
-  const handleSave = () => {
-    setSaving(true)
-    // Simulate API call
-    setTimeout(() => {
-      setSaving(false)
-      alert("Profile updated successfully!")
-    }, 1000)
+  const handleSavePersonalInfo = () => {
+    updateProfile({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      trn: formData.trn
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Profile updated",
+          description: "Your personal information has been updated successfully.",
+        })
+      },
+      onError: () => {
+        toast({
+          title: "Failed to update",
+          description: "There was a problem updating your profile. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  // Password change form
+  const passwordForm = useForm<z.infer<typeof PasswordChangeSchema>>({
+    resolver: zodResolver(PasswordChangeSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: ""
+    }
+  })
+
+  // Handler for password change
+  const handlePasswordChange = (values: z.infer<typeof PasswordChangeSchema>) => {
+    updatePassword(values, {
+      onSuccess: () => {
+        toast({
+          title: "Password updated",
+          description: "Your password has been changed successfully.",
+        })
+        passwordForm.reset()
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Failed to update password",
+          description: error.message || "There was a problem updating your password. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  // Handler for notification preferences
+  const handleNotificationChange = (type: string, channel: string, value: boolean) => {
+    if (!notificationPrefs) return
+
+    // Create a deep copy of the notification preferences
+    const updatedPrefs = JSON.parse(JSON.stringify(notificationPrefs)) as NotificationPreferences
+    
+    if (type === 'general') {
+      // Update general preference
+      (updatedPrefs as any)[channel] = value
+    } else {
+      // Update specific category preference
+      const categoryKey = `${type}Updates` as keyof NotificationPreferences
+      
+      // Make sure the category exists
+      if (!updatedPrefs[categoryKey]) {
+        const newCategoryUpdate = {
+          email: type === 'package' || type === 'billing',
+          sms: false,
+          push: false
+        }
+        // Use type assertion to bypass type checking for the specific update
+        (updatedPrefs as any)[categoryKey] = newCategoryUpdate
+      }
+      
+      // Update the specific channel in the category
+      const category = (updatedPrefs as any)[categoryKey]
+      if (category) {
+        category[channel] = value
+      }
+    }
+    
+    updateNotificationPrefs(updatedPrefs, {
+      onSuccess: () => {
+        toast({
+          title: "Preferences updated",
+          description: "Your notification preferences have been updated.",
+        })
+      },
+      onError: (error: Error) => {
+        toast({
+          title: "Failed to update",
+          description: "There was a problem updating your preferences. Please try again.",
+          variant: "destructive"
+        })
+      }
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
+        <Tabs defaultValue="personal" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="personal">Personal Info</TabsTrigger>
+            <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          </TabsList>
+          
+          <div className="mt-6 space-y-6">
+            <ProfileSkeleton />
+          </div>
+        </Tabs>
+      </div>
+    )
   }
 
   return (
@@ -95,11 +271,11 @@ export default function SuperadminProfilePage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            {user.role}
+            {user?.role}
           </Badge>
           <Avatar className="h-10 w-10">
-            <AvatarImage src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
-            <AvatarFallback>{user.firstName[0]}{user.lastName[0]}</AvatarFallback>
+            <AvatarImage src={user?.avatar} alt={`${user?.firstName} ${user?.lastName}`} />
+            <AvatarFallback>{user?.firstName[0]}{user?.lastName[0]}</AvatarFallback>
           </Avatar>
         </div>
       </div>
@@ -127,43 +303,61 @@ export default function SuperadminProfilePage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="first-name">First Name</Label>
-                  <Input id="first-name" defaultValue={user.firstName} />
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input 
+                    id="firstName" 
+                    value={formData.firstName}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last-name">Last Name</Label>
-                  <Input id="last-name" defaultValue={user.lastName} />
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input 
+                    id="lastName" 
+                    value={formData.lastName}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={user.email} />
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" defaultValue={user.phone} />
+                  <Input 
+                    id="phone" 
+                    type="tel" 
+                    value={formData.phone}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Input id="department" defaultValue={user.department} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="job-title">Job Title</Label>
-                  <Input id="job-title" defaultValue={user.jobTitle} />
-                </div>
+                <Label htmlFor="trn">TRN (Tax Registration Number)</Label>
+                <Input 
+                  id="trn" 
+                  value={formData.trn}
+                  onChange={handleChange}
+                  disabled={true}
+                />
+                <p className="text-xs text-muted-foreground">
+                  To update your TRN, please contact support.
+                </p>
               </div>
 
             </CardContent>
             <CardFooter className="flex justify-between border-t px-6 pt-4">
               <Button variant="outline">Cancel</Button>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSavePersonalInfo} disabled={saving}>
                 {saving ? (
                   <>Saving...</>
                 ) : (
@@ -180,47 +374,128 @@ export default function SuperadminProfilePage() {
         <TabsContent value="security" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Enhanced Security Settings</CardTitle>
+              <CardTitle>Security Settings</CardTitle>
               <CardDescription>
-                Manage your password and advanced security settings
+                Manage your password and account security
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
-                <Input id="current-password" type="password" />
-              </div>
+              <Form {...passwordForm}>
+                <form onSubmit={passwordForm.handleSubmit(handlePasswordChange)} className="space-y-4">
+                  <FormField
+                    control={passwordForm.control}
+                    name="currentPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Current Password</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="password" 
+                            placeholder="Enter your current password" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
               <Separator />
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input id="new-password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input id="confirm-password" type="password" />
-                </div>
+                    <FormField
+                      control={passwordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="password" 
+                              placeholder="Enter new password" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="password" 
+                              placeholder="Confirm new password" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
               </div>
 
               <div className="rounded-md bg-muted p-4">
                 <div className="flex gap-2 text-sm font-medium">
                   <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span>Admin Password Requirements:</span>
+                      <span>Password Requirements:</span>
                 </div>
                 <ul className="mt-2 ml-6 text-xs text-muted-foreground list-disc">
-                  <li>Minimum 12 characters</li>
+                      <li>Minimum 8 characters</li>
                   <li>At least one uppercase letter</li>
-                  <li>At least one lowercase letter</li>
                   <li>At least one number</li>
                   <li>At least one special character</li>
-                  <li>Password must be changed every 90 days</li>
-                  <li>Cannot reuse the last 5 passwords</li>
                 </ul>
               </div>
 
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={changingPassword}>
+                      {changingPassword ? (
+                        <>Updating...</>
+                      ) : (
+                        <>
+                          <Lock className="mr-2 h-4 w-4" />
+                          Update Password
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
 
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="font-medium">Multi-Factor Authentication</div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium">Authenticator App</div>
+                    <div className="text-xs text-muted-foreground">
+                      Use an authenticator app to generate one-time codes.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Coming Soon</Badge>
+                    <Button variant="outline" disabled>Set Up</Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium">SMS Verification</div>
+                    <div className="text-xs text-muted-foreground">
+                      Receive a code via SMS to verify your identity.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Coming Soon</Badge>
+                    <Button variant="outline" disabled>Set Up</Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -241,7 +516,7 @@ export default function SuperadminProfilePage() {
                     <p className="text-sm text-muted-foreground">Your current system access level</p>
                   </div>
                   <Badge className="bg-blue-50 text-blue-700 border-blue-200">
-                    {user.accessLevel}
+                    {user?.accessLevel}
                   </Badge>
                 </div>
 
@@ -267,35 +542,49 @@ export default function SuperadminProfilePage() {
         <TabsContent value="preferences" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>System Preferences</CardTitle>
+              <CardTitle>Notification Preferences</CardTitle>
               <CardDescription>
-                Configure your interface and notification preferences
+                Choose how and when you receive notifications
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-sm font-medium">System Notifications</h3>
+                <h3 className="text-sm font-medium">General Notifications</h3>
                 <div className="grid gap-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="system-email">Email Alerts</Label>
+                      <Label htmlFor="general-email">Email Notifications</Label>
                     </div>
-                    <Switch id="system-email" disabled />
+                    <Switch 
+                      id="general-email" 
+                      checked={notificationPrefs?.email ?? true}
+                      onCheckedChange={(checked) => handleNotificationChange('general', 'email', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="general-sms">SMS Notifications</Label>
+                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                    </div>
+                    <Switch 
+                      id="general-sms" 
+                      disabled 
+                      checked={notificationPrefs?.sms ?? false}
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Bell className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="system-dashboard">Dashboard Alerts</Label>
+                      <Label htmlFor="general-push">Push Notifications</Label>
+                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
                     </div>
-                    <Switch id="system-dashboard" disabled />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="critical-alerts">Critical Alerts (24/7)</Label>
-                    </div>
-                    <Switch id="critical-alerts" disabled />
+                    <Switch 
+                      id="general-push" 
+                      disabled 
+                      checked={notificationPrefs?.push ?? false}
+                    />
                   </div>
                 </div>
               </div>
@@ -303,21 +592,18 @@ export default function SuperadminProfilePage() {
               <Separator />
 
               <div className="space-y-4">
-                <h3 className="text-sm font-medium">Interface Preferences</h3>
+                <h3 className="text-sm font-medium">System Updates</h3>
                 <div className="grid gap-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="dark-mode">Dark Mode</Label>
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="system-email">Email Notifications</Label>
                     </div>
-                    <Switch id="dark-mode" disabled />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Database className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="compact-view">Compact View</Label>
-                    </div>
-                    <Switch id="compact-view" disabled />
+                    <Switch 
+                      id="system-email" 
+                      checked={notificationPrefs?.systemUpdates?.email ?? true}
+                      onCheckedChange={(checked) => handleNotificationChange('system', 'email', checked)}
+                    />
                   </div>
                 </div>
               </div>

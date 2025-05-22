@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
     href: "/superadmin/users",
     icon: Users,
     submenu: [
-      { title: "Users", href: "/superadmin/users" },
+      { title: "All Users", href: "/superadmin/users" },
       { title: "Admins", href: "/superadmin/users/admins" },
       { title: "Invitations", href: "/superadmin/users/invitations" },
     ],
@@ -84,12 +84,10 @@ const navItems: NavItem[] = [
     href: "/superadmin/settings",
     icon: Settings,
     submenu: [
-
-      { title: "Menu", href: "/superadmin/settings", comingSoon: false},
-      { title: "Account", href: "/superadmin/settings/profile", comingSoon: false },
+      { title: "Profile", href: "/superadmin/settings/profile" },
       { title: "Platform Branding", href: "/superadmin/settings/branding", comingSoon: true },
+      { title: "System Configuration", href: "/superadmin/settings/system", comingSoon: true },
     ],
-    comingSoon: false,
   },
 ]
 
@@ -117,23 +115,41 @@ export function SuperAdminSidebar() {
         <nav className="grid gap-1 px-2">
           {navItems.map((item) => (
             <div key={item.title} className="mb-1">
-              <Button
-                variant={isSubmenuActive(item) ? "secondary" : "ghost"}
-                className={cn("mb-1 w-full justify-start", isSubmenuActive(item) && "bg-secondary font-medium")}
-                onClick={() => toggleSubmenu(item.title)}
-              >
-                <item.icon className="mr-2 h-5 w-5" />
-                {item.title}
-                {item.comingSoon && (
-                  <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
-                    Soon
-                  </Badge>
-                )}
-                <ChevronDown
-                  className={cn("ml-auto h-4 w-4 transition-transform", openSubmenu === item.title && "rotate-180")}
-                />
-              </Button>
-              {(openSubmenu === item.title || isSubmenuActive(item)) && item.submenu && (
+              {item.submenu ? (
+                <Button
+                  variant={isSubmenuActive(item) ? "secondary" : "ghost"}
+                  className={cn("mb-1 w-full justify-start", isSubmenuActive(item) && "bg-secondary font-medium")}
+                  onClick={() => toggleSubmenu(item.title)}
+                >
+                  <item.icon className="mr-2 h-5 w-5" />
+                  {item.title}
+                  {item.comingSoon && (
+                    <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                      Soon
+                    </Badge>
+                  )}
+                  <ChevronDown
+                    className={cn("ml-auto h-4 w-4 transition-transform", openSubmenu === item.title && "rotate-180")}
+                  />
+                </Button>
+              ) : (
+                <Link href={item.href}>
+                  <Button
+                    variant={isActive(item.href) ? "secondary" : "ghost"}
+                    className={cn("mb-1 w-full justify-start", isActive(item.href) && "bg-secondary font-medium")}
+                  >
+                    <item.icon className="mr-2 h-5 w-5" />
+                    {item.title}
+                    {item.comingSoon && (
+                      <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                        Soon
+                      </Badge>
+                    )}
+                  </Button>
+                </Link>
+              )}
+              
+              {item.submenu && openSubmenu === item.title && (
                 <div className="ml-4 grid gap-1 pl-4">
                   {item.submenu.map((subItem) => (
                     <Link
@@ -177,34 +193,52 @@ export function SuperAdminSidebar() {
       <SheetContent side="left" className="w-64 p-0">
         <div className="flex h-16 items-center border-b px-4">
           <Link href="/superadmin" className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
-            <span className="text-xl font-bold">SparrowX Admin</span>
+            <span className="text-xl font-bold">SparrowX</span>
           </Link>
           <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
             <span className="sr-only">Close</span>
           </Button>
         </div>
-        <ScrollArea className="h-[calc(100vh-4rem)] py-4">
+        <ScrollArea className="flex-1 py-4">
           <nav className="grid gap-1 px-2">
             {navItems.map((item) => (
               <div key={item.title} className="mb-1">
-                <Button
-                  variant={isSubmenuActive(item) ? "secondary" : "ghost"}
-                  className={cn("mb-1 w-full justify-start", isSubmenuActive(item) && "bg-secondary font-medium")}
-                  onClick={() => toggleSubmenu(item.title)}
-                >
-                  <item.icon className="mr-2 h-5 w-5" />
-                  {item.title}
-                  {item.comingSoon && (
-                    <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
-                      Soon
-                    </Badge>
-                  )}
-                  <ChevronDown
-                    className={cn("ml-auto h-4 w-4 transition-transform", openSubmenu === item.title && "rotate-180")}
-                  />
-                </Button>
-                {(openSubmenu === item.title || isSubmenuActive(item)) && item.submenu && (
+                {item.submenu ? (
+                  <Button
+                    variant={isSubmenuActive(item) ? "secondary" : "ghost"}
+                    className={cn("mb-1 w-full justify-start", isSubmenuActive(item) && "bg-secondary font-medium")}
+                    onClick={() => toggleSubmenu(item.title)}
+                  >
+                    <item.icon className="mr-2 h-5 w-5" />
+                    {item.title}
+                    {item.comingSoon && (
+                      <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                        Soon
+                      </Badge>
+                    )}
+                    <ChevronDown
+                      className={cn("ml-auto h-4 w-4 transition-transform", openSubmenu === item.title && "rotate-180")}
+                    />
+                  </Button>
+                ) : (
+                  <Link href={item.href} onClick={() => setSidebarOpen(false)}>
+                    <Button
+                      variant={isActive(item.href) ? "secondary" : "ghost"}
+                      className={cn("mb-1 w-full justify-start", isActive(item.href) && "bg-secondary font-medium")}
+                    >
+                      <item.icon className="mr-2 h-5 w-5" />
+                      {item.title}
+                      {item.comingSoon && (
+                        <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                          Soon
+                        </Badge>
+                      )}
+                    </Button>
+                  </Link>
+                )}
+                
+                {item.submenu && openSubmenu === item.title && (
                   <div className="ml-4 grid gap-1 pl-4">
                     {item.submenu.map((subItem) => (
                       <Link
@@ -244,7 +278,7 @@ export function SuperAdminSidebar() {
         <MobileSidebar />
         <div className="ml-2 flex-1 text-center sm:text-left">
           <Link href="/superadmin" className="inline-flex items-center">
-            <span className="text-xl font-bold"></span>
+            <span className="text-xl font-bold">SparrowX</span>
           </Link>
         </div>
       </div>
