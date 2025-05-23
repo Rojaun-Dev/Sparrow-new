@@ -12,16 +12,4 @@ export { paymentService } from './paymentService';
 export { profileService } from './profileService';
 export { authService } from './authService';
 export { usersService } from './customerService';
-export { companyService } from './companyService';
-
-// Export a combined API object with all services
-export const api = {
-  packages: packageService,
-  preAlerts: preAlertService,
-  invoices: invoiceService,
-  payments: paymentService,
-  profile: profileService,
-  auth: authService,
-  users: usersService,
-  company: companyService
-}; 
+export { companyService } from './companyService'; 

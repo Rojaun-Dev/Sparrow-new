@@ -228,4 +228,5 @@ class PackageService {
   }
 }
 
+// Create and export a single instance of the service
 export const packageService = new PackageService(); 
