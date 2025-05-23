@@ -27,6 +27,7 @@ app.use(cors({
     `${config.client.url}`,
     'http://localhost:3000',
     'http://localhost:4000',
+    'https://localhost:3000',
   ].filter(Boolean),
   credentials: true
 })); // CORS handling with credentials
