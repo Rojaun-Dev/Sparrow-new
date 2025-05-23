@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useSearchParams } from "next/navigation"
-
+// signed commit
 function ErrorContent() {
   const searchParams = useSearchParams()
   const error = searchParams?.get("error") || ""
