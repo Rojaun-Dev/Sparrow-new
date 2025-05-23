@@ -22,7 +22,7 @@ const port = config.server.port;
 app.use(helmet()); // Security headers
 app.use(cors({
   origin: [
-    'https://localhost:3000',
+    'https://cautious-robot-client.vercel.app',
     'https://localhost:4000',
     `${config.client.url}`,
     'http://localhost:3000',
