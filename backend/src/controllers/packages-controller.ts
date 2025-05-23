@@ -241,10 +241,17 @@ export class PackagesController {
         filters.dateTo = filters.dateTo as string;
       }
       
-      // Add companyId to filters
-      filters.companyId = companyId;
-      
-      const packages = await this.service.getPackagesForCompany(filters);
+      const packages = await this.service.getPackagesForCompany({
+        companyId,
+        page: filters.page,
+        limit: filters.limit,
+        status: filters.status,
+        search: filters.search,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder
+      });
       return ApiResponse.success(res, packages);
     } catch (error) {
       next(error);

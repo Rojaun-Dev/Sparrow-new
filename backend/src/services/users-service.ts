@@ -108,10 +108,19 @@ export class UsersService {
     if (role) {
       // Handle role as either a single value or comma-separated string
       const roles = typeof role === 'string' ? role.split(',') : [role];
-      const validRoles = roles.filter(r => ['customer', 'admin_l1', 'admin_l2', 'super_admin'].includes(r));
+      const validRoleValues = ['customer', 'admin_l1', 'admin_l2', 'super_admin'];
+      const validRoles = roles.filter(r => validRoleValues.includes(r as string)) as Array<'customer' | 'admin_l1' | 'admin_l2' | 'super_admin'>;
       
       if (validRoles.length > 0) {
-        conditions.push(inArray(users.role, validRoles));
+        // Handle single role directly
+        if (validRoles.length === 1) {
+          conditions.push(eq(users.role, validRoles[0]));
+        } 
+        // Handle multiple roles
+        else {
+          const roleConditions = validRoles.map(r => eq(users.role, r));
+          conditions.push(or(...roleConditions));
+        }
       }
     }
     
@@ -124,13 +133,11 @@ export class UsersService {
     }
     
     if (search) {
-      conditions.push(
-        or(
-          like(users.email, `%${search}%`),
-          like(users.firstName, `%${search}%`),
-          like(users.lastName, `%${search}%`)
-        )
-      );
+      const searchPattern = `%${search}%`;
+      const emailCond = like(users.email, searchPattern);
+      const firstNameCond = like(users.firstName, searchPattern);
+      const lastNameCond = like(users.lastName, searchPattern);
+      conditions.push(or(emailCond, firstNameCond, lastNameCond));
     }
     
     if (createdFrom) {
@@ -509,10 +516,19 @@ export class UsersService {
     // Add role filter if provided
     if (params.role) {
       if (Array.isArray(params.role)) {
-        // Handle multiple roles
-        const roleConditions = params.role.map((r) => eq(users.role, r));
-        if (roleConditions.length > 0) {
-          conditions.push(or(...roleConditions));
+        // For a single role in the array, use eq directly
+        if (params.role.length === 1) {
+          conditions.push(eq(users.role, params.role[0]));
+        } 
+        // For multiple roles, use explicit or conditions
+        else if (params.role.length > 1) {
+          const roleConditions = params.role.map(r => eq(users.role, r)).filter((condition): condition is SQL<unknown> => condition !== undefined);
+          if (roleConditions.length > 0) {
+            const roleOrCondition = or(...roleConditions);
+            if (roleOrCondition) {
+              conditions.push(roleOrCondition);
+            }
+          }
         }
       } else {
         // Handle single role
@@ -532,8 +548,14 @@ export class UsersService {
         ilike(users.firstName, searchTerm),
         ilike(users.lastName, searchTerm),
         ilike(users.email, searchTerm)
-      ];
-      conditions.push(or(...searchConditions));
+      ].filter((condition): condition is SQL<unknown> => condition !== undefined);
+      
+      if (searchConditions.length > 0) {
+        const searchOrCondition = or(...searchConditions);
+        if (searchOrCondition) {
+          conditions.push(searchOrCondition);
+        }
+      }
     }
     
     // Combine all conditions
@@ -604,5 +626,19 @@ export class UsersService {
     
     // Reactivate by setting isActive to true
     return this.repository.updateIgnoreCompany(id, { isActive: true });
+  }
+
+  /**
+   * Get a user by email without company isolation (for password reset)
+   */
+  async getUserByEmailForPasswordReset(email: string) {
+    return this.repository.findByEmailWithoutCompanyIsolation(email);
+  }
+
+  /**
+   * Get a user by reset token
+   */
+  async getUserByResetToken(token: string) {
+    return this.repository.findByResetToken(token);
   }
 }

@@ -1,4 +1,4 @@
-import { SQL, and, eq, desc, asc, like, gte, lte, sql } from 'drizzle-orm';
+import { SQL, and, eq, desc, asc, gte, lte, sql } from 'drizzle-orm';
 import { BaseRepository } from './base-repository';
 import { invoices, invoiceStatusEnum } from '../db/schema/invoices';
 import { invoiceItems } from '../db/schema/invoice-items';

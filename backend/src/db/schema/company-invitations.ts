@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, varchar, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, serial, timestamp, varchar, pgEnum } from 'drizzle-orm/pg-core';
 
 export const invitationStatusEnum = pgEnum('invitation_status', [
   'pending',

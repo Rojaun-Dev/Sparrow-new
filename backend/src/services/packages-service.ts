@@ -430,44 +430,49 @@ export class PackagesService {
     }
     
     // Build the filter conditions
-    let conditions = eq(packages.companyId, params.companyId);
+    const conditions: SQL<unknown>[] = [eq(packages.companyId, params.companyId)];
     
     // Add status filter if provided
     if (params.status) {
-      conditions = and(conditions, eq(packages.status, params.status));
+      conditions.push(eq(packages.status, params.status as any));
     }
     
     // Add date range filters if provided
     if (params.dateFrom) {
       const fromDate = new Date(params.dateFrom);
-      conditions = and(conditions, gte(packages.createdAt, fromDate));
+      conditions.push(gte(packages.createdAt, fromDate));
     }
     
     if (params.dateTo) {
       const toDate = new Date(params.dateTo);
       // Set to end of day
       toDate.setHours(23, 59, 59, 999);
-      conditions = and(conditions, lte(packages.createdAt, toDate));
+      conditions.push(lte(packages.createdAt, toDate));
     }
     
     // Add search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`;
-      conditions = and(
-        conditions,
-        or(
-          ilike(packages.trackingNumber, searchTerm),
-          ilike(packages.internalTrackingId, searchTerm),
-          ilike(packages.description, searchTerm)
-        )
-      );
+      const searchConditions: SQL<unknown>[] = [
+        ilike(packages.trackingNumber, searchTerm),
+        ilike(packages.internalTrackingId, searchTerm),
+        ilike(packages.description, searchTerm)
+      ];
+      
+      if (searchConditions.length > 0) {
+        // Use type assertion to ensure the or() function returns SQL<unknown>
+        conditions.push(or(...searchConditions) as SQL<unknown>);
+      }
     }
+
+    // Combine all conditions with AND
+    const finalConditions = and(...conditions);
     
     // Get total count for pagination
     const [{ count: totalItems }] = await db
       .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(packages)
-      .where(conditions);
+      .where(finalConditions);
       
     // Calculate total pages
     const totalPages = Math.ceil(totalItems / limit);
@@ -489,7 +494,7 @@ export class PackagesService {
         updatedAt: packages.updatedAt,
       })
       .from(packages)
-      .where(conditions)
+      .where(finalConditions)
       .orderBy(...orderBy)
       .limit(limit)
       .offset(offset);

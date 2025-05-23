@@ -306,11 +306,23 @@ export class UsersRepository extends BaseRepository<typeof users> {
   /**
    * Update a user without company isolation (for superadmin)
    */
-  async updateIgnoreCompany(id: string, data: Partial<typeof users.$inferInsert>) {
+  async updateIgnoreCompany(id: string, data: Partial<{
+    email: string;
+    firstName: string | SQL<unknown>;
+    lastName: string | SQL<unknown>;
+    phone: string | SQL<unknown>;
+    address: string | SQL<unknown>;
+    role: typeof userRoleEnum.enumValues[number] | SQL<unknown>;
+    companyId: string;
+    isActive: boolean;
+    passwordHash?: string;
+    auth0Id?: string | SQL<unknown>;
+  }>) {
     const result = await this.db
       .update(this.table)
       .set({
         ...data,
+        role: data.role as typeof userRoleEnum.enumValues[number] | SQL<unknown>,
         updatedAt: new Date()
       })
       .where(eq(this.table.id, id))

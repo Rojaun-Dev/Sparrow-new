@@ -7,6 +7,9 @@ interface AuthRequest extends Request {
   companyId?: string;
   userId?: string;
   userRole?: string;
+  user?: {
+    id: string;
+  };
 }
 
 export class UsersController {
@@ -344,12 +347,12 @@ export class UsersController {
   /**
    * SUPERADMIN: Deactivate a user across all companies
    */
-  deactivateUserSuperAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  deactivateUserSuperAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
       
       // Prevent self-deactivation
-      if (id === req.user?.id) {
+      if (id === req.userId) {
         return ApiResponse.badRequest(res, 'You cannot deactivate your own account');
       }
       

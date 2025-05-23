@@ -106,7 +106,7 @@ export class CompanyInvitationsController {
         });
       }
 
-      await this.companyInvitationsService.resendInvitation(id, req.userId || '');
+      await this.companyInvitationsService.resendInvitation(id);
 
       return res.status(200).json({
         success: true,

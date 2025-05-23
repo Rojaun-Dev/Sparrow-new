@@ -2,7 +2,6 @@ import { and, eq, gte, desc, like } from 'drizzle-orm';
 import { db } from '../db';
 import { companyInvitations } from '../db/schema';
 import { CompanyInvitation, CreateCompanyInvitation } from '../types/company-invitation';
-import { sql } from 'drizzle-orm';
 
 export class CompanyInvitationsRepository {
   async create(data: CreateCompanyInvitation): Promise<CompanyInvitation> {
@@ -11,7 +10,10 @@ export class CompanyInvitationsRepository {
       .values(data)
       .returning();
     
-    return result[0];
+    return {
+      ...result[0],
+      companyId: result[0].companyId || undefined
+    };
   }
 
   async findByToken(token: string): Promise<CompanyInvitation | undefined> {
@@ -20,7 +22,12 @@ export class CompanyInvitationsRepository {
       .from(companyInvitations)
       .where(eq(companyInvitations.token, token));
 
-    return result[0];
+    if (result.length === 0) return undefined;
+    
+    return {
+      ...result[0],
+      companyId: result[0].companyId || undefined
+    };
   }
 
   async findValidByToken(token: string): Promise<CompanyInvitation | undefined> {
@@ -35,7 +42,12 @@ export class CompanyInvitationsRepository {
         )
       );
 
-    return result[0];
+    if (result.length === 0) return undefined;
+    
+    return {
+      ...result[0],
+      companyId: result[0].companyId || undefined
+    };
   }
 
   async updateStatus(id: number, status: 'pending' | 'accepted' | 'expired' | 'cancelled'): Promise<void> {
@@ -49,7 +61,7 @@ export class CompanyInvitationsRepository {
   }
 
   async findPendingByEmail(email: string): Promise<CompanyInvitation[]> {
-    return db
+    const results = await db
       .select()
       .from(companyInvitations)
       .where(
@@ -59,6 +71,11 @@ export class CompanyInvitationsRepository {
           gte(companyInvitations.expiresAt, new Date())
         )
       );
+
+    return results.map(result => ({
+      ...result,
+      companyId: result.companyId || undefined
+    }));
   }
 
   async findById(id: number): Promise<CompanyInvitation | undefined> {
@@ -67,7 +84,12 @@ export class CompanyInvitationsRepository {
       .from(companyInvitations)
       .where(eq(companyInvitations.id, id));
 
-    return result[0];
+    if (result.length === 0) return undefined;
+    
+    return {
+      ...result[0],
+      companyId: result[0].companyId || undefined
+    };
   }
 
   async findAll(
@@ -88,10 +110,15 @@ export class CompanyInvitationsRepository {
       query = query.where(like(companyInvitations.email, `%${search}%`));
     }
     
-    return query
+    const results = await query
       .orderBy(desc(companyInvitations.createdAt))
       .limit(limit)
       .offset(offset);
+      
+    return results.map(result => ({
+      ...result,
+      companyId: result.companyId || undefined
+    }));
   }
 
   async countAll(status?: string, search?: string): Promise<number> {

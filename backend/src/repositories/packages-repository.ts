@@ -78,13 +78,16 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
     
     // Add search filter (search in tracking number or internal tracking ID)
     if (filters.search) {
-      conditions.push(
-        or(
-          like(this.table.trackingNumber, `%${filters.search}%`),
-          like(this.table.internalTrackingId, `%${filters.search}%`),
-          like(this.table.description, `%${filters.search}%`)
-        )
-      );
+      const searchConditions = [
+        like(this.table.trackingNumber, `%${filters.search}%`),
+        like(this.table.internalTrackingId, `%${filters.search}%`),
+        like(this.table.description, `%${filters.search}%`)
+      ].filter((condition): condition is SQL<unknown> => condition !== undefined);
+      
+      if (searchConditions.length > 0) {
+        const searchOrCondition = or(...searchConditions) as SQL<unknown>;
+        conditions.push(searchOrCondition);
+      }
     }
     
     // Add date range filters

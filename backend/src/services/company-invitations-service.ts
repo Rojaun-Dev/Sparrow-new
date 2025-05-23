@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { CompanyInvitationsRepository } from '../repositories/company-invitations-repository';
-import { CompanyInvitation, CreateCompanyInvitation, SendInvitationRequest, VerifyInvitationResponse } from '../types/company-invitation';
+import { CreateCompanyInvitation, SendInvitationRequest, VerifyInvitationResponse } from '../types/company-invitation';
 import { EmailService } from './email-service';
 import { AppError } from '../utils/app-error';
 import { UsersService } from './users-service';
@@ -167,31 +167,32 @@ export class CompanyInvitationsService {
   /**
    * Resend an invitation
    */
-  async resendInvitation(id: number, currentUserId: string): Promise<void> {
+  async resendInvitation(id: number): Promise<void> {
     const invitation = await this.companyInvitationsRepo.findById(id);
     
     if (!invitation) {
-      throw new AppError('Invitation not found', 404);
+      throw AppError.notFound('Invitation not found');
     }
-
+    
+    // Check if invitation is pending
     if (invitation.status !== 'pending') {
-      throw new AppError('Cannot resend an invitation that is not pending', 400);
+      throw AppError.badRequest('Only pending invitations can be resent');
     }
-
-    // Generate a new token and expiration date
-    const token = this.generateToken();
-    const expiresAt = this.calculateExpirationDate();
-
-    // Update the invitation
+    
+    // Generate new expiration date (24 hours from now)
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+    
+    // Update invitation with new expiration date
     await this.companyInvitationsRepo.update(id, {
-      token,
       expiresAt,
       updatedAt: new Date()
     });
-
-    // Send invitation email
-    const invitationLink = `${process.env.APP_BASE_URL}/register/company/invite?token=${token}`;
     
+    // Generate the invitation link
+    const invitationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register/company/invite?token=${invitation.token}`;
+    
+    // Send email
     await this.emailService.sendCompanyInvitation(
       invitation.email,
       invitationLink
