@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { userService } from '@/lib/api/userService';
+import { usersService } from '@/lib/api';
 import { User } from '@/lib/api/types';
 
 // Key factory for user queries
@@ -15,7 +15,7 @@ const userKeys = {
 export function useUser(id?: string) {
   return useQuery({
     queryKey: id ? userKeys.detail(id) : userKeys.details(),
-    queryFn: () => userService.getUser(id as string),
+    queryFn: () => usersService.getUser(id as string),
     enabled: !!id, // Only run the query if we have an ID
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

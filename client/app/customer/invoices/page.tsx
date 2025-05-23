@@ -54,7 +54,7 @@ import { Invoice, InvoiceFilterParams } from "@/lib/api/types"
 import { useToast } from "@/components/ui/use-toast"
 import { invoiceService } from "@/lib/api/invoiceService"
 import { packageService } from "@/lib/api/packageService"
-import { userService } from "@/lib/api/userService"
+import { usersService } from "@/lib/api"
 import { companyService } from "@/lib/api/companyService"
 import InvoicePDF from "@/components/invoices/InvoicePDF"
 import { pdf } from "@react-pdf/renderer"
@@ -155,7 +155,7 @@ export default function InvoicesPage() {
       const packages = await packageService.getPackagesByInvoiceId(id);
       
       // Fetch user data
-      const user = await userService.getUser(invoice.userId);
+      const user = await usersService.getUser(invoice.userId);
       
       // Fetch company data
       let company;

@@ -2,7 +2,7 @@
 export type { User, Package, PreAlert, Invoice, Payment } from './types';
 
 // Export API client
-export { apiClient, ApiError } from './apiClient';
+export { apiClient, type ApiError } from './apiClient';
 
 // Export services
 export { packageService } from './packageService';
