@@ -15,11 +15,6 @@ export const revalidate = 0;
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "SparrowX Super Admin Dashboard",
-  description: "Super Admin Dashboard for SparrowX Package Forwarding Platform",
-}
-
 export default function SuperAdminLayout({
   children,
 }: Readonly<{
