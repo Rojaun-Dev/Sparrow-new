@@ -21,7 +21,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
-export function CustomerHeader() {
+export function CustomerHeader({ onDrawerOpen }: { onDrawerOpen: () => void }) {
   const { setTheme } = useTheme()
   const { data: user, isLoading } = useCurrentUser()
   const router = useRouter()
@@ -88,6 +88,18 @@ export function CustomerHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
+      {/* Drawer button for mobile, absolutely positioned bottom-right */}
+      <button
+        className="fixed bottom-4 right-4 z-40 lg:hidden flex items-center justify-center rounded-md border bg-background p-2 shadow-md"
+        style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+        onClick={onDrawerOpen}
+        aria-label="Open menu"
+        type="button"
+      >
+        <svg className="h-6 w-6 text-foreground" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
       <div className="flex items-center gap-2">
         <Link href="/customer" className="flex items-center gap-2">
           <Image src="/placeholder.svg?key=e5zuj" alt="SparrowX Logo" width={32} height={32} className="h-8 w-8" />
