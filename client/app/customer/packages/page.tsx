@@ -198,12 +198,12 @@ export default function PackagesPage() {
           </div>
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
-          <div className="flex items-center justify-between w-full">
-            <Button variant="outline" size="sm" onClick={clearFilters}>
+          <div className="flex flex-col xs:flex-row items-center gap-2 w-full">
+            <Button variant="outline" size="sm" onClick={clearFilters} className="w-full xs:w-auto">
               <X className="mr-2 h-4 w-4" />
               Clear Filters
             </Button>
-            <Button size="sm" onClick={applyFilters}>
+            <Button size="sm" onClick={applyFilters} className="w-full xs:w-auto">
               <Filter className="mr-2 h-4 w-4" />
               Apply Filters
             </Button>
@@ -241,7 +241,7 @@ export default function PackagesPage() {
               No packages found. Try adjusting your filters or create a pre-alert.
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -297,7 +297,7 @@ export default function PackagesPage() {
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
-          <div className="flex items-center justify-between w-full">
+          <div className="flex flex-col gap-2 xs:flex-row xs:items-center xs:justify-between w-full">
             <div className="text-sm text-muted-foreground">
               {packagesData?.pagination && `Page ${packagesData.pagination.page} of ${packagesData.pagination.totalPages}`}
             </div>

@@ -372,7 +372,7 @@ export default function InvoicesPage() {
               No invoices found. Try adjusting your filters.
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -433,7 +433,7 @@ export default function InvoicesPage() {
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
-          <div className="flex items-center justify-between w-full">
+          <div className="flex flex-col gap-2 xs:flex-row xs:items-center xs:justify-between w-full">
             <div className="text-sm text-muted-foreground">
               {invoicesData?.pagination && 
                 `Page ${invoicesData.pagination.page} of ${invoicesData.pagination.totalPages}`
