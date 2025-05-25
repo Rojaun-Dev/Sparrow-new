@@ -1,3 +1,5 @@
+'use client'
+
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
@@ -10,17 +12,10 @@ import { useState } from "react"
 
 // Config to prevent static optimization
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "SparrowX Super Admin Dashboard",
-  description: "Super Admin Dashboard for SparrowX Package Forwarding Platform",
-}
-
 // Client component wrapper to handle sidebar state
-'use client'
 function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   
