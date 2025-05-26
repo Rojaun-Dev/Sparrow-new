@@ -17,9 +17,12 @@ sparrowx/
 │   │   ├── tables/          # Table components
 │   │   └── layout/          # Layout components
 │   ├── app/                 # Next.js app directory
-│   │   ├── auth/            # JWT authentication routes (DEPRECATED: previously Auth0)
+│   │   ├── auth/            # JWT authentication routes
 │   │   ├── dashboard/       # Dashboard routes
 │   │   ├── customers/       # Customer management routes
+│   │   ├── admin/          # Admin portal routes
+│   │   │   ├── l1/         # Admin L1 routes
+│   │   │   └── l2/         # Admin L2 routes
 │   │   └── ...              # Other feature routes
 │   ├── hooks/               # Custom React hooks
 │   ├── lib/                 # Utility functions
@@ -89,27 +92,31 @@ sparrowx/
    - Implement Skeleton/Spinner components for loading states
 
 4. **Authentication**
-   - Use JWT for authentication flows (DEPRECATED: previously Auth0 SDK)
+   - Use JWT for authentication flows
    - Extract company_id and roles from JWT tokens
    - Create protected route wrappers based on user roles
+   - Implement role-based access control for all routes
 
 5. **Multi-Tenant UI**
    - Use React Context for dynamic company theming
    - Implement a ThemeProvider that loads tenant-specific styles
    - Load company assets (logo, banner) based on current tenant
    - Apply tenant-specific primary/accent colors to components
+   - Support custom branding for each company
 
 6. **Forms**
    - Use Zod schemas for form validation
    - Implement standardized error handling
    - Use react-hook-form for form state management
    - Disable submit buttons until forms are valid
+   - Implement proper form feedback for all user actions
 
 7. **Accessibility**
    - Use semantic HTML elements
    - Include ARIA attributes where appropriate
    - Ensure keyboard navigation works for all interactive elements
    - Maintain WCAG AA compliance for color contrast
+   - Support screen readers and assistive technologies
 
 ### Backend (Express.js) Rules
 
@@ -118,27 +125,32 @@ sparrowx/
    - Follow RESTful naming conventions for endpoints
    - Version all API routes (e.g., `/api/v1/...`)
    - Return consistent response formats
+   - Implement proper error handling and status codes
 
 2. **Multi-Tenant Security**
    - Implement tenant middleware to extract company_id from JWT
    - Add company_id filtering to all database queries
    - Validate tenant access in service methods
+   - Implement proper role-based access control
 
 3. **Validation**
    - Use Zod schemas for all request validation
    - Implement a validation middleware
    - Return standardized error responses for validation failures
+   - Validate all input data before processing
 
 4. **Authentication & Authorization**
-   - Implement `checkJwt` middleware to verify JWT tokens (DEPRECATED: previously Auth0 tokens)
+   - Implement `checkJwt` middleware to verify JWT tokens
    - Create `checkRole(role)` middleware for authorization
    - Include proper error handling for expired/invalid tokens
+   - Implement proper session management
 
 5. **Error Handling**
    - Use custom error classes for different error types
    - Implement a global error handler middleware
    - Log all errors with appropriate context
    - Return user-friendly error messages
+   - Include proper error tracking and monitoring
 
 ### Database Rules
 
@@ -147,6 +159,7 @@ sparrowx/
    - Use UUIDs for all primary keys
    - Include company_id as foreign key in every table
    - Add created_at/updated_at timestamps to all tables
+   - Implement proper indexing for performance
 
 2. **Drizzle ORM Usage**
    - Define schemas in separate files
@@ -159,12 +172,14 @@ sparrowx/
    - Index company_id columns for query performance
    - Add composite indexes for frequently filtered columns
    - Index foreign keys and frequently searched fields
+   - Monitor and optimize query performance
 
 4. **Migrations**
    - Use Drizzle's migration system
    - Test migrations thoroughly before deployment
    - Include both up and down migration scripts
    - Run migrations automatically during deployment
+   - Maintain migration history
 
 ## Security Guidelines
 
@@ -173,18 +188,21 @@ sparrowx/
    - Check role permissions before data access/modification
    - Never trust client-side authorization
    - Implement proper CORS configuration
+   - Use secure session management
 
 2. **Data Protection**
    - Never expose company_id in client-facing responses
    - Sanitize all user inputs
    - Use parameterized queries to prevent SQL injection
    - Implement rate limiting for authentication endpoints
+   - Encrypt sensitive data at rest
 
 3. **Multi-Tenant Isolation**
    - Always filter by company_id in database queries
    - Verify tenant access in all service methods
    - Log all cross-tenant access attempts
    - Implement tenant context validation middleware
+   - Maintain strict data isolation between tenants
 
 ## Testing Requirements
 
@@ -193,17 +211,21 @@ sparrowx/
    - Use React Testing Library and Jest
    - Test all user interactions and state changes
    - Implement Cypress for E2E testing of critical flows
+   - Test multi-tenant functionality
 
 2. **Backend Testing**
    - Write unit tests for all services and controllers
    - Test multi-tenant filters and access controls
    - Mock database and external service dependencies
    - Implement integration tests for API endpoints
+   - Test authentication and authorization
 
 3. **Database Testing**
    - Test migrations against a test database
    - Verify multi-tenant isolation in queries
    - Test performance of complex queries
+   - Validate data integrity
+   - Test backup and recovery procedures
 
 ## Magaya Integration
 
@@ -213,12 +235,15 @@ sparrowx/
    - Log all integration activities
    - Add retry logic for failed requests
    - Implement error handling for schema mismatches
+   - Maintain data consistency between systems
 
 2. **Synchronization**
    - Implement cron jobs for scheduled synchronization
    - Track data source (manual vs magaya) for all packages
    - Allow manual overrides for imported data
    - Validate data integrity before saving
+   - Handle synchronization conflicts
+   - Implement proper error recovery
 
 ## Deployment Guidelines
 
@@ -226,18 +251,21 @@ sparrowx/
    - Use environment variables for configuration
    - Implement separate configurations for development, staging, and production
    - Never commit sensitive information to the repository
+   - Use secure secret management
 
 2. **CI/CD Pipeline**
    - Run linting and tests on each commit
    - Require code reviews for PRs to main branches
    - Automate deployments to staging and production
    - Include database migration steps in deployment process
+   - Implement proper rollback procedures
 
 3. **Monitoring**
    - Implement logging for all critical operations
    - Set up error tracking
    - Monitor API performance and database metrics
    - Create alerts for system issues
+   - Track user activity and system usage
 
 ## Documentation Requirements
 
@@ -245,14 +273,18 @@ sparrowx/
    - Use JSDoc comments for all functions and types
    - Document complex business logic
    - Update documentation when code changes
+   - Include examples for complex operations
 
 2. **API Documentation**
    - Create and maintain OpenAPI specification
    - Document all endpoints, parameters, and responses
    - Include authentication requirements
    - Provide example requests and responses
+   - Document rate limits and error codes
 
 3. **User Documentation**
    - Create documentation for all user-facing features
    - Include screenshots and step-by-step instructions
-   - Update documentation when features change 
+   - Update documentation when features change
+   - Provide troubleshooting guides
+   - Include role-specific documentation 

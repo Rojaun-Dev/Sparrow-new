@@ -22,6 +22,9 @@
 - [Environment Configuration](#environment-configuration)
 - [Development Tools](#development-tools)
 - [Best Practices](#best-practices)
+- [Multi-Tenant Data Isolation](#multi-tenant-data-isolation)
+- [Performance Optimization](#performance-optimization)
+- [Backup and Recovery](#backup-and-recovery)
 
 ## Overview
 
@@ -35,6 +38,26 @@ The database follows a multi-tenant architecture where:
 - All tables include a `companyId` field to enforce data isolation
 - UUID primary keys are used across all tables
 - Timestamp fields track record creation and updates
+- Row-level security policies enforce tenant isolation
+- Cascading deletes maintain referential integrity
+
+### Key Tables and Relationships
+
+1. **Core Tables**:
+   - `companies`: Root table for tenant data
+   - `users`: User accounts with role-based access
+   - `packages`: Package tracking and management
+   - `pre_alerts`: Package pre-alerts
+   - `invoices`: Billing and invoicing
+   - `payments`: Payment processing
+   - `fees`: Fee configuration and calculation
+   - `company_settings`: Tenant-specific settings
+   - `audit_logs`: System-wide activity tracking
+
+2. **Supporting Tables**:
+   - `invoice_items`: Line items for invoices
+   - `company_assets`: Company branding assets
+   - `company_invitations`: Company onboarding process
 
 For a detailed view of the database schema, tables, and relationships, see the [Database Schema Documentation](./SCHEMA_DOCUMENTATION.md).
 
@@ -52,11 +75,13 @@ Each table has its own schema file (e.g., `users.ts`, `companies.ts`) with TypeS
 2. Establish relationships
 3. Set default values
 4. Configure constraints
+5. Define indexes for performance
+6. Set up cascading behaviors
 
 Example schema file structure:
 
 ```typescript
-import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 
 export const tableName = pgTable('table_name', {
@@ -65,18 +90,36 @@ export const tableName = pgTable('table_name', {
     onDelete: 'cascade',
   }),
   name: text('name').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  companyIdIdx: index('company_id_idx').on(table.companyId),
+  nameIdx: index('name_idx').on(table.name),
+}));
 ```
 
 ### Important Schema Notes
 
 1. **Internal Tracking IDs**: For packages, an `internalTrackingId` field is required and must be unique. This is used for internal reference and should be generated using a consistent pattern (e.g., company prefix + sequential number).
 
-2. **Enum Types**: Several tables use PostgreSQL enum types to restrict field values (e.g., package status, payment methods). When adding new values to these enums, a migration must be generated.
+2. **Enum Types**: Several tables use PostgreSQL enum types to restrict field values:
+   - `userRoleEnum`: customer, admin_l1, admin_l2, super_admin
+   - `packageStatusEnum`: pre_alert, received, processed, ready_for_pickup, delivered, returned
+   - `paymentMethodEnum`: credit_card, bank_transfer, cash, check
+   - `calculationMethodEnum`: fixed, percentage, per_weight, per_item, dimensional, tiered
 
-3. **JSONB Fields**: The database makes extensive use of JSONB fields for flexible data storage (e.g., package dimensions, sender information). These fields can store complex nested data structures.
+3. **JSONB Fields**: The database makes extensive use of JSONB fields for flexible data storage:
+   - Package dimensions and sender information
+   - Company settings and configurations
+   - Fee calculation metadata
+   - Audit log details
+
+4. **Indexing Strategy**:
+   - Primary indexes on UUID fields
+   - Secondary indexes on frequently queried fields
+   - Composite indexes for common query patterns
+   - Full-text search indexes where needed
 
 ### Fee Structure
 
@@ -138,7 +181,75 @@ The `metadata` JSONB field in the fees table stores method-specific configuratio
    }
    ```
 
-When creating or updating fee records, ensure the metadata structure matches the calculation method to avoid calculation errors.
+## Multi-Tenant Data Isolation
+
+The platform implements strict data isolation between tenants through multiple layers:
+
+1. **Database Level**:
+   - Foreign key constraints with `companyId`
+   - Row-level security policies
+   - Cascading deletes for company removal
+
+2. **Application Level**:
+   - Middleware to extract and validate `companyId`
+   - Service layer filtering
+   - Repository pattern with tenant context
+
+3. **Query Level**:
+   - Automatic `companyId` filtering in all queries
+   - Superadmin bypass with audit logging
+   - Cross-tenant operation tracking
+
+4. **Security Measures**:
+   - JWT claims for tenant identification
+   - Role-based access control
+   - Audit logging of all operations
+
+## Performance Optimization
+
+1. **Indexing Strategy**:
+   - Primary indexes on UUID fields
+   - Secondary indexes on frequently queried fields
+   - Composite indexes for common query patterns
+   - Full-text search indexes where needed
+
+2. **Query Optimization**:
+   - Use prepared statements
+   - Implement pagination for large result sets
+   - Optimize JOIN operations
+   - Use appropriate data types
+
+3. **Connection Management**:
+   - Connection pooling (max 20 connections)
+   - Idle timeout (30 seconds)
+   - Connection timeout (2 seconds)
+   - SSL support for secure connections
+
+4. **Monitoring and Maintenance**:
+   - Regular index maintenance
+   - Query performance monitoring
+   - Database statistics collection
+   - Vacuum and analyze operations
+
+## Backup and Recovery
+
+1. **Backup Strategy**:
+   - Daily automated backups
+   - Point-in-time recovery capability
+   - Cross-region replication
+   - Backup verification
+
+2. **Recovery Procedures**:
+   - Documented recovery steps
+   - Regular recovery testing
+   - Data integrity verification
+   - Minimal downtime procedures
+
+3. **Disaster Recovery**:
+   - Cross-region failover
+   - Data replication
+   - Emergency procedures
+   - Business continuity plan
 
 ## Migrations
 

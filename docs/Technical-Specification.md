@@ -21,16 +21,23 @@ SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwardin
 - **Sign-Up / Login**:
   - Customers register via /api/companies/:companyId/customers.
   - Employees (L2) are invited via admin interface (DEPRECATED: previously via Auth0 Management API).
+  - Superadmins are created through system initialization or by existing superadmins.
 - **Roles**:
   - **Customer**: Access to their own packages, prealerts, invoices.
   - **Admin L1**: Customer and package management, bill generation, payments.
   - **Admin L2**: All L1 rights plus employee management, company settings, fee configuration.
+  - **Superadmin**: System-wide access including:
+    - Company management and onboarding
+    - Cross-tenant user management
+    - System-wide monitoring and statistics
+    - Platform administration and configuration
+    - Audit log access and security management
 - **Middleware**: checkJwt verifies JWT, checkRole(role) enforces RBAC.
 - **Password Policies**: Enforced through application, requiring strong passwords and MFA for admins.
 - **Session Management**: JWT-based with configurable expiration and refresh token rotation.
 
 ## 4. Database Schema & Drizzle Migrations
-Below is the consolidated, multi-tenant database schema. All tables include a company_id foreign key (UUID) to enforce tenant isolation. Primary keys use UUIDs to simplify federation and security.
+The system uses PostgreSQL with Drizzle ORM for database management. All tables include a company_id foreign key (UUID) to enforce tenant isolation. Primary keys use UUIDs to simplify federation and security.
 
 ### Core Tables and Field Descriptions
 
@@ -44,181 +51,271 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
 - **locations** (TEXT[]): Locations where users can pick up their packages.
 - **email** (TEXT): Support or general contact email (unique).
 - **website** (TEXT): Company website URL.
-- **bank_info** (TEXT): Banking details for payments.
-- **created_at** (TIMESTAMPTZ): Record creation timestamp.
-- **updated_at** (TIMESTAMPTZ): Last modification timestamp.
-
-#### company_assets
-- **id** (UUID PK): Unique asset identifier.
-- **company_id** (UUID FK): References companies.id to tie asset to tenant.
-- **type** (ENUM): Asset type, one of (logo, banner, favicon, small_logo).
-- **url** (TEXT): Public URL of the stored asset.
-- **created_at** (TIMESTAMPTZ): When the asset was uploaded.
+- **bankInfo** (TEXT): Banking details for payments.
+- **createdAt** (TIMESTAMPTZ): Record creation timestamp.
+- **updatedAt** (TIMESTAMPTZ): Last modification timestamp.
 
 #### users
 - **id** (UUID PK): Unique identifier for all user accounts.
-- **company_id** (UUID FK): References tenant to which user belongs.
+- **companyId** (UUID FK): References tenant to which user belongs.
 - **email** (TEXT): User login email (unique).
-- **password_hash** (TEXT): Bcrypt hashed password for JWT authentication.
-- **first_name** (TEXT): User's first name.
-- **last_name** (TEXT): User's last name.
+- **passwordHash** (TEXT): Bcrypt hashed password for JWT authentication.
+- **firstName** (TEXT): User's first name.
+- **lastName** (TEXT): User's last name.
 - **phone** (TEXT): Contact phone number.
 - **address** (TEXT): Physical address.
-- **role** (ENUM): User role (customer, admin_l1, admin_l2).
-- **auth0_id** (TEXT): [DEPRECATED] Auth0 user identifier.
-- **is_active** (BOOLEAN): Account status.
-- **created_at** (TIMESTAMPTZ): Account creation date.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **trn** (TEXT): Tax Registration Number.
+- **role** (ENUM): User role (customer, admin_l1, admin_l2, super_admin).
+- **isActive** (BOOLEAN): Account status.
+- **isVerified** (BOOLEAN): Email verification status.
+- **verificationToken** (TEXT): Token for email verification.
+- **verificationTokenExpires** (TIMESTAMPTZ): Expiration time for verification token.
+- **notificationPreferences** (JSONB): User notification settings.
+- **resetToken** (TEXT): Password reset token.
+- **resetTokenExpires** (TIMESTAMPTZ): Password reset token expiration.
+- **createdAt** (TIMESTAMPTZ): Account creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
 
 #### packages
 - **id** (UUID PK): Unique package identifier.
-- **company_id** (UUID FK): References companies.id.
-- **user_id** (UUID FK): References users.id, package owner.
-- **tracking_number** (TEXT): Original shipper's tracking number.
-- **internal_tracking_id** (TEXT): Company-generated tracking ID.
+- **companyId** (UUID FK): References companies.id.
+- **userId** (UUID FK): References users.id, package owner.
+- **trackingNumber** (TEXT): Original shipper's tracking number.
+- **internalTrackingId** (TEXT): Company-generated tracking ID (unique).
 - **status** (ENUM): Package status (pre_alert, received, processed, ready_for_pickup, delivered, returned).
 - **description** (TEXT): Package contents description.
 - **weight** (DECIMAL): Weight in pounds.
 - **dimensions** (JSONB): Object with dimensions (length, width, height in inches).
-- **declared_value** (DECIMAL): Value declared for customs.
-- **sender_info** (JSONB): Information about the original sender.
+- **declaredValue** (DECIMAL): Value declared for customs.
+- **senderInfo** (JSONB): Information about the original sender.
 - **tags** (TEXT[]): Array of tags for categorizing and filtering packages.
-- **received_date** (TIMESTAMPTZ): When package was received at warehouse.
-- **processing_date** (TIMESTAMPTZ): When package was processed.
+- **receivedDate** (TIMESTAMPTZ): When package was received at warehouse.
+- **processingDate** (TIMESTAMPTZ): When package was processed.
 - **photos** (TEXT[]): Array of photo URLs.
 - **notes** (TEXT): Internal notes about the package.
-- **created_at** (TIMESTAMPTZ): Record creation date.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **createdAt** (TIMESTAMPTZ): Record creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
 
 #### pre_alerts
 - **id** (UUID PK): Unique pre-alert identifier.
-- **company_id** (UUID FK): References companies.id.
-- **user_id** (UUID FK): References users.id.
-- **tracking_number** (TEXT): Original shipper's tracking number.
+- **companyId** (UUID FK): References companies.id.
+- **userId** (UUID FK): References users.id.
+- **trackingNumber** (TEXT): Original shipper's tracking number.
 - **courier** (TEXT): Shipping courier (USPS, FedEx, etc.).
 - **description** (TEXT): Expected package contents.
-- **estimated_weight** (DECIMAL): Estimated weight in pounds.
-- **estimated_arrival** (TIMESTAMPTZ): Expected arrival date.
-- **package_id** (UUID FK): References packages.id, initially NULL until matched.
+- **estimatedWeight** (DECIMAL): Estimated weight in pounds.
+- **estimatedArrival** (TIMESTAMPTZ): Expected arrival date.
+- **packageId** (UUID FK): References packages.id, initially NULL until matched.
 - **status** (ENUM): Status (pending, matched, cancelled).
-- **created_at** (TIMESTAMPTZ): When pre-alert was created.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **createdAt** (TIMESTAMPTZ): When pre-alert was created.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
 
 #### invoices
 - **id** (UUID PK): Unique invoice identifier.
-- **company_id** (UUID FK): References companies.id.
-- **user_id** (UUID FK): References users.id, customer being billed.
-- **invoice_number** (TEXT): Human-readable invoice number.
+- **companyId** (UUID FK): References companies.id.
+- **userId** (UUID FK): References users.id, customer being billed.
+- **invoiceNumber** (TEXT): Human-readable invoice number.
 - **status** (ENUM): Status (draft, issued, paid, cancelled, overdue).
-- **issue_date** (TIMESTAMPTZ): When invoice was issued.
-- **due_date** (TIMESTAMPTZ): Payment due date.
+- **issueDate** (TIMESTAMPTZ): When invoice was issued.
+- **dueDate** (TIMESTAMPTZ): Payment due date.
 - **subtotal** (DECIMAL): Sum of line items before taxes.
-- **tax_amount** (DECIMAL): Applied taxes.
-- **total_amount** (DECIMAL): Final invoice amount.
+- **taxAmount** (DECIMAL): Applied taxes.
+- **totalAmount** (DECIMAL): Final invoice amount.
 - **notes** (TEXT): Additional invoice notes.
-- **created_at** (TIMESTAMPTZ): Record creation date.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **createdAt** (TIMESTAMPTZ): Record creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
 
 #### invoice_items
 - **id** (UUID PK): Unique line item identifier.
-- **company_id** (UUID FK): References companies.id.
-- **invoice_id** (UUID FK): References invoices.id.
-- **package_id** (UUID FK): References packages.id, can be NULL.
+- **companyId** (UUID FK): References companies.id.
+- **invoiceId** (UUID FK): References invoices.id.
+- **packageId** (UUID FK): References packages.id, can be NULL.
 - **description** (TEXT): Service description.
 - **quantity** (INTEGER): Number of units.
-- **unit_price** (DECIMAL): Price per unit.
-- **line_total** (DECIMAL): Line item total (quantity * unit_price).
+- **unitPrice** (DECIMAL): Price per unit.
+- **lineTotal** (DECIMAL): Line item total (quantity * unit_price).
 - **type** (ENUM): Item type (shipping, handling, customs, tax, other).
-- **created_at** (TIMESTAMPTZ): Record creation date.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **createdAt** (TIMESTAMPTZ): Record creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
 
 #### payments
 - **id** (UUID PK): Unique payment identifier.
-- **company_id** (UUID FK): References companies.id.
-- **invoice_id** (UUID FK): References invoices.id.
-- **user_id** (UUID FK): References users.id, payer.
+- **companyId** (UUID FK): References companies.id.
+- **invoiceId** (UUID FK): References invoices.id.
+- **userId** (UUID FK): References users.id, payer.
 - **amount** (DECIMAL): Payment amount.
-- **payment_method** (ENUM): Method (credit_card, bank_transfer, cash, check).
+- **paymentMethod** (ENUM): Method (credit_card, bank_transfer, cash, check).
 - **status** (ENUM): Status (pending, completed, failed, refunded).
-- **transaction_id** (TEXT): External payment processor reference.
-- **payment_date** (TIMESTAMPTZ): When payment was processed.
+- **transactionId** (TEXT): External payment processor reference.
+- **paymentDate** (TIMESTAMPTZ): When payment was processed.
 - **notes** (TEXT): Payment notes.
-- **created_at** (TIMESTAMPTZ): Record creation date.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **createdAt** (TIMESTAMPTZ): Record creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
 
 #### company_settings
 - **id** (UUID PK): Unique settings identifier.
-- **company_id** (UUID FK): References companies.id.
-- **shipping_rates** (JSONB): Structure defining shipping rate calculation.
-- **handling_fees** (JSONB): Structure defining handling fee calculation.
-- **customs_fees** (JSONB): Structure defining customs fee calculation.
-- **tax_rates** (JSONB): Applied tax rates.
-- **notification_settings** (JSONB): Email/SMS notification preferences.
-- **theme_settings** (JSONB): UI theme configuration.
-- **created_at** (TIMESTAMPTZ): Record creation date.
-- **updated_at** (TIMESTAMPTZ): Last update timestamp.
+- **companyId** (UUID FK): References companies.id (unique).
+- **shippingRates** (JSONB): Structure defining shipping rate calculation.
+- **handlingFees** (JSONB): Structure defining handling fee calculation.
+- **customsFees** (JSONB): Structure defining customs fee calculation.
+- **taxRates** (JSONB): Applied tax rates.
+- **notificationSettings** (JSONB): Email/SMS notification preferences.
+- **themeSettings** (JSONB): UI theme configuration.
+- **createdAt** (TIMESTAMPTZ): Record creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
+
+#### fees
+- **id** (UUID PK): Unique fee identifier.
+- **companyId** (UUID FK): References companies.id.
+- **name** (VARCHAR): Fee name.
+- **code** (VARCHAR): Unique fee code.
+- **feeType** (ENUM): Type (tax, service, shipping, handling, customs, other).
+- **calculationMethod** (ENUM): Method of calculation.
+- **amount** (DECIMAL): Base amount or rate.
+- **currency** (VARCHAR): Currency code (default: USD).
+- **appliesTo** (JSONB): Conditions for fee application.
+- **metadata** (JSONB): Additional fee configuration.
+- **description** (TEXT): Fee description.
+- **isActive** (BOOLEAN): Fee status.
+- **createdAt** (TIMESTAMPTZ): Record creation date.
+- **updatedAt** (TIMESTAMPTZ): Last update timestamp.
+
+#### company_assets
+- **id** (UUID PK): Unique asset identifier.
+- **companyId** (UUID FK): References companies.id.
+- **type** (ENUM): Asset type (logo, banner, favicon, small_logo).
+- **url** (TEXT): Public URL of the stored asset.
+- **createdAt** (TIMESTAMPTZ): When the asset was uploaded.
+
+#### audit_logs
+- **id** (UUID PK): Unique log identifier.
+- **userId** (UUID FK): References users.id.
+- **companyId** (UUID FK): References companies.id.
+- **action** (TEXT): Action performed.
+- **entityType** (TEXT): Type of entity affected.
+- **entityId** (UUID): ID of affected entity.
+- **details** (JSONB): Additional action details.
+- **ipAddress** (TEXT): IP address of the user.
+- **userAgent** (TEXT): User's browser/client information.
+- **createdAt** (TIMESTAMPTZ): When the action was performed.
+
+#### company_invitations
+- **id** (SERIAL PK): Unique invitation identifier.
+- **status** (ENUM): Status (pending, accepted, expired, cancelled).
+- **createdAt** (TIMESTAMPTZ): When the invitation was created.
+
+### Database Migrations
+The system uses Drizzle ORM for database migrations. Migrations are stored in the `src/db/migrations` directory and are automatically applied during deployment. The migration process ensures:
+
+1. Schema versioning and tracking
+2. Safe schema updates
+3. Data integrity during migrations
+4. Rollback capabilities
+
+### Database Connection
+The system uses a connection pool for database access with the following configuration:
+- Maximum pool size: 20 connections
+- Idle timeout: 30 seconds
+- Connection timeout: 2 seconds
+- SSL support for secure connections
+
+### Data Isolation
+Multi-tenant data isolation is enforced through:
+1. Company ID foreign keys on all tables
+2. Middleware that filters queries by company ID
+3. Row-level security policies
+4. Cascading deletes for company removal
 
 ## 5. API Endpoints
 
-### Authentication Endpoints
-- **POST /api/auth/login**: Authenticate user and return JWT (DEPRECATED: previously Auth0 JWT verification on all protected routes)
-- **POST /api/auth/signup**: Create new customer account
-- **POST /api/auth/refresh**: Refresh JWT token
-- **GET /api/auth/me**: Get current user profile
+### Authentication
+- **POST   /api/auth/login** — Login and get JWT
+- **POST   /api/auth/signup** — Register new user (if enabled)
+- **POST   /api/auth/refresh** — Refresh JWT
+- **GET    /api/auth/me** — Get current user profile
+- **PUT    /api/auth/profile** — Update current user profile
+- **PUT    /api/auth/change-password** — Change password
+- **POST   /api/auth/reset-password** — Reset password with token
+- **PUT    /api/auth/me/notifications** — Update notification preferences
 
-### Company Management
-- **GET /api/companies**: List all companies (super admin only)
-- **POST /api/companies**: Create new company (super admin only)
-- **GET /api/companies/:id**: Get company details
-- **PUT /api/companies/:id**: Update company details
-- **DELETE /api/companies/:id**: Deactivate company
+### Companies
+- **GET    /api/companies** — List all companies (Superadmin only)
+- **POST   /api/companies** — Create new company (Superadmin only)
+- **GET    /api/companies/:id** — Get company details (Superadmin only)
+- **PUT    /api/companies/:id** — Update company (Superadmin only)
+- **DELETE /api/companies/:id** — Delete/deactivate company (Superadmin only)
+- **GET    /api/companies/:id/statistics** — Company statistics (Superadmin only)
 
-### User Management
-- **GET /api/companies/:companyId/users**: List all users for company
-- **POST /api/companies/:companyId/users**: Create new user
-- **GET /api/companies/:companyId/users/:id**: Get user details
-- **PUT /api/companies/:companyId/users/:id**: Update user
-- **DELETE /api/companies/:companyId/users/:id**: Deactivate user
+### Users
+- **GET    /api/users** — List all users across companies (Superadmin only)
+- **POST   /api/users** — Create admin user for any company (Superadmin only)
+- **GET    /api/users/:id/activity** — Get user activity logs (Superadmin only)
+- **GET    /api/companies/:companyId/users** — List company users
+- **POST   /api/companies/:companyId/users** — Create user
+- **GET    /api/companies/:companyId/users/:id** — Get user details
+- **PUT    /api/companies/:companyId/users/:id** — Update user
+- **DELETE /api/companies/:companyId/users/:id** — Deactivate user
 
-### Package Management
-- **GET /api/companies/:companyId/packages**: List packages for company
-- **POST /api/companies/:companyId/packages**: Register new package
-- **GET /api/companies/:companyId/packages/:id**: Get package details
-- **PUT /api/companies/:companyId/packages/:id**: Update package
-- **DELETE /api/companies/:companyId/packages/:id**: Mark package as deleted
+### Packages
+- **GET    /api/companies/:companyId/packages** — List packages
+- **GET    /api/companies/:companyId/packages/search** — Search/filter packages
+- **POST   /api/companies/:companyId/packages** — Register new package
+- **GET    /api/companies/:companyId/packages/:id** — Get package details
+- **PUT    /api/companies/:companyId/packages/:id** — Update package
+- **DELETE /api/companies/:companyId/packages/:id** — Mark package as deleted
 
-### Pre-alert Management
-- **GET /api/companies/:companyId/prealerts**: List pre-alerts
-- **POST /api/companies/:companyId/prealerts**: Create pre-alert
-- **GET /api/companies/:companyId/prealerts/:id**: Get pre-alert details
-- **PUT /api/companies/:companyId/prealerts/:id**: Update pre-alert
-- **DELETE /api/companies/:companyId/prealerts/:id**: Cancel pre-alert
+### Pre-alerts
+- **GET    /api/companies/:companyId/prealerts** — List pre-alerts
+- **POST   /api/companies/:companyId/prealerts** — Create pre-alert
+- **GET    /api/companies/:companyId/prealerts/:id** — Get pre-alert details
+- **PUT    /api/companies/:companyId/prealerts/:id** — Update pre-alert
+- **DELETE /api/companies/:companyId/prealerts/:id** — Cancel pre-alert
 
-### Invoice Management
-- **GET /api/companies/:companyId/invoices**: List invoices
-- **POST /api/companies/:companyId/invoices**: Create invoice
-- **GET /api/companies/:companyId/invoices/:id**: Get invoice details
-- **PUT /api/companies/:companyId/invoices/:id**: Update invoice
-- **POST /api/companies/:companyId/invoices/:id/finalize**: Finalize and issue invoice
-- **POST /api/companies/:companyId/invoices/:id/cancel**: Cancel invoice
+### Invoices
+- **GET    /api/companies/:companyId/invoices** — List invoices
+- **POST   /api/companies/:companyId/invoices** — Create invoice
+- **GET    /api/companies/:companyId/invoices/:id** — Get invoice details
+- **PUT    /api/companies/:companyId/invoices/:id** — Update invoice
+- **POST   /api/companies/:companyId/invoices/:id/finalize** — Finalize invoice
+- **POST   /api/companies/:companyId/invoices/:id/cancel** — Cancel invoice
 
-### Payment Management
-- **GET /api/companies/:companyId/payments**: List payments
-- **POST /api/companies/:companyId/payments**: Record payment
-- **GET /api/companies/:companyId/payments/:id**: Get payment details
-- **POST /api/companies/:companyId/payments/:id/refund**: Process refund
+### Payments
+- **GET    /api/companies/:companyId/payments** — List payments
+- **POST   /api/companies/:companyId/payments** — Record payment
+- **GET    /api/companies/:companyId/payments/:id** — Get payment details
+- **POST   /api/companies/:companyId/payments/:id/refund** — Process refund
 
-### Settings Management
-- **GET /api/companies/:companyId/settings**: Get company settings
-- **PUT /api/companies/:companyId/settings**: Update company settings
+### Company Settings
+- **GET    /api/companies/:companyId/settings** — Get settings
+- **PUT    /api/companies/:companyId/settings** — Update settings
+- **PUT    /api/companies/:companyId/settings/shipping-rates** — Update shipping rates
+- **PUT    /api/companies/:companyId/settings/handling-fees** — Update handling fees
+- **PUT    /api/companies/:companyId/settings/customs-fees** — Update customs fees
+- **PUT    /api/companies/:companyId/settings/tax-rates** — Update tax rates
 
-### Fee Management
-- **GET /api/companies/:companyId/fees**: List all fees for company
-- **POST /api/companies/:companyId/fees**: Create new fee
-- **GET /api/companies/:companyId/fees/:id**: Get fee details
-- **PUT /api/companies/:companyId/fees/:id**: Update fee
-- **DELETE /api/companies/:companyId/fees/:id**: Deactivate fee
-- **POST /api/companies/:companyId/fees/calculate**: Calculate fees for a specific package
+### Fees
+- **GET    /api/companies/:companyId/fees** — List all fees
+- **GET    /api/companies/:companyId/fees/active** — List active fees
+- **GET    /api/companies/:companyId/fees/:id** — Get fee details
+- **POST   /api/companies/:companyId/fees** — Create fee
+- **PUT    /api/companies/:companyId/fees/:id** — Update fee
+- **DELETE /api/companies/:companyId/fees/:id** — Delete fee
+
+### Billing
+- **GET    /api/companies/:companyId/billing/packages/:packageId/fees** — Calculate package fees
+- **POST   /api/companies/:companyId/billing/invoices/preview** — Preview invoice calculation
+- **POST   /api/companies/:companyId/billing/invoices/generate** — Generate invoice for packages
+- **POST   /api/companies/:companyId/billing/users/:userId/generate-invoice** — Generate invoice for all unbilled packages of a user
+
+### Statistics
+- **GET    /api/statistics/customer** — Customer dashboard stats
+- **GET    /api/statistics/admin** — Admin dashboard stats
+- **GET    /api/statistics/superadmin** — System-wide statistics including:
+  - Total companies, users, and packages
+  - Platform-wide revenue metrics
+  - Company performance analytics
+  - User distribution and activity
+  - Revenue trends and growth metrics
 
 ## 6. Frontend Architecture
 
@@ -240,6 +337,13 @@ Below is the consolidated, multi-tenant database schema. All tables include a co
   - Reports
   - Company Settings (L2 only)
   - Employee Management (L2 only)
+- **Superadmin Portal**:
+  - System Dashboard
+  - Company Management
+  - Cross-tenant User Management
+  - System-wide Statistics
+  - Audit Logs
+  - Security Settings
 
 ### Component Architecture
 - **Layout Components**: AppShell, Navbar, Sidebar, Footer
@@ -359,9 +463,12 @@ The customer portal provides several integration points for custom implementatio
 For detailed integration instructions, refer to the [Customer Portal Integration Guide](./CUSTOMER-PORTAL-INTEGRATION.md).
 
 ## 9. Security Measures
-- **Authentication**: Auth0 JWT verification on all protected routes
+- **Authentication**: JWT verification on all protected routes
 - **Authorization**: Role-based access control on both frontend and backend
-- **Data Isolation**: Tenant filtering on all database queries
+- **Data Isolation**: 
+  - Tenant filtering on all database queries
+  - Superadmin bypass for system-wide access
+  - Audit logging of all cross-tenant operations
 - **Input Validation**: Zod schema validation on all API endpoints
 - **CSRF Protection**: Token-based protection for state-changing operations
 - **Rate Limiting**: API rate limiting to prevent abuse
@@ -370,7 +477,10 @@ For detailed integration instructions, refer to the [Customer Portal Integration
   - Parameterized queries to prevent SQL injection
   - Encryption of sensitive fields
   - Row-level security policies
-- **Audit Logging**: Comprehensive logging of security-relevant events
+- **Audit Logging**: 
+  - Comprehensive logging of security-relevant events
+  - Cross-tenant operation tracking
+  - System-wide activity monitoring
 - **Regular Security Audits**: Scheduled security reviews and penetration testing
 
 ## 10. External Integrations
@@ -381,7 +491,7 @@ For detailed integration instructions, refer to the [Customer Portal Integration
 - **Development Environment**:
   - Local Docker setup
   - Development database
-  - Auth0 tenant for development
+  - Auth0 tenant for development(deprecated)
 - **Production Environment**:
   - Load-balanced AWS EC2 instances for backend
   - Vercel production deployment for frontend
@@ -468,14 +578,20 @@ For detailed integration instructions, refer to the [Customer Portal Integration
   - Basic package tracking
   - Simple invoicing
   - Customer portal
+  - Admin l1 and l2 portal
+  - Company onboarding
+  - Employee Onboarding (Admin L1)
+  - Package, User(Customer, Admins) Management
+  - Magaya Integration.
+  - Fee Management
+  - Company Branding(logo, banner, etc)
 - **Phase 2**:
   - Advanced reporting
-  - Integration with major shipping carriers
-  - Mobile application
-- **Phase 3**:
-  - Machine learning for package processing
-  - Predictive analytics
-  - International expansion
+  - Integration with more shipping carriers (Optional)
+  - Payment Gateway Integrations (WiPay, Stripe)
+  - Live Package updates (Possibly with mobile phone scanning for employees)
+  - Notifications.
+  - Reporting.
 
 ## 18. Fee Management System
 

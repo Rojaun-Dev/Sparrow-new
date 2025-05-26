@@ -131,7 +131,6 @@ SparrowX is a multi-tenant SaaS platform designed for Jamaican package-forwardin
 The project is organized into the following main directories:
 - `client/`: Next.js application with components, routes, and UI elements
 - `backend/`: Express.js API with controllers, services, and repositories
-- `db/`: Database schemas and migrations using Drizzle ORM
 - `shared/`: Code shared between frontend and backend (validation schemas, types, utilities)
 
 ### Tech Stack
@@ -165,9 +164,7 @@ The project is organized into the following main directories:
   - Vercel for frontend hosting
 
 - **Production Deployment**: 
-  - AWS EC2 for backend services
-  - Vercel for frontend hosting
-  - Redis for caching
+  - AWS EC2 for backend and frontend services
   - CloudFront CDN for static assets
 
 - **External Integrations**:

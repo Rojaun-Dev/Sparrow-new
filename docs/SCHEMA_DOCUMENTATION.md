@@ -2,9 +2,9 @@
 
 ## Navigation
 
-- [Documentation Hub](../docs/README.md)
+- [Documentation Hub](./README.md)
 - [Main Project README](../README.md)
-- [Backend README](./README.md)
+- [Backend README](../backend/README.md)
 - [Database Management Guide](./DATABASE.md)
 
 ## Table of Contents
@@ -14,6 +14,7 @@
   - [Companies Table](#companies-table)
   - [Company Settings Table](#company-settings-table)
   - [Company Assets Table](#company-assets-table)
+  - [Company Invitations Table](#company-invitations-table)
 - [Package Management Tables](#package-management-tables)
   - [Pre-Alerts Table](#pre-alerts-table)
   - [Packages Table](#packages-table)
@@ -22,6 +23,8 @@
   - [Invoice Items Table](#invoice-items-table)
   - [Payments Table](#payments-table)
   - [Fees Table](#fees-table)
+- [Audit & Logging](#audit--logging)
+  - [Audit Logs Table](#audit-logs-table)
 - [Database Relationships](#database-relationships)
 - [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
 - [Authentication System](#authentication-system)
@@ -36,26 +39,27 @@ This document outlines the database schema for the SparrowX shipping platform. T
 
 The users table stores user account information with the following fields:
 
-| Field         | Type                  | Description                                                                 |
-|---------------|------------------------|-----------------------------------------------------------------------------|
-| id            | UUID                   | Primary key, automatically generated                                        |
-| companyId     | UUID                   | Foreign key to companies table, with cascade delete                         |
-| email         | Text                   | Unique email address for user (not null)                                    |
-| passwordHash  | Text                   | Password hash for JWT authentication                                        |
-| firstName     | Text                   | User's first name (not null)                                                |
-| lastName      | Text                   | User's last name (not null)                                                 |
-| phone         | Text                   | User's phone number                                                         |
-| address       | Text                   | User's address                                                              |
-| role          | Enum                   | User role: 'customer', 'admin_l1', 'admin_l2', 'super_admin'               |
-| authId        | Text                   | User authentication identifier (DEPRECATED: previously auth0Id)             |
-| isActive      | Boolean                | User account status, defaults to true                                       |
-| createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
-| updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
-
-**Notes on authId**:
-- The `authId` field was previously used to store the Auth0 identifier (DEPRECATED)
-- Now used for JWT authentication identifier if needed
-- Authentication is now managed directly by the application using JWT
+| Field                    | Type                  | Description                                                                 |
+|--------------------------|------------------------|-----------------------------------------------------------------------------|
+| id                       | UUID                   | Primary key, automatically generated                                        |
+| companyId                | UUID                   | Foreign key to companies table, with cascade delete                         |
+| email                    | Text                   | Unique email address for user (not null)                                    |
+| passwordHash             | Text                   | Password hash for JWT authentication                                        |
+| firstName                | Text                   | User's first name (not null)                                                |
+| lastName                 | Text                   | User's last name (not null)                                                 |
+| phone                    | Text                   | User's phone number                                                         |
+| address                  | Text                   | User's address                                                              |
+| trn                      | Text                   | Tax Registration Number                                                     |
+| role                     | Enum                   | User role: 'customer', 'admin_l1', 'admin_l2', 'super_admin'               |
+| isActive                 | Boolean                | User account status, defaults to true                                       |
+| isVerified               | Boolean                | Email verification status, defaults to false                                |
+| verificationToken        | Text                   | Email verification token                                                    |
+| verificationTokenExpires | Timestamp with TZ      | Verification token expiration timestamp                                     |
+| notificationPreferences  | JSONB                  | User notification preferences                                               |
+| resetToken              | Text                   | Password reset token                                                        |
+| resetTokenExpires       | Timestamp with TZ      | Reset token expiration timestamp                                            |
+| createdAt               | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
+| updatedAt               | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
 
 ### Companies Table
 
@@ -88,9 +92,7 @@ The company settings table stores configurable settings for each company:
 | handlingFees         | JSONB                  | Handling fee configuration, defaults to empty object                 |
 | customsFees          | JSONB                  | Customs fee configuration, defaults to empty object                  |
 | taxRates             | JSONB                  | Tax rate configuration, defaults to empty object                     |
-| shippingAddress     | JSONB                  | Company shipping address for clients to send packages to, defaults to empty object |
 | notificationSettings | JSONB                  | Notification preferences, defaults to empty object                   |
-| exchangeRateSettings | JSONB                  | Currency exchange rate configuration, defaults to empty object        |
 | themeSettings        | JSONB                  | UI theme configuration, defaults to empty object                     |
 | createdAt            | Timestamp with TZ      | Creation timestamp, auto-generated                                   |
 | updatedAt            | Timestamp with TZ      | Last update timestamp, auto-generated                                |
@@ -103,9 +105,25 @@ The company assets table stores links to company media assets:
 |---------------|------------------------|-----------------------------------------------------------------------------|
 | id            | UUID                   | Primary key, automatically generated                                        |
 | companyId     | UUID                   | Foreign key to companies table, with cascade delete                         |
-| type          | Enum                   | Asset type enumeration                                                      |
+| type          | Enum                   | Asset type: 'logo', 'banner', 'favicon', 'small_logo'                      |
 | url           | Text                   | URL to the asset (not null)                                                 |
 | createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
+
+### Company Invitations Table
+
+The company invitations table manages company invitation tokens:
+
+| Field         | Type                  | Description                                                                 |
+|---------------|------------------------|-----------------------------------------------------------------------------|
+| id            | Serial                 | Primary key, auto-incrementing                                              |
+| email         | Varchar(255)           | Invitee email address (not null)                                            |
+| token         | Varchar(255)           | Unique invitation token (not null)                                          |
+| companyId     | Varchar(255)           | Company identifier                                                          |
+| status        | Enum                   | Status: 'pending', 'accepted', 'expired', 'cancelled'                      |
+| expiresAt     | Timestamp              | Token expiration timestamp (not null)                                       |
+| createdAt     | Timestamp              | Creation timestamp, auto-generated                                          |
+| updatedAt     | Timestamp              | Last update timestamp, auto-generated                                       |
+| createdBy     | Varchar(255)           | Creator identifier (not null)                                               |
 
 ## Package Management Tables
 
@@ -113,46 +131,46 @@ The company assets table stores links to company media assets:
 
 The pre-alerts table tracks package notifications before arrival:
 
-| Field         | Type                  | Description                                                                 |
-|---------------|------------------------|-----------------------------------------------------------------------------|
-| id            | UUID                   | Primary key, automatically generated                                        |
-| userId        | UUID                   | Foreign key to users table                                                  |
-| companyId     | UUID                   | Foreign key to companies table                                              |
-| trackingNumber| Text                   | Package tracking number                                                     |
-| courier       | Text                   | Courier or shipping service                                                 |
-| description   | Text                   | Package description                                                         |
-| value         | Numeric               | Declared package value                                                      |
-| weight        | Numeric               | Package weight                                                              |
-| status        | Enum                   | Status of pre-alert: 'pending', 'matched', 'cancelled'                      |
-| createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
-| updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
+| Field            | Type                  | Description                                                                 |
+|------------------|------------------------|-----------------------------------------------------------------------------|
+| id               | UUID                   | Primary key, automatically generated                                        |
+| userId           | UUID                   | Foreign key to users table                                                  |
+| companyId        | UUID                   | Foreign key to companies table                                              |
+| trackingNumber   | Text                   | Package tracking number (not null)                                          |
+| courier          | Text                   | Courier or shipping service (not null)                                      |
+| description      | Text                   | Package description                                                         |
+| estimatedWeight  | Decimal(10,2)          | Estimated package weight                                                    |
+| estimatedArrival | Timestamp with TZ      | Estimated arrival date                                                      |
+| packageId        | UUID                   | Optional foreign key to packages table                                      |
+| status           | Enum                   | Status: 'pending', 'matched', 'cancelled'                                   |
+| documents        | Text Array             | Array of document URLs                                                      |
+| createdAt        | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
+| updatedAt        | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
 
 ### Packages Table
 
 The packages table records detailed package information:
 
-| Field           | Type                  | Description                                                               |
-|-----------------|------------------------|---------------------------------------------------------------------------|
-| id              | UUID                   | Primary key, automatically generated                                      |
-| userId          | UUID                   | Foreign key to users table                                                |
-| companyId       | UUID                   | Foreign key to companies table                                            |
-| preAlertId      | UUID                   | Optional foreign key to pre-alerts table                                  |
-| trackingNumber  | Text                   | Package tracking number                                                   |
-| internalTrackingId | Text                | Unique internal reference ID (must be unique across all packages)         |
-| status          | Enum                   | Package status: 'received', 'processing', 'ready', 'delivered', etc.      |
-| description     | Text                   | Package description                                                       |
-| weight          | Numeric               | Package weight                                                            |
-| dimensions      | JSONB                  | Package dimensions (length, width, height)                                |
-| declaredValue   | Numeric               | Declared value of package                                                 |
-| senderInfo      | JSONB                  | Information about the package sender                                      |
-| receivedDate    | Timestamp with TZ      | Date when package was received at warehouse                               |
-| processingDate  | Timestamp with TZ      | Date when package processing began                                        |
-| photos          | Text Array             | Array of photo URLs for package images                                    |
-| tags            | Text Array             | Array of tags for categorizing and filtering packages                       |
-
-| notes           | Text                   | Additional notes                                                          |
-| createdAt       | Timestamp with TZ      | Creation timestamp, auto-generated                                        |
-| updatedAt       | Timestamp with TZ      | Last update timestamp, auto-generated                                     |
+| Field              | Type                  | Description                                                               |
+|--------------------|------------------------|---------------------------------------------------------------------------|
+| id                 | UUID                   | Primary key, automatically generated                                      |
+| userId             | UUID                   | Foreign key to users table                                                |
+| companyId          | UUID                   | Foreign key to companies table                                            |
+| trackingNumber     | Text                   | Package tracking number (not null)                                        |
+| internalTrackingId | Text                   | Unique internal reference ID (not null)                                   |
+| status             | Enum                   | Status: 'pre_alert', 'received', 'processed', 'ready_for_pickup', 'delivered', 'returned' |
+| description        | Text                   | Package description                                                       |
+| weight             | Decimal(10,2)          | Package weight                                                            |
+| dimensions         | JSONB                  | Package dimensions (length, width, height)                                |
+| declaredValue      | Decimal(10,2)          | Declared value of package                                                 |
+| senderInfo         | JSONB                  | Information about the package sender                                      |
+| tags               | Text Array             | Array of tags for categorizing and filtering packages                     |
+| receivedDate       | Timestamp with TZ      | Date when package was received at warehouse                               |
+| processingDate     | Timestamp with TZ      | Date when package processing began                                        |
+| photos             | Text Array             | Array of photo URLs for package images                                    |
+| notes              | Text                   | Additional notes                                                          |
+| createdAt          | Timestamp with TZ      | Creation timestamp, auto-generated                                        |
+| updatedAt          | Timestamp with TZ      | Last update timestamp, auto-generated                                     |
 
 ## Financial Tables
 
@@ -165,12 +183,13 @@ The invoices table tracks billing records:
 | id            | UUID                   | Primary key, automatically generated                                        |
 | userId        | UUID                   | Foreign key to users table                                                  |
 | companyId     | UUID                   | Foreign key to companies table                                              |
-| invoiceNumber | Text                   | Unique invoice identifier                                                   |
-| status        | Enum                   | Invoice status: 'draft', 'sent', 'paid', 'overdue', 'cancelled'            |
-| dueDate       | Date                   | Invoice due date                                                            |
-| subtotal      | Numeric               | Subtotal amount                                                             |
-| taxAmount     | Numeric               | Tax amount                                                                  |
-| totalAmount   | Numeric               | Total invoice amount                                                        |
+| invoiceNumber | Text                   | Unique invoice identifier (not null)                                        |
+| status        | Enum                   | Status: 'draft', 'issued', 'paid', 'cancelled', 'overdue'                  |
+| issueDate     | Timestamp with TZ      | Invoice issue date                                                          |
+| dueDate       | Timestamp with TZ      | Invoice due date                                                            |
+| subtotal      | Decimal(10,2)          | Subtotal amount (not null, default 0)                                       |
+| taxAmount     | Decimal(10,2)          | Tax amount (not null, default 0)                                            |
+| totalAmount   | Decimal(10,2)          | Total invoice amount (not null, default 0)                                  |
 | notes         | Text                   | Additional notes                                                            |
 | createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
@@ -184,21 +203,14 @@ The invoice items table stores the line items for invoices:
 | id            | UUID                   | Primary key, automatically generated                                        |
 | companyId     | UUID                   | Foreign key to companies table, with cascade delete                         |
 | invoiceId     | UUID                   | Foreign key to invoices table, with cascade delete                          |
-| packageId     | UUID                   | Foreign key to packages table (nullable - can be null if item not linked to package)|
-| description   | Text                   | Description of the invoice item (e.g., "Shipping Fee", "Handling Fee")      |
-| quantity      | Integer                | Quantity of units, defaults to 1                                            |
-| unitPrice     | Numeric               | Price per unit                                                              |
-| lineTotal     | Numeric               | Line item total (quantity * unitPrice)                                       |
-| type          | Enum                   | Type of fee: 'shipping', 'handling', 'customs', 'tax', 'other'              |
+| packageId     | UUID                   | Foreign key to packages table (nullable)                                    |
+| description   | Text                   | Description of the invoice item (not null)                                  |
+| quantity      | Integer                | Quantity of units (not null, default 1)                                     |
+| unitPrice     | Decimal(10,2)          | Price per unit (not null)                                                   |
+| lineTotal     | Decimal(10,2)          | Line item total (not null)                                                  |
+| type          | Enum                   | Type: 'shipping', 'handling', 'customs', 'tax', 'other'                     |
 | createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
-
-**Notes on Invoice Items**:
-- Each invoice is composed of one or more invoice items
-- Items can be linked to specific packages or exist independently
-- Line total should always equal quantity * unitPrice
-- Different types of charges are categorized with the 'type' field
-- Invoice totals (subtotal, taxAmount, totalAmount) are calculated from these line items
 
 ### Payments Table
 
@@ -210,10 +222,11 @@ The payments table records payment transactions:
 | userId        | UUID                   | Foreign key to users table                                                  |
 | companyId     | UUID                   | Foreign key to companies table                                              |
 | invoiceId     | UUID                   | Foreign key to invoices table                                               |
-| amount        | Numeric               | Payment amount                                                              |
-| paymentMethod | Enum                   | Payment method: 'credit_card', 'bank_transfer', 'cash', etc.               |
-| status        | Enum                   | Payment status: 'pending', 'completed', 'failed', 'refunded'               |
+| amount        | Decimal(10,2)          | Payment amount (not null)                                                   |
+| paymentMethod | Enum                   | Method: 'credit_card', 'bank_transfer', 'cash', 'check'                    |
+| status        | Enum                   | Status: 'pending', 'completed', 'failed', 'refunded'                       |
 | transactionId | Text                   | External payment processor transaction ID                                   |
+| paymentDate   | Timestamp with TZ      | Date of payment                                                             |
 | notes         | Text                   | Additional notes                                                            |
 | createdAt     | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt     | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
@@ -228,9 +241,9 @@ The fees table stores configurable fee types and calculation methods for compani
 | companyId         | UUID                   | Foreign key to companies table, with cascade delete                         |
 | name              | Varchar(255)           | Human-readable name of the fee (not null)                                   |
 | code              | Varchar(50)            | Machine-readable code/identifier for the fee (not null)                     |
-| feeType           | Enum                   | Type of fee: 'tax', 'service', 'shipping', 'handling', 'customs', 'other'   |
-| calculationMethod | Enum                   | Fee calculation method: 'fixed', 'percentage', 'per_weight', 'per_item', 'dimensional', 'tiered' |
-| amount            | Numeric               | Fee amount or percentage (not null)                                         |
+| feeType           | Enum                   | Type: 'tax', 'service', 'shipping', 'handling', 'customs', 'other'         |
+| calculationMethod | Enum                   | Method: 'fixed', 'percentage', 'per_weight', 'per_item', 'dimensional', 'tiered' |
+| amount            | Decimal(10,2)          | Fee amount or percentage (not null)                                         |
 | currency          | Varchar(3)             | Currency code, defaults to 'USD'                                            |
 | appliesTo         | JSONB                  | JSON array of conditions or entity types this fee applies to                |
 | metadata          | JSONB                  | Method-specific configuration and advanced conditions                      |
@@ -239,25 +252,37 @@ The fees table stores configurable fee types and calculation methods for compani
 | createdAt         | Timestamp with TZ      | Creation timestamp, auto-generated                                          |
 | updatedAt         | Timestamp with TZ      | Last update timestamp, auto-generated                                       |
 
-The `metadata` JSONB field supports advanced fee configuration options such as:
+## Audit & Logging
 
-- **Dimensional Pricing**: Factor for dimensional weight calculation (length × width × height) / dimensionalFactor
-- **Tiered Pricing**: Configuration of price tiers based on weight, value, or other attributes
-- **Threshold Conditions**: Minimum/maximum values for fee application (e.g., only apply above certain weight)
-- **Date Conditions**: Date ranges when a fee is applicable
-- **Tag Conditions**: Required and excluded tags for fee application 
-- **Fee Limits**: Minimum thresholds or maximum caps on calculated fee amounts
+### Audit Logs Table
+
+The audit logs table tracks system activities:
+
+| Field         | Type                  | Description                                                                 |
+|---------------|------------------------|-----------------------------------------------------------------------------|
+| id            | UUID                   | Primary key, automatically generated                                        |
+| userId        | UUID                   | Foreign key to users table                                                  |
+| companyId     | UUID                   | Foreign key to companies table                                              |
+| action        | Text                   | Action performed (not null)                                                 |
+| entityType    | Text                   | Type of entity affected (not null)                                          |
+| entityId      | UUID                   | ID of affected entity (not null)                                            |
+| details       | JSONB                  | Additional details about the action                                         |
+| ipAddress     | Text                   | IP address of the user                                                      |
+| userAgent     | Text                   | User agent string                                                           |
+| createdAt     | Timestamp              | Creation timestamp, auto-generated                                          |
 
 ## Database Relationships
 
 - **Users belong to Companies**: Each user is associated with a company through the `companyId` foreign key
 - **Company Settings belong to Companies**: Each company has one settings record
 - **Company Assets belong to Companies**: Companies can have multiple assets
+- **Company Invitations belong to Companies**: Companies can have multiple pending invitations
 - **Packages belong to Users**: Each package is associated with a user
 - **Pre-Alerts belong to Users**: Pre-alerts are created by and associated with users
 - **Invoices belong to Users**: Invoices are generated for specific users
 - **Payments belong to Invoices**: Payments are applied to specific invoices
 - **Fees belong to Companies**: Each company can define their own fee structures
+- **Audit Logs track User Actions**: Each audit log entry is associated with a user and company
 
 ## Role-Based Access Control (RBAC)
 
@@ -279,5 +304,8 @@ The system uses JWT (JSON Web Tokens) for identity management and authentication
 - **JWT Authentication**: Each user is authenticated using JWT tokens
 - **Authentication Flow**: Users authenticate through the application login, which provides a JWT token for API access
 - **Authorization**: The system checks the user's role and company affiliation stored in the JWT to determine access permissions
+- **Password Reset**: Users can reset their password using a secure token-based system
+- **Email Verification**: New user accounts require email verification
+- **Session Management**: Secure session handling with proper token expiration and refresh mechanisms
 
 > **Note**: Previously, the system used Auth0 for authentication (DEPRECATED). All Auth0 references have been removed in favor of JWT authentication. 
