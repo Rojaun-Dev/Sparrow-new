@@ -148,14 +148,6 @@ export default function CustomersPage() {
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Customers</h1>
-        <div className="flex items-center gap-2">
-          <Button asChild>
-            <Link href="/admin/customers/create">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Customer
-            </Link>
-          </Button>
-        </div>
       </div>
 
       <Card>

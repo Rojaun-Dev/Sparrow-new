@@ -53,7 +53,6 @@ const navItems: NavItem[] = [
     icon: Users,
     submenu: [
       { title: "All Customers", href: "/admin/customers" },
-      { title: "Create Customer", href: "/admin/customers/create" },
       { title: "Import Customers", href: "/admin/customers/import", comingSoon: true },
     ],
   },
@@ -73,7 +72,6 @@ const navItems: NavItem[] = [
     icon: Bell,
     submenu: [
       { title: "All Pre-alerts", href: "/admin/prealerts" },
-      { title: "Create Pre-alert", href: "/admin/prealerts/create" },
       { title: "Match to Packages", href: "/admin/prealerts/match" },
     ],
   },
@@ -84,7 +82,6 @@ const navItems: NavItem[] = [
     submenu: [
       { title: "All Invoices", href: "/admin/invoices" },
       { title: "Create Invoice", href: "/admin/invoices/create" },
-      { title: "Invoice Templates", href: "/admin/invoices/templates", adminL2Only: true },
     ],
   },
   {
@@ -102,11 +99,12 @@ const navItems: NavItem[] = [
     href: "/admin/reports",
     icon: BarChart3,
     submenu: [
-      { title: "Package Reports", href: "/admin/reports/packages" },
-      { title: "Revenue Reports", href: "/admin/reports/revenue" },
-      { title: "Customer Reports", href: "/admin/reports/customers" },
+      { title: "Package Reports", href: "/admin/reports/packages", comingSoon: true },
+      { title: "Revenue Reports", href: "/admin/reports/revenue", comingSoon: true },
+      { title: "Customer Reports", href: "/admin/reports/customers", comingSoon: true },
       { title: "Custom Reports", href: "/admin/reports/custom", comingSoon: true },
     ],
+    comingSoon: true
   },
   {
     title: "Employee Management",
@@ -116,7 +114,6 @@ const navItems: NavItem[] = [
     submenu: [
       { title: "All Employees", href: "/admin/employees" },
       { title: "Invite Employee", href: "/admin/employees/invite" },
-      { title: "Roles & Permissions", href: "/admin/employees/roles" },
     ],
   },
   {
