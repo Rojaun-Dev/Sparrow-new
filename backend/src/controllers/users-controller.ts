@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { UsersService, createUserSchema, updateUserSchema, UserRole } from '../services/users-service';
 import { ApiResponse } from '../utils/response';
 import bcrypt from 'bcrypt';
+import { parse as csvParse, format as csvFormat } from 'fast-csv';
+import { PassThrough } from 'stream';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -297,42 +299,52 @@ export class UsersController {
         order, 
         role, 
         isActive, 
-        search
+        search,
+        createdFrom,
+        createdTo
       } = req.query;
       
-      // Validate and parse role
-      let parsedRole: UserRole | UserRole[] | undefined = undefined;
-      const validRoles: UserRole[] = ['customer', 'admin_l1', 'admin_l2', 'super_admin'];
-
-      if (role) {
-        if (typeof role === 'string') {
-          const rolesArray = role.split(',').map(r => r.trim());
-          const invalidRoles = rolesArray.filter(r => !validRoles.includes(r as UserRole));
-          if (invalidRoles.length > 0) {
-            return ApiResponse.badRequest(res, `Invalid role value(s): ${invalidRoles.join(', ')}. Valid roles are: ${validRoles.join(', ')}`);
-          }
-          parsedRole = rolesArray.length === 1 ? rolesArray[0] as UserRole : rolesArray as UserRole[];
-        } else if (Array.isArray(role)) {
-           const invalidRoles = role.filter(r => !validRoles.includes(r as UserRole));
-           if (invalidRoles.length > 0) {
-            return ApiResponse.badRequest(res, `Invalid role value(s): ${invalidRoles.join(', ')}. Valid roles are: ${validRoles.join(', ')}`);
-          }
-          parsedRole = role as UserRole[];
-        } else {
-          return ApiResponse.badRequest(res, 'Invalid role format. Role should be a string or an array of strings.');
+      // Sanitize role param: always pass valid enum values or undefined
+      const validRoleValues = ['customer', 'admin_l1', 'admin_l2', 'super_admin'] as const;
+      type ValidRole = typeof validRoleValues[number];
+      let roleParam: ValidRole[] | undefined = undefined;
+      if (role !== undefined) {
+        let rawRoles: string[] = [];
+        if (Array.isArray(role)) {
+          rawRoles = role.map(r => String(r));
+        } else if (typeof role === 'string') {
+          rawRoles = String(role).split(',');
+        } else if (typeof role === 'object' && role !== null) {
+          rawRoles = [String(role)];
         }
+        const filteredRoles = rawRoles.filter((r): r is ValidRole => validRoleValues.includes(r as ValidRole));
+        if (filteredRoles.length > 0) roleParam = filteredRoles as ValidRole[];
       }
-      
-      // Convert query parameters to correct types
-      const params = {
-        page: page ? parseInt(page as string, 10) : undefined,
-        limit: limit ? parseInt(limit as string, 10) : undefined,
+      // Sanitize isActive param: only accept 'true' or 'false' as string
+      let isActiveParam: boolean | undefined = undefined;
+      if (typeof isActive === 'string') {
+        if (isActive === 'true') isActiveParam = true;
+        else if (isActive === 'false') isActiveParam = false;
+      }
+      // Use destructured createdFrom/createdTo from req.query directly
+      const params: {
+        companyId: string;
+        role?: ValidRole[];
+        isActive?: boolean;
+        search?: string;
+        sort?: string;
+        order?: 'asc' | 'desc';
+        createdFrom?: string;
+        createdTo?: string;
+      } = {
+        companyId,
+        ...(roleParam ? { role: roleParam } : {}),
+        isActive: isActiveParam,
+        search: search as string,
         sort: sort as string,
         order: order as 'asc' | 'desc',
-        role: parsedRole, // Use the validated and parsed role
-        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
-        search: search as string,
-        companyId // Always filter by the company ID from params
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string
       };
       
       const result = await this.service.getUsersForCompany(params);
@@ -387,6 +399,87 @@ export class UsersController {
       const companyId = req.companyId as string;
       await this.service.deleteUser(id, companyId);
       return ApiResponse.success(res, null, 'User deleted successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * Export users (customers/employees) as CSV for a company
+   */
+  exportUsersCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const userRole = req.userRole;
+      // Only allow admin_l1 or admin_l2
+      if (!['admin_l1', 'admin_l2'].includes(userRole || '')) {
+        return ApiResponse.forbidden(res, 'You do not have permission to export users');
+      }
+      // Extract filters from query params
+      const {
+        role,
+        isActive,
+        search,
+        sort,
+        order,
+        createdFrom,
+        createdTo
+      } = req.query;
+      // Sanitize role param: always pass valid enum values or undefined
+      const validRoleValues = ['customer', 'admin_l1', 'admin_l2', 'super_admin'] as const;
+      type ValidRole = typeof validRoleValues[number];
+      let roleParam: ValidRole[] | undefined = undefined;
+      if (role !== undefined) {
+        let rawRoles: string[] = [];
+        if (Array.isArray(role)) {
+          rawRoles = role.map(r => String(r));
+        } else if (typeof role === 'string') {
+          rawRoles = String(role).split(',');
+        } else if (typeof role === 'object' && role !== null) {
+          rawRoles = [String(role)];
+        }
+        const filteredRoles = rawRoles.filter((r): r is ValidRole => validRoleValues.includes(r as ValidRole));
+        if (filteredRoles.length > 0) roleParam = filteredRoles as ValidRole[];
+      }
+      // Sanitize isActive param: only accept 'true' or 'false' as string
+      let isActiveParam: boolean | undefined = undefined;
+      if (typeof isActive === 'string') {
+        if (isActive === 'true') isActiveParam = true;
+        else if (isActive === 'false') isActiveParam = false;
+      }
+      // Use destructured createdFrom/createdTo from req.query directly
+      const params: {
+        companyId: string;
+        role?: ValidRole[];
+        isActive?: boolean;
+        search?: string;
+        sort?: string;
+        order?: 'asc' | 'desc';
+        createdFrom?: string;
+        createdTo?: string;
+      } = {
+        companyId,
+        ...(roleParam ? { role: roleParam } : {}),
+        isActive: isActiveParam,
+        search: search as string,
+        sort: sort as string,
+        order: order as 'asc' | 'desc',
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string
+      };
+      // Get data
+      const users = await this.service.exportUsersCsvData(params);
+      // Set headers
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+      // Stream CSV
+      const csvStream = csvFormat({ headers: true });
+      const passThrough = new PassThrough();
+      csvStream.pipe(passThrough);
+      users.forEach(user => csvStream.write(user));
+      csvStream.end();
+      passThrough.pipe(res);
     } catch (error) {
       next(error);
       return undefined;

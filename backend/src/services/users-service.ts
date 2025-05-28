@@ -149,9 +149,7 @@ export class UsersService {
     }
     
     // Combine conditions
-    const whereCondition = conditions.length > 0 
-      ? and(...conditions) 
-      : undefined;
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
     
     // Get total count for pagination
     const totalCountResult = await this.repository.getDatabaseInstance()
@@ -514,25 +512,16 @@ export class UsersService {
     const conditions: SQL[] = [eq(users.companyId, params.companyId)];
     
     // Add role filter if provided
-    if (params.role) {
-      if (Array.isArray(params.role)) {
-        // For a single role in the array, use eq directly
-        if (params.role.length === 1) {
-          conditions.push(eq(users.role, params.role[0]));
-        } 
-        // For multiple roles, use explicit or conditions
-        else if (params.role.length > 1) {
-          const roleConditions = params.role.map(r => eq(users.role, r)).filter((condition): condition is SQL<unknown> => condition !== undefined);
-          if (roleConditions.length > 0) {
-            const roleOrCondition = or(...roleConditions);
-            if (roleOrCondition) {
-              conditions.push(roleOrCondition);
-            }
-          }
-        }
+    if (params.role && params.role.length > 0) {
+      if (params.role.length === 1) {
+        conditions.push(eq(users.role, params.role[0]));
       } else {
-        // Handle single role
-        conditions.push(eq(users.role, params.role));
+        const roleConditions = params.role.map(r => eq(users.role, r)).filter(Boolean);
+        if (roleConditions.length > 1) {
+          conditions.push(or(...roleConditions));
+        } else if (roleConditions.length === 1) {
+          conditions.push(roleConditions[0]);
+        }
       }
     }
     
@@ -548,13 +537,11 @@ export class UsersService {
         ilike(users.firstName, searchTerm),
         ilike(users.lastName, searchTerm),
         ilike(users.email, searchTerm)
-      ].filter((condition): condition is SQL<unknown> => condition !== undefined);
-      
-      if (searchConditions.length > 0) {
-        const searchOrCondition = or(...searchConditions);
-        if (searchOrCondition) {
-          conditions.push(searchOrCondition);
-        }
+      ].filter(Boolean);
+      if (searchConditions.length > 1) {
+        conditions.push(or(...searchConditions));
+      } else if (searchConditions.length === 1) {
+        conditions.push(searchConditions[0]);
       }
     }
     
@@ -580,10 +567,14 @@ export class UsersService {
         role: users.role,
         isActive: users.isActive,
         phone: users.phone,
+        address: users.address,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
+        companyId: users.companyId,
+        companyName: companies.name
       })
       .from(users)
+      .leftJoin(companies, eq(users.companyId, companies.id))
       .where(whereCondition)
       .orderBy(...orderBy)
       .limit(limit)
@@ -652,5 +643,121 @@ export class UsersService {
       throw AppError.notFound('User not found');
     }
     return this.repository.delete(id, companyId);
+  }
+
+  /**
+   * Export users for a company as CSV (all matching records, no pagination)
+   */
+  async exportUsersCsvData(params: {
+    companyId: string;
+    role?: ("customer" | "admin_l1" | "admin_l2" | "super_admin")[];
+    isActive?: boolean;
+    search?: string;
+    sort?: string;
+    order?: 'asc' | 'desc';
+    createdFrom?: string;
+    createdTo?: string;
+  }) {
+    const db = this.repository.getDatabaseInstance();
+
+    // Set up sorting
+    let orderBy: SQL[] = [];
+    if (params.sort) {
+      const direction = params.order === 'desc' ? desc : asc;
+      switch (params.sort) {
+        case 'firstName':
+          orderBy.push(direction(users.firstName));
+          break;
+        case 'lastName':
+          orderBy.push(direction(users.lastName));
+          break;
+        case 'email':
+          orderBy.push(direction(users.email));
+          break;
+        case 'role':
+          orderBy.push(direction(users.role));
+          break;
+        case 'createdAt':
+          orderBy.push(direction(users.createdAt));
+          break;
+        default:
+          orderBy.push(desc(users.createdAt));
+      }
+    } else {
+      orderBy.push(desc(users.createdAt));
+    }
+
+    // Build the filter conditions
+    const conditions: SQL[] = [eq(users.companyId, params.companyId)];
+
+    // Add role filter if provided
+    if (params.role && params.role.length > 0) {
+      if (params.role.length === 1) {
+        conditions.push(eq(users.role, params.role[0]));
+      } else if (params.role.length > 1) {
+        const roleConditions = params.role.map(roleValue => eq(users.role, roleValue));
+        if (roleConditions.length > 1) {
+          conditions.push(or(...roleConditions));
+        } else if (roleConditions.length === 1) {
+          conditions.push(roleConditions[0]);
+        }
+      }
+    }
+
+    // Add active/inactive filter if provided
+    if (params.isActive !== undefined) {
+      conditions.push(eq(users.isActive, params.isActive));
+    }
+
+    // Add search filter if provided
+    if (params.search) {
+      const searchTerm = `%${params.search}%`;
+      const searchConditions = [
+        ilike(users.firstName, searchTerm),
+        ilike(users.lastName, searchTerm),
+        ilike(users.email, searchTerm)
+      ].filter(Boolean);
+      if (searchConditions.length > 1) {
+        conditions.push(or(...searchConditions));
+      } else if (searchConditions.length === 1) {
+        conditions.push(searchConditions[0]);
+      }
+    }
+
+    // Add created date filters if provided
+    if (params.createdFrom) {
+      conditions.push(gte(users.createdAt, new Date(params.createdFrom)));
+    }
+    if (params.createdTo) {
+      conditions.push(lte(users.createdAt, new Date(params.createdTo)));
+    }
+
+    // Combine all conditions
+    const whereCondition = and(...conditions);
+
+    // Get the data (no limit/offset)
+    let query = db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        role: users.role,
+        isActive: users.isActive,
+        phone: users.phone,
+        address: users.address,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+        companyId: users.companyId,
+        companyName: companies.name
+      })
+      .from(users)
+      .leftJoin(companies, eq(users.companyId, companies.id));
+    if (whereCondition) {
+      query = query.where(whereCondition);
+    }
+    const data = await query.orderBy(...orderBy);
+
+    return data;
   }
 }

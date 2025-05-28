@@ -8,6 +8,9 @@ const controller = new UsersController();
 // Apply JWT authentication to all routes
 router.use(checkJwt);
 
+// Export users as CSV (Admin L1+)
+router.get('/export-csv', checkRole(['admin_l1', 'admin_l2']), controller.exportUsersCsv);
+
 // Get all users for a company (Admin L1+)
 router.get('/', checkRole(['admin_l1', 'admin_l2']), controller.getAllUsers);
 

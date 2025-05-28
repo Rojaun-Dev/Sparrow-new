@@ -83,6 +83,14 @@ class UsersService {
     const id = companyId || await this.getCompanyId();
     return apiClient.delete<void>(`${this.baseUrl}/${id}/users/${userId}/hard`);
   }
+
+  /**
+   * Export users as CSV for the current company
+   */
+  async exportUsersCsv(params?: any, companyId?: string): Promise<Blob> {
+    const id = companyId || await this.getCompanyId();
+    return apiClient.downloadFile(`${this.baseUrl}/${id}/users/export-csv`, params);
+  }
 }
 
 // Export as singleton

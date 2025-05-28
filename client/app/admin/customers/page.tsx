@@ -51,6 +51,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { usersService } from '@/lib/api/customerService'
 import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile'
+import { useExportCsv } from '@/hooks/useExportCsv'
 
 function CustomerRow({ customer, companyId, openActionDialog, openHardDeleteDialog, formatDate }: any) {
   const { data: stats, isLoading: statsLoading } = useCustomerStatisticsForAdmin(customer.id, companyId);
@@ -147,6 +148,9 @@ export default function CustomersPage() {
   const [isHardDeleteDialogOpen, setIsHardDeleteDialogOpen] = useState(false)
   const [customerToHardDelete, setCustomerToHardDelete] = useState<string | null>(null)
 
+  // CSV export hook
+  const { exportCsv, loading: exportLoading } = useExportCsv();
+
   // Fetch customers using the hook
   const { data: customersResponse, isLoading, error } = useCompanyUsers(user?.companyId || '', {
     role: 'customer',
@@ -158,6 +162,19 @@ export default function CustomersPage() {
 
   const customers = customersResponse?.data || []
   const totalPages = customersResponse?.pagination.totalPages || 0
+
+  // Export handler
+  const handleExport = async () => {
+    await exportCsv(
+      (params) => usersService.exportUsersCsv(params, user?.companyId),
+      {
+        role: 'customer',
+        search: searchQuery,
+        isActive: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined
+      },
+      'customers.csv'
+    );
+  };
 
   const handleStatusFilterChange = (status: string | null) => {
     setStatusFilter(status)
@@ -278,7 +295,7 @@ export default function CustomersPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" className="gap-1">
+              <Button variant="outline" className="gap-1" onClick={handleExport} disabled={exportLoading}>
                 <Download className="h-4 w-4" />
                 Export
               </Button>
