@@ -11,6 +11,7 @@ import billingRoutes from './billing-routes';
 import authRoutes from './auth-routes';
 import statisticsRoutes from './statistics-routes';
 import superadminRoutes from './superadmin-routes';
+import adminRoutes from './admin-routes';
 import { extractCompanyId } from '../middleware/auth';
 
 const router = express.Router();
@@ -56,6 +57,9 @@ router.use('/companies/:companyId/fees', feesRoutes);
 
 // Billing routes - scoped to company
 router.use('/companies/:companyId/billing', billingRoutes);
+
+// Admin routes - not scoped to company, admin specific
+router.use('/admin', adminRoutes);
 
 // Additional routes will be added here as they are implemented:
 // router.use('/companies/:companyId/settings', settingsRoutes);

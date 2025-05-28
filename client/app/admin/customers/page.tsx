@@ -2,6 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useCompanyUsers } from "@/hooks/useCompanyUsers"
+import { useAuth } from "@/hooks/useAuth"
+import { toast } from "sonner"
+import { apiClient } from '@/lib/api/apiClient'
+import { useQueryClient } from '@tanstack/react-query'
 import { 
   Search, 
   Plus, 
@@ -44,96 +49,58 @@ import {
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-// Mock data for customers
-const CUSTOMERS = [
-  {
-    id: "cust-1234",
-    name: "John Smith",
-    email: "john.smith@example.com",
-    phone: "+1 (876) 555-1234",
-    address: "123 Main St, Kingston, Jamaica",
-    status: "active",
-    totalPackages: 12,
-    outstandingInvoices: 1,
-    created: "2023-01-15T00:00:00Z"
-  },
-  {
-    id: "cust-1235",
-    name: "Sarah Johnson",
-    email: "sarah.j@example.com",
-    phone: "+1 (876) 555-2345",
-    address: "456 Oak Ave, Montego Bay, Jamaica",
-    status: "active",
-    totalPackages: 8,
-    outstandingInvoices: 0,
-    created: "2023-02-22T00:00:00Z"
-  },
-  {
-    id: "cust-1236",
-    name: "Michael Brown",
-    email: "mbrown@example.com",
-    phone: "+1 (876) 555-3456",
-    address: "789 Pine Rd, Spanish Town, Jamaica",
-    status: "inactive",
-    totalPackages: 4,
-    outstandingInvoices: 2,
-    created: "2023-03-10T00:00:00Z"
-  },
-  {
-    id: "cust-1237",
-    name: "Alicia Williams",
-    email: "awilliams@example.com",
-    phone: "+1 (876) 555-4567",
-    address: "321 Cedar Ln, Portmore, Jamaica",
-    status: "active",
-    totalPackages: 15,
-    outstandingInvoices: 0,
-    created: "2023-01-05T00:00:00Z"
-  },
-  {
-    id: "cust-1238",
-    name: "David Wilson",
-    email: "dwilson@example.com",
-    phone: "+1 (876) 555-5678",
-    address: "654 Maple Dr, Ocho Rios, Jamaica",
-    status: "active",
-    totalPackages: 6,
-    outstandingInvoices: 1,
-    created: "2023-04-18T00:00:00Z"
-  },
-]
-
 export default function CustomersPage() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [customerToDelete, setCustomerToDelete] = useState<string | null>(null)
+  const [actionType, setActionType] = useState<'deactivate' | 'reactivate' | null>(null)
 
-  // Filter customers based on search query and status filter
-  const filteredCustomers = CUSTOMERS.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          customer.id.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesStatus = statusFilter === null || customer.status === statusFilter
-    
-    return matchesSearch && matchesStatus
+  // Fetch customers using the hook
+  const { data: customersResponse, isLoading, error } = useCompanyUsers(user?.companyId || '', {
+    role: 'customer',
+    page: currentPage,
+    limit: pageSize,
+    search: searchQuery,
+    isActive: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined
   })
+
+  const customers = customersResponse?.data || []
+  const totalPages = customersResponse?.pagination.totalPages || 0
 
   const handleStatusFilterChange = (status: string | null) => {
     setStatusFilter(status)
+    setCurrentPage(1) // Reset to first page when filter changes
   }
 
-  const openDeleteDialog = (customerId: string) => {
+  const openActionDialog = (customerId: string, type: 'deactivate' | 'reactivate') => {
     setCustomerToDelete(customerId)
+    setActionType(type)
     setIsDeleteDialogOpen(true)
   }
 
-  const handleDeleteCustomer = () => {
-    // In a real app, this would call an API to delete the customer
-    console.log(`Deleting customer ${customerToDelete}`)
-    setIsDeleteDialogOpen(false)
-    setCustomerToDelete(null)
+  const handleActionCustomer = async () => {
+    if (!customerToDelete || !actionType) return
+    try {
+      if (actionType === 'deactivate') {
+        await apiClient.delete(`/admin/users/${customerToDelete}`)
+        toast.success('Customer deactivated successfully')
+      } else if (actionType === 'reactivate') {
+        await apiClient.post(`/admin/users/${customerToDelete}/reactivate`)
+        toast.success('Customer reactivated successfully')
+      }
+      queryClient.invalidateQueries({ queryKey: ['company-users', 'list', user?.companyId] })
+      setIsDeleteDialogOpen(false)
+      setCustomerToDelete(null)
+      setActionType(null)
+    } catch (error) {
+      toast.error('Failed to update customer status')
+      console.error('Error updating customer status:', error)
+    }
   }
 
   const formatDate = (dateString: string) => {
@@ -142,6 +109,17 @@ export default function CustomersPage() {
       month: 'short',
       day: 'numeric'
     })
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Customers</h2>
+          <p className="text-muted-foreground">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -208,40 +186,44 @@ export default function CustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : customers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No customers found. Try adjusting your search or filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCustomers.map(customer => (
+                  customers.map(customer => (
                     <TableRow key={customer.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarFallback>{customer.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                            <AvatarFallback>
+                              {`${customer.firstName[0]}${customer.lastName[0]}`}
+                            </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{customer.name}</div>
+                            <div className="font-medium">{`${customer.firstName} ${customer.lastName}`}</div>
                             <div className="text-xs text-muted-foreground">{customer.email}</div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={customer.status === "active" ? "default" : "secondary"}>
-                          {customer.status}
+                        <Badge variant={customer.isActive ? "default" : "secondary"}>
+                          {customer.isActive ? "active" : "inactive"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">{customer.totalPackages}</TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {customer.outstandingInvoices > 0 ? (
-                          <Badge variant="destructive">{customer.outstandingInvoices}</Badge>
-                        ) : (
-                          "0"
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">{formatDate(customer.created)}</TableCell>
+                      <TableCell className="hidden md:table-cell">-</TableCell>
+                      <TableCell className="hidden md:table-cell">-</TableCell>
+                      <TableCell className="hidden lg:table-cell">{formatDate(customer.createdAt)}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -253,48 +235,34 @@ export default function CustomersPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/customers/${customer.id}`}>
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/customers/${customer.id}/edit`}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Edit Customer
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/customers/${customer.id}/packages`}>
-                                <Package className="mr-2 h-4 w-4" />
-                                View Packages
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/customers/${customer.id}/invoices`}>
                                 <FileText className="mr-2 h-4 w-4" />
-                                View Invoices
+                                View/Manage
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/invoices/create?customerId=${customer.id}`}>
+                                <FileText className="mr-2 h-4 w-4" />
                                 Create Invoice
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`mailto:${customer.email}`}>
-                                <Mail className="mr-2 h-4 w-4" />
-                                Send Email
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => openDeleteDialog(customer.id)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Customer
-                            </DropdownMenuItem>
+                            {customer.isActive ? (
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={() => openActionDialog(customer.id, 'deactivate')}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Deactivate
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-green-600"
+                                onClick={() => openActionDialog(customer.id, 'reactivate')}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Reactivate
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -304,23 +272,89 @@ export default function CustomersPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-2">
+              <div>
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  First
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  Last
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Rows per page:</span>
+                <select
+                  className="border rounded px-2 py-1"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  {[10, 20, 50, 100].map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* Action Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogTitle>
+              {actionType === 'deactivate' ? 'Deactivate Customer' : 'Reactivate Customer'}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this customer? This action cannot be undone and will delete all customer data.
+              {actionType === 'deactivate'
+                ? 'Are you sure you want to deactivate this customer? They will no longer be able to access their account.'
+                : 'Are you sure you want to reactivate this customer? They will regain access to their account.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteCustomer}>
-              Delete
+            <Button
+              variant={actionType === 'deactivate' ? 'destructive' : 'default'}
+              onClick={handleActionCustomer}
+            >
+              {actionType === 'deactivate' ? 'Deactivate' : 'Reactivate'}
             </Button>
           </DialogFooter>
         </DialogContent>

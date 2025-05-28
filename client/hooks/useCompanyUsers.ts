@@ -43,7 +43,7 @@ export function useCompanyUsers(companyId: string, params: CompanyUserParams = {
         }
       }
       
-      const url = `/superadmin/companies/${companyId}/users?${queryParams.toString()}`;
+      const url = `/admin/companies/${companyId}/users?${queryParams.toString()}`;
       return apiClient.get<PaginatedResponse<UserData>>(url);
     },
     enabled: !!companyId,
