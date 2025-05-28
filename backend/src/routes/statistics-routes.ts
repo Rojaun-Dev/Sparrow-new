@@ -32,4 +32,16 @@ router.get(
   getSuperAdminStatistics
 );
 
+// Get customer statistics for a specific user (admin only)
+router.get(
+  '/customer/:userId',
+  checkJwt,
+  checkRole(['admin_l1', 'admin_l2']),
+  (req, res, next) => {
+    (req as any).userId = req.params.userId;
+    next();
+  },
+  getCustomerStatistics
+);
+
 export default router; 

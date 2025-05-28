@@ -130,6 +130,17 @@ class ProfileService {
       };
     }
   }
+
+  /**
+   * Get statistics for a specific user as an admin
+   */
+  async getCustomerStatisticsForAdmin(userId: string, companyId: string): Promise<any> {
+    const endpoint = `/statistics/customer/${userId}`;
+    // Pass companyId in header if needed for multi-tenancy
+    return apiClient.get<any>(endpoint, {
+      headers: { 'X-Company-ID': companyId }
+    });
+  }
 }
 
 // Export as singleton

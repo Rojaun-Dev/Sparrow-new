@@ -98,4 +98,13 @@ export function useUserStatistics() {
     queryKey: profileKeys.statistics(),
     queryFn: () => profileService.getUserStatistics(),
   });
+}
+
+// Hook for fetching statistics for a specific user as an admin
+export function useCustomerStatisticsForAdmin(userId: string, companyId: string) {
+  return useQuery({
+    queryKey: ['customer-statistics', userId, companyId],
+    queryFn: () => profileService.getCustomerStatisticsForAdmin(userId, companyId),
+    enabled: !!userId && !!companyId,
+  });
 } 

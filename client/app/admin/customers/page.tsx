@@ -50,6 +50,89 @@ import {
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { usersService } from '@/lib/api/customerService'
+import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile'
+
+function CustomerRow({ customer, companyId, openActionDialog, openHardDeleteDialog, formatDate }: any) {
+  const { data: stats, isLoading: statsLoading } = useCustomerStatisticsForAdmin(customer.id, companyId);
+  return (
+    <TableRow key={customer.id}>
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback>
+              {`${customer.firstName[0]}${customer.lastName[0]}`}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">{`${customer.firstName} ${customer.lastName}`}</div>
+            <div className="text-xs text-muted-foreground">{customer.email}</div>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={customer.isActive ? "default" : "secondary"}>
+          {customer.isActive ? "active" : "inactive"}
+        </Badge>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        {statsLoading ? <span className="animate-spin inline-block w-4 h-4 border-b-2 border-primary rounded-full" /> : stats?.totalPackages ?? '-'}
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        {statsLoading ? <span className="animate-spin inline-block w-4 h-4 border-b-2 border-primary rounded-full" /> : stats?.outstandingInvoices?.count ?? '-'}
+      </TableCell>
+      <TableCell className="hidden lg:table-cell">{formatDate(customer.createdAt)}</TableCell>
+      <TableCell className="text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/customers/${customer.id}`}>
+                <FileText className="mr-2 h-4 w-4" />
+                View/Manage
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/invoices/create?customerId=${customer.id}`}>
+                <FileText className="mr-2 h-4 w-4" />
+                Create Invoice
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {customer.isActive ? (
+              <DropdownMenuItem
+                className="text-destructive hover:text-destructive/90"
+                onClick={() => openActionDialog(customer.id, 'deactivate')}
+              >
+                <PowerOff className="mr-2 h-4 w-4" />
+                Deactivate Account
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                className="text-green-600"
+                onClick={() => openActionDialog(customer.id, 'reactivate')}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Reactivate
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => openHardDeleteDialog(customer.id)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 export default function CustomersPage() {
   const { user } = useAuth()
@@ -231,78 +314,14 @@ export default function CustomersPage() {
                   </TableRow>
                 ) : (
                   customers.map(customer => (
-                    <TableRow key={customer.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback>
-                              {`${customer.firstName[0]}${customer.lastName[0]}`}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{`${customer.firstName} ${customer.lastName}`}</div>
-                            <div className="text-xs text-muted-foreground">{customer.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={customer.isActive ? "default" : "secondary"}>
-                          {customer.isActive ? "active" : "inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">-</TableCell>
-                      <TableCell className="hidden md:table-cell">-</TableCell>
-                      <TableCell className="hidden lg:table-cell">{formatDate(customer.createdAt)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/customers/${customer.id}`}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                View/Manage
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/invoices/create?customerId=${customer.id}`}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                Create Invoice
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {customer.isActive ? (
-                              <DropdownMenuItem
-                                className="text-destructive hover:text-destructive/90"
-                                onClick={() => openActionDialog(customer.id, 'deactivate')}
-                              >
-                                <PowerOff className="mr-2 h-4 w-4" />
-                                Deactivate Account
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem
-                                className="text-green-600"
-                                onClick={() => openActionDialog(customer.id, 'reactivate')}
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Reactivate
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => openHardDeleteDialog(customer.id)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                    <CustomerRow
+                      key={customer.id}
+                      customer={customer}
+                      companyId={user?.companyId || ''}
+                      openActionDialog={openActionDialog}
+                      openHardDeleteDialog={openHardDeleteDialog}
+                      formatDate={formatDate}
+                    />
                   ))
                 )}
               </TableBody>
