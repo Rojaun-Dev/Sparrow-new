@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useCompanyUsers } from "@/hooks/useCompanyUsers"
+import { useCompanyUsers, useDeleteCompanyUser } from "@/hooks/useCompanyUsers"
 import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
 import { apiClient } from '@/lib/api/apiClient'
@@ -17,7 +17,8 @@ import {
   Package, 
   FileText, 
   Pencil, 
-  Trash2
+  Trash2,
+  PowerOff
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,7 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { usersService } from '@/lib/api/customerService'
 
 export default function CustomersPage() {
   const { user } = useAuth()
@@ -59,6 +61,8 @@ export default function CustomersPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [customerToDelete, setCustomerToDelete] = useState<string | null>(null)
   const [actionType, setActionType] = useState<'deactivate' | 'reactivate' | null>(null)
+  const [isHardDeleteDialogOpen, setIsHardDeleteDialogOpen] = useState(false)
+  const [customerToHardDelete, setCustomerToHardDelete] = useState<string | null>(null)
 
   // Fetch customers using the hook
   const { data: customersResponse, isLoading, error } = useCompanyUsers(user?.companyId || '', {
@@ -101,6 +105,31 @@ export default function CustomersPage() {
       toast.error('Failed to update customer status')
       console.error('Error updating customer status:', error)
     }
+  }
+
+  const deleteCompanyUserMutation = useDeleteCompanyUser()
+
+  const openHardDeleteDialog = (customerId: string) => {
+    setCustomerToHardDelete(customerId)
+    setIsHardDeleteDialogOpen(true)
+  }
+
+  const handleHardDeleteCustomer = async () => {
+    if (!customerToHardDelete) return
+    deleteCompanyUserMutation.mutate(
+      { userId: customerToHardDelete, companyId: user?.companyId },
+      {
+        onSuccess: () => {
+          toast.success('Customer deleted successfully')
+          setIsHardDeleteDialogOpen(false)
+          setCustomerToHardDelete(null)
+        },
+        onError: (error) => {
+          toast.error('Failed to delete customer')
+          console.error('Error deleting customer:', error)
+        }
+      }
+    )
   }
 
   const formatDate = (dateString: string) => {
@@ -248,11 +277,11 @@ export default function CustomersPage() {
                             <DropdownMenuSeparator />
                             {customer.isActive ? (
                               <DropdownMenuItem
-                                className="text-red-600"
+                                className="text-destructive hover:text-destructive/90"
                                 onClick={() => openActionDialog(customer.id, 'deactivate')}
                               >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Deactivate
+                                <PowerOff className="mr-2 h-4 w-4" />
+                                Deactivate Account
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
@@ -263,6 +292,13 @@ export default function CustomersPage() {
                                 Reactivate
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => openHardDeleteDialog(customer.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -355,6 +391,25 @@ export default function CustomersPage() {
               onClick={handleActionCustomer}
             >
               {actionType === 'deactivate' ? 'Deactivate' : 'Reactivate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Hard Delete Confirmation Dialog */}
+      <Dialog open={isHardDeleteDialogOpen} onOpenChange={setIsHardDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to <span className="text-destructive font-bold">permanently delete</span> this customer? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsHardDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleHardDeleteCustomer} disabled={deleteCompanyUserMutation.isPending}>
+              {deleteCompanyUserMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

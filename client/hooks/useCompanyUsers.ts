@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/apiClient';
 import { UserData, PaginatedResponse } from '@/lib/api/userService';
+import { usersService } from '@/lib/api/customerService';
 
 interface CompanyUserParams {
   role?: string | string[];
@@ -47,5 +48,19 @@ export function useCompanyUsers(companyId: string, params: CompanyUserParams = {
       return apiClient.get<PaginatedResponse<UserData>>(url);
     },
     enabled: !!companyId,
+  });
+}
+
+// Hook for hard deleting a user (company context)
+export function useDeleteCompanyUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, companyId }: { userId: string; companyId?: string }) => {
+      return usersService.hardDeleteUser(userId, companyId);
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate the company-users list for the relevant company
+      queryClient.invalidateQueries({ queryKey: ['company-users', 'list', variables.companyId] });
+    },
   });
 } 

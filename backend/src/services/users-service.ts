@@ -641,4 +641,16 @@ export class UsersService {
   async getUserByResetToken(token: string) {
     return this.repository.findByResetToken(token);
   }
+
+  /**
+   * Hard delete a user with company isolation
+   */
+  async deleteUser(id: string, companyId: string) {
+    // Check if user exists
+    const user = await this.repository.findById(id, companyId);
+    if (!user) {
+      throw AppError.notFound('User not found');
+    }
+    return this.repository.delete(id, companyId);
+  }
 }

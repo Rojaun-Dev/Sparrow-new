@@ -377,4 +377,19 @@ export class UsersController {
       return undefined;
     }
   };
+
+  /**
+   * Hard delete a user
+   */
+  deleteUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      await this.service.deleteUser(id, companyId);
+      return ApiResponse.success(res, null, 'User deleted successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 

@@ -31,4 +31,7 @@ router.delete('/:id', checkRole('admin_l2'), controller.deactivateUser);
 // Reactivate a user (Admin L2 only)
 router.post('/:id/reactivate', checkRole('admin_l2'), controller.reactivateUser);
 
+// Hard delete a user (Admin L2 only)
+router.delete('/:id/hard', checkRole('admin_l2'), controller.deleteUser);
+
 export default router; 

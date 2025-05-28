@@ -75,6 +75,14 @@ class UsersService {
     const id = companyId || await this.getCompanyId();
     return apiClient.put<any>(`${this.baseUrl}/${id}`, data);
   }
+
+  /**
+   * Hard delete a user
+   */
+  async hardDeleteUser(userId: string, companyId?: string): Promise<void> {
+    const id = companyId || await this.getCompanyId();
+    return apiClient.delete<void>(`${this.baseUrl}/${id}/users/${userId}/hard`);
+  }
 }
 
 // Export as singleton
