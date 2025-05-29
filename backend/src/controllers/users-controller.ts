@@ -4,6 +4,7 @@ import { ApiResponse } from '../utils/response';
 import bcrypt from 'bcrypt';
 import { parse as csvParse, format as csvFormat } from 'fast-csv';
 import { PassThrough } from 'stream';
+import { AuditLogsService } from '../services/audit-logs-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -16,9 +17,11 @@ interface AuthRequest extends Request {
 
 export class UsersController {
   private service: UsersService;
+  private auditLogsService: AuditLogsService;
 
   constructor() {
     this.service = new UsersService();
+    this.auditLogsService = new AuditLogsService();
   }
 
   /**
@@ -96,6 +99,10 @@ export class UsersController {
     try {
       const { id } = req.params;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const adminUserRole = req.userRole;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
       // If a regular user is trying to update another user's profile, block it
       if (req.userRole === 'customer' && id !== req.userId) {
@@ -119,6 +126,18 @@ export class UsersController {
           passwordHash
         }, companyId);
         
+        // Audit log for password change (optional, not logging password)
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'update_user_password',
+          entityType: 'user',
+          entityId: id,
+          details: { updatedFields: ['password'] },
+          ipAddress,
+          userAgent
+        });
+        
         return ApiResponse.success(res, user, 'User updated successfully');
       }
       
@@ -129,7 +148,25 @@ export class UsersController {
         return ApiResponse.validationError(res, error);
       }
 
+      // Fetch old user for audit comparison
+      const oldUser = await this.service.getUserById(id, companyId);
       const user = await this.service.updateUser(id, req.body, companyId);
+
+      // Audit log for TRN change (only if changed)
+      if (req.body.trn !== undefined && req.body.trn !== oldUser.trn) {
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'update_user_trn',
+          entityType: 'user',
+          entityId: id,
+          details: { oldTrn: oldUser.trn, newTrn: req.body.trn },
+          ipAddress,
+          userAgent
+        });
+      }
+      // Optionally, log other field changes as well
+
       return ApiResponse.success(res, user, 'User updated successfully');
     } catch (error) {
       next(error);
@@ -144,6 +181,9 @@ export class UsersController {
     try {
       const { id } = req.params;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
       // Prevent self-deactivation
       if (id === req.userId) {
@@ -151,6 +191,17 @@ export class UsersController {
       }
       
       await this.service.deactivateUser(id, companyId);
+      // Audit log
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'deactivate_user',
+        entityType: 'user',
+        entityId: id,
+        details: null,
+        ipAddress,
+        userAgent
+      });
       return ApiResponse.success(res, null, 'User deactivated successfully');
     } catch (error) {
       next(error);
@@ -165,7 +216,21 @@ export class UsersController {
     try {
       const { id } = req.params;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       await this.service.reactivateUser(id, companyId);
+      // Audit log
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'reactivate_user',
+        entityType: 'user',
+        entityId: id,
+        details: null,
+        ipAddress,
+        userAgent
+      });
       return ApiResponse.success(res, null, 'User reactivated successfully');
     } catch (error) {
       next(error);
@@ -397,7 +462,21 @@ export class UsersController {
     try {
       const { id } = req.params;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       await this.service.deleteUser(id, companyId);
+      // Audit log
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'delete_user',
+        entityType: 'user',
+        entityId: id,
+        details: null,
+        ipAddress,
+        userAgent
+      });
       return ApiResponse.success(res, null, 'User deleted successfully');
     } catch (error) {
       next(error);

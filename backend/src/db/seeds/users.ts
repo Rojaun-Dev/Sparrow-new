@@ -112,12 +112,13 @@ export async function seedUsers(db: NodePgDatabase<any>) {
         passwordHash: staffHash,
       });
       
-      // Create 3 customers per company
-      for (let i = 1; i <= 3; i++) {
+      // Create 11–17 customers per company
+      const customerIds: string[] = [];
+      const numCustomers = Math.floor(Math.random() * 7) + 11; // 11–17
+      for (let i = 1; i <= numCustomers; i++) {
         const customerPassword = `Customer${i}123!`;
         const customerHash = await hashPassword(customerPassword);
-        
-        await db.insert(users).values({
+        const result = await db.insert(users).values({
           companyId,
           email: `customer${i}@${subdomain}.com`,
           firstName: `Customer${i}`,
@@ -127,7 +128,8 @@ export async function seedUsers(db: NodePgDatabase<any>) {
           phone: `+1-876-555-${3000 + i}`,
           address: `Customer ${i} Address, Jamaica`,
           passwordHash: customerHash,
-        });
+        }).returning({ id: users.id });
+        customerIds.push(result[0].id);
       }
     }
     

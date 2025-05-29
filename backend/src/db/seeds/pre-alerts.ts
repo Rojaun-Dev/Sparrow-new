@@ -67,9 +67,9 @@ export async function seedPreAlerts(db: NodePgDatabase<any>) {
         )
       );
       
-      // For each customer, create 1-3 pre-alerts
+      // For each customer, create 11–17 pre-alerts
       for (const customer of customerUsers) {
-        const numPreAlerts = Math.floor(Math.random() * 3) + 1; // 1-3 pre-alerts per customer
+        const numPreAlerts = Math.floor(Math.random() * 7) + 11; // 11–17
         
         for (let i = 0; i < numPreAlerts; i++) {
           const estimatedWeight = parseFloat((Math.random() * 15 + 0.5).toFixed(2)); // 0.5-15.5 pounds

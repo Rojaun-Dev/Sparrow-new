@@ -54,46 +54,35 @@ export class PreAlertsController {
       const { userId } = req.params;
       const companyId = req.companyId as string;
       
-      // Check if there are any query parameters for filtering
-      if (Object.keys(req.query).length > 0) {
-        // Create a new object for manipulation
-        const searchParams: Record<string, any> = {
-          userId: userId, // Add the userId as a filter
-        };
-        
-        // Copy properties from req.query
-        Object.assign(searchParams, req.query);
-        
-        // Convert numeric query parameters
-        if (searchParams.page) {
-          searchParams.page = Number(searchParams.page);
-        }
-        
-        if (searchParams.limit) {
-          searchParams.pageSize = Number(searchParams.limit);
-        }
-        
-        // Convert date query parameters
-        if (searchParams.dateFrom) {
-          searchParams.estimatedArrivalFrom = new Date(searchParams.dateFrom as string);
-        }
-        
-        if (searchParams.dateTo) {
-          searchParams.estimatedArrivalTo = new Date(searchParams.dateTo as string);
-        }
-        
-        // Handle search parameter (map to trackingNumber search)
-        if (searchParams.search) {
-          searchParams.trackingNumber = searchParams.search;
-        }
-        
-        const result = await this.service.searchPreAlerts(companyId, searchParams);
-        return ApiResponse.success(res, result);
+      // Always use searchPreAlerts for pagination, even if no query params
+      const searchParams: Record<string, any> = {
+        userId: userId, // Add the userId as a filter
+        ...req.query,
+      };
+      // Convert numeric query parameters
+      if (searchParams.page) {
+        searchParams.page = Number(searchParams.page);
+      } else {
+        searchParams.page = 1;
       }
-      
-      // If no query parameters, use the original method
-      const preAlerts = await this.service.getPreAlertsByUserId(userId, companyId);
-      return ApiResponse.success(res, preAlerts);
+      if (searchParams.limit) {
+        searchParams.pageSize = Number(searchParams.limit);
+      } else {
+        searchParams.pageSize = 10;
+      }
+      // Convert date query parameters
+      if (searchParams.dateFrom) {
+        searchParams.estimatedArrivalFrom = new Date(searchParams.dateFrom as string);
+      }
+      if (searchParams.dateTo) {
+        searchParams.estimatedArrivalTo = new Date(searchParams.dateTo as string);
+      }
+      // Handle search parameter (map to trackingNumber search)
+      if (searchParams.search) {
+        searchParams.trackingNumber = searchParams.search;
+      }
+      const result = await this.service.searchPreAlerts(companyId, searchParams);
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;

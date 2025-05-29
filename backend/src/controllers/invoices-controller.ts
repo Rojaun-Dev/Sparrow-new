@@ -49,47 +49,35 @@ export class InvoicesController {
     try {
       const { userId } = req.params;
       const companyId = req.companyId as string;
-      
-      // Check if there are any query parameters for filtering
-      if (Object.keys(req.query).length > 0) {
-        // Create a new object for manipulation
-        const searchParams: Record<string, any> = {
-          userId: userId, // Add the userId as a filter
-        };
-        
-        // Copy properties from req.query
-        Object.assign(searchParams, req.query);
-        
-        // Convert numeric query parameters
-        if (searchParams.page) {
-          searchParams.page = Number(searchParams.page);
-        }
-        
-        if (searchParams.limit) {
-          searchParams.pageSize = Number(searchParams.limit);
-        }
-        
-        // Handle search parameter (map to invoiceNumber search)
-        if (searchParams.search) {
-          searchParams.invoiceNumber = searchParams.search;
-        }
-        
-        // Convert date query parameters
-        if (searchParams.dateFrom) {
-          searchParams.issueDateFrom = new Date(searchParams.dateFrom as string);
-        }
-        
-        if (searchParams.dateTo) {
-          searchParams.issueDateTo = new Date(searchParams.dateTo as string);
-        }
-        
-        const result = await this.service.searchInvoices(companyId, searchParams);
-        return ApiResponse.success(res, result);
+      // Always use searchInvoices for pagination, even if no query params
+      const searchParams: Record<string, any> = {
+        userId: userId,
+        ...req.query,
+      };
+      // Convert numeric query parameters
+      if (searchParams.page) {
+        searchParams.page = Number(searchParams.page);
+      } else {
+        searchParams.page = 1;
       }
-      
-      // If no query parameters, use the original method
-      const invoices = await this.service.getInvoicesByUserId(userId, companyId);
-      return ApiResponse.success(res, invoices);
+      if (searchParams.limit) {
+        searchParams.pageSize = Number(searchParams.limit);
+      } else {
+        searchParams.pageSize = 10;
+      }
+      // Handle search parameter (map to invoiceNumber search)
+      if (searchParams.search) {
+        searchParams.invoiceNumber = searchParams.search;
+      }
+      // Convert date query parameters
+      if (searchParams.dateFrom) {
+        searchParams.issueDateFrom = new Date(searchParams.dateFrom as string);
+      }
+      if (searchParams.dateTo) {
+        searchParams.issueDateTo = new Date(searchParams.dateTo as string);
+      }
+      const result = await this.service.searchInvoices(companyId, searchParams);
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;

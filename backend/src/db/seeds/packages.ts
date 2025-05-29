@@ -86,9 +86,9 @@ export async function seedPackages(db: NodePgDatabase<any>) {
         )
       );
       
-      // For each customer, create 2-4 packages
+      // For each customer, create 11–17 packages
       for (const customer of customerUsers) {
-        const numPackages = Math.floor(Math.random() * 3) + 2; // 2-4 packages per customer
+        const numPackages = Math.floor(Math.random() * 7) + 11; // 11–17 packages per customer
         
         for (let i = 0; i < numPackages; i++) {
           const weight = parseFloat((Math.random() * 20 + 1).toFixed(2)); // 1-21 pounds

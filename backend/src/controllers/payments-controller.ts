@@ -132,43 +132,32 @@ export class PaymentsController {
     try {
       const { userId } = req.params;
       const companyId = req.companyId as string;
-      
-      // Check if there are any query parameters for filtering
-      if (Object.keys(req.query).length > 0) {
-        // Create search parameters
-        const searchParams: Record<string, any> = {
-          userId: userId,
-        };
-        
-        // Copy query parameters
-        Object.assign(searchParams, req.query);
-        
-        // Convert date parameters
-        if (searchParams.dateFrom) {
-          searchParams.dateFrom = new Date(searchParams.dateFrom as string);
-        }
-        
-        if (searchParams.dateTo) {
-          searchParams.dateTo = new Date(searchParams.dateTo as string);
-        }
-        
-        // Convert pagination parameters
-        if (searchParams.page) {
-          searchParams.page = Number(searchParams.page);
-        }
-        
-        if (searchParams.limit) {
-          searchParams.pageSize = Number(searchParams.limit);
-        }
-        
-        // Use the search method with filters
-        const filteredPayments = await this.paymentsService.searchPayments(companyId, searchParams);
-        return res.json(filteredPayments);
+      // Always use searchPayments for pagination, even if no query params
+      const searchParams: Record<string, any> = {
+        userId: userId,
+        ...req.query,
+      };
+      // Convert date parameters
+      if (searchParams.dateFrom) {
+        searchParams.dateFrom = new Date(searchParams.dateFrom as string);
       }
-      
-      // If no filters, use the original method
-      const payments = await this.paymentsService.getPaymentsByUser(userId, companyId);
-      return res.json(payments);
+      if (searchParams.dateTo) {
+        searchParams.dateTo = new Date(searchParams.dateTo as string);
+      }
+      // Convert pagination parameters
+      if (searchParams.page) {
+        searchParams.page = Number(searchParams.page);
+      } else {
+        searchParams.page = 1;
+      }
+      if (searchParams.limit) {
+        searchParams.pageSize = Number(searchParams.limit);
+      } else {
+        searchParams.pageSize = 10;
+      }
+      // Use the search method with filters
+      const filteredPayments = await this.paymentsService.searchPayments(companyId, searchParams);
+      return res.json(filteredPayments);
     } catch (error: any) {
       console.error('Error fetching payments for user:', error);
       return res.status(500).json({ error: 'Failed to retrieve payments', message: error.message });

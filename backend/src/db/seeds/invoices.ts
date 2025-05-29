@@ -22,24 +22,18 @@ interface PackagesByUser {
 // Define invoice status type
 type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 
-// Define invoice item type
-type InvoiceItemType = 'shipping' | 'handling' | 'customs' | 'tax' | 'other';
-
 /**
  * Generate company-specific invoice number
  */
-function generateInvoiceNumber(companySubdomain: string): string {
+function generateInvoiceNumber(companySubdomain: string, counter: number): string {
   const prefixMap: { [key: string]: string } = {
     'sparrow': 'SPX-INV',
     'express': 'EXP-INV',
     'shipitfast': 'SIF-INV',
     'jampack': 'JMP-INV'
   };
-  
   const prefix = prefixMap[companySubdomain] || 'INV';
-  const randomDigits = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
-  
-  return `${prefix}-${randomDigits}`;
+  return `${prefix}-${String(counter).padStart(5, '0')}`;
 }
 
 /**
@@ -64,8 +58,14 @@ export async function seedInvoices(db: NodePgDatabase<any>) {
       name: companies.name,
     }).from(companies);
     
+    // Before the company loop
+    const invoiceCounters: { [companyId: string]: number } = {};
     // For each company
     for (const company of companyRecords) {
+      invoiceCounters[company.id] = 1;
+      // Invoice statuses weighted toward 'issued' and 'paid'
+      const statusOptions: InvoiceStatus[] = ['draft', 'issued', 'paid', 'issued', 'paid', 'overdue'];
+      
       // Get packages that are processed or ready_for_pickup (eligible for invoicing)
       const packageRecords = await db.select({
         id: packages.id,
@@ -92,117 +92,66 @@ export async function seedInvoices(db: NodePgDatabase<any>) {
       
       // Create invoices for each user with packages
       for (const [userId, userPackages] of Object.entries(packagesByUser)) {
-        if (userPackages.length === 0) continue;
-        
-        // Calculate invoice totals
-        let subtotal = 0;
-        const taxRate = 0.15; // 15% tax
-        
-        // Create company-specific invoice number
-        const invoiceNumber = generateInvoiceNumber(company.subdomain);
-        
-        // Issue date (0-7 days ago)
-        const issueDate = new Date();
-        issueDate.setDate(issueDate.getDate() - Math.floor(Math.random() * 8));
-        
-        // Due date (7-14 days after issue date)
-        const dueDate = new Date(issueDate);
-        dueDate.setDate(dueDate.getDate() + 7 + Math.floor(Math.random() * 8));
-        
-        // Invoice statuses weighted toward 'issued' and 'paid'
-        const statusOptions: InvoiceStatus[] = ['draft', 'issued', 'paid', 'issued', 'paid', 'overdue'];
-        const randomStatus = statusOptions[Math.floor(Math.random() * statusOptions.length)];
-        
-        // Invoice data with explicit company ID
-        const invoiceData = {
-          companyId: company.id,
-          userId: userId,
-          invoiceNumber: invoiceNumber,
-          status: randomStatus,
-          issueDate: issueDate,
-          dueDate: dueDate,
-          subtotal: '0', // Will update after adding items
-          taxAmount: '0', // Will update after adding items
-          totalAmount: '0', // Will update after adding items
-          notes: `Sample invoice generated for ${company.name}`,
-        };
-        
-        // Insert the invoice first to get its ID
-        const result = await db.insert(invoices).values(invoiceData).returning({ id: invoices.id });
-        
-        const invoiceResult = result[0];
-        
-        // Add invoice items for each package
-        for (const pkg of userPackages) {
-          // Shipping fee based on weight
-          const weight = pkg.weight ? parseFloat(pkg.weight) : 0;
-          const shippingFee = Math.max(15, weight * 2.5);
-          subtotal += shippingFee;
-          
-          // Shipping item data with explicit company ID
-          const shippingItemData = {
-            invoiceId: invoiceResult.id,
-            packageId: pkg.id,
+        const numInvoices = Math.min(userPackages.length, Math.floor(Math.random() * 7) + 11);
+        for (let inv = 0; inv < numInvoices; inv++) {
+          // Use the per-company counter for invoice number
+          const invoiceNumber = generateInvoiceNumber(company.subdomain, invoiceCounters[company.id]++);
+          // Create invoice (without totals yet)
+          const invoiceResult = await db.insert(invoices).values({
             companyId: company.id,
-            description: `Shipping fee for package (${weight} lbs)`,
-            quantity: 1,
-            unitPrice: shippingFee.toString(),
-            lineTotal: shippingFee.toString(),
-            type: 'shipping' as InvoiceItemType,
-          };
-          
-          await db.insert(invoiceItems).values(shippingItemData);
-          
-          // Handling fee (flat rate)
-          const handlingFee = 5;
-          subtotal += handlingFee;
-          
-          // Handling item data with explicit company ID
-          const handlingItemData = {
-            invoiceId: invoiceResult.id,
-            packageId: pkg.id,
-            companyId: company.id,
-            description: 'Package handling fee',
-            quantity: 1,
-            unitPrice: handlingFee.toString(),
-            lineTotal: handlingFee.toString(),
-            type: 'handling' as InvoiceItemType,
-          };
-          
-          await db.insert(invoiceItems).values(handlingItemData);
-          
-          // Customs fee (percentage of declared value)
-          const declaredValue = pkg.declaredValue ? parseFloat(pkg.declaredValue) : 0;
-          const customsFee = Math.max(10, declaredValue * 0.15);
-          subtotal += customsFee;
-          
-          // Customs item data with explicit company ID
-          const customsItemData = {
-            invoiceId: invoiceResult.id,
-            packageId: pkg.id,
-            companyId: company.id,
-            description: `Customs processing (${declaredValue} declared value)`,
-            quantity: 1,
-            unitPrice: customsFee.toString(),
-            lineTotal: customsFee.toString(),
-            type: 'customs' as InvoiceItemType,
-          };
-          
-          await db.insert(invoiceItems).values(customsItemData);
+            userId,
+            invoiceNumber,
+            status: statusOptions[Math.floor(Math.random() * statusOptions.length)],
+            issueDate: new Date(),
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            subtotal: '0',
+            taxAmount: '0',
+            totalAmount: '0',
+            notes: `Sample invoice generated for ${company.name}`,
+          }).returning({ id: invoices.id });
+
+          let subtotal = 0;
+          const taxRate = 0.15;
+          const invoiceId = invoiceResult[0].id;
+
+          // Select 1–3 random packages for this invoice
+          const numItems = Math.min(Math.floor(Math.random() * 3) + 1, userPackages.length);
+          const selectedPackages: typeof userPackages = [];
+          while (selectedPackages.length < numItems) {
+            const pkg = userPackages[Math.floor(Math.random() * userPackages.length)];
+            if (!selectedPackages.includes(pkg)) selectedPackages.push(pkg);
+          }
+
+          for (const pkg of selectedPackages) {
+            // Shipping fee based on weight
+            const weight = pkg.weight ? parseFloat(pkg.weight) : 0;
+            const shippingFee = Math.max(15, weight * 2.5);
+            subtotal += shippingFee;
+
+            await db.insert(invoiceItems).values({
+              invoiceId,
+              packageId: pkg.id,
+              companyId: company.id,
+              description: `Shipping fee for package (${weight} lbs)`,
+              quantity: 1,
+              unitPrice: shippingFee.toString(),
+              lineTotal: shippingFee.toString(),
+              type: 'shipping',
+            });
+          }
+
+          const taxAmount = subtotal * taxRate;
+          const totalAmount = subtotal + taxAmount;
+
+          // Update invoice with calculated totals
+          await db.update(invoices)
+            .set({
+              subtotal: subtotal.toString(),
+              taxAmount: taxAmount.toString(),
+              totalAmount: totalAmount.toString(),
+            })
+            .where(eq(invoices.id, invoiceId));
         }
-        
-        // Calculate tax
-        const taxAmount = subtotal * taxRate;
-        const totalAmount = subtotal + taxAmount;
-        
-        // Update the invoice with the final totals
-        await db.update(invoices)
-          .set({
-            subtotal: subtotal.toString(),
-            taxAmount: taxAmount.toString(),
-            totalAmount: totalAmount.toString(),
-          })
-          .where(eq(invoices.id, invoiceResult.id));
       }
     }
     

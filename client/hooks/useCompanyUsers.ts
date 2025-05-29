@@ -63,4 +63,44 @@ export function useDeleteCompanyUser() {
       queryClient.invalidateQueries({ queryKey: ['company-users', 'list', variables.companyId] });
     },
   });
+}
+
+// Hook for updating a user (company context)
+export function useUpdateCompanyUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, userData, companyId }: { userId: string; userData: any; companyId?: string }) => {
+      return usersService.updateUser(userId, userData, companyId);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['company-users', 'list', variables.companyId] });
+    },
+  });
+}
+
+// Hook for reactivating a user (company context)
+export function useReactivateCompanyUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, companyId }: { userId: string; companyId?: string }) => {
+      if (!companyId) throw new Error('companyId is required');
+      return apiClient.post(`/companies/${companyId}/users/${userId}/reactivate`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['company-users', 'list', variables.companyId] });
+    },
+  });
+}
+
+// Hook for deactivating (soft delete) a user (company context)
+export function useDeactivateCompanyUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, companyId }: { userId: string; companyId?: string }) => {
+      return usersService.deleteUser(userId, companyId);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['company-users', 'list', variables.companyId] });
+    },
+  });
 } 
