@@ -279,7 +279,7 @@ export default function AdminCustomerViewPage() {
   return (
     <div className="max-w-5xl mx-auto py-8">
       <h1 className="text-3xl font-bold tracking-tight mb-6">Customer Details</h1>
-      <Card className="border-2 border-gray-100 shadow-lg">
+      <Card className="border-2 border-gray-100">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
