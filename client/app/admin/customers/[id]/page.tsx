@@ -17,12 +17,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Loader, AlertCircle, CheckCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader, AlertCircle, CheckCircle, Package, CreditCard, User, Mail, Phone, MapPin, Hash, Clock, Building2, Contact, UserX, UserCheck, Trash2, Pencil, X, Check, Info, Calendar } from "lucide-react";
 import { useUser } from "@/hooks/useUsers";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile';
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -197,6 +198,9 @@ export default function AdminCustomerViewPage() {
     return obj && typeof obj === 'object' && obj.pagination && typeof obj.pagination.page === 'number';
   }
 
+  // Add after user, companyId are available
+  const { data: stats, isLoading: statsLoading, error: statsError } = useCustomerStatisticsForAdmin(userId, companyId!);
+
   // Loading/error states
   if (userLoading || (!companyId && !userError)) return (
     <div className="flex flex-col items-center justify-center h-64 gap-2">
@@ -219,51 +223,206 @@ export default function AdminCustomerViewPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
-      <Card>
-        <CardHeader>
+      <Card className="border-2 border-gray-100 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">{user.firstName} {user.lastName}</h2>
-              <div className="text-muted-foreground text-sm">{user.email}</div>
-              <div className="text-muted-foreground text-sm">Role: {user.role}</div>
-              <div className="text-muted-foreground text-sm">Status: {user.isActive ? <span className="text-green-600">Active</span> : <span className="text-red-600">Inactive</span>}</div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-7 w-7 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight text-gray-900">{user.firstName} {user.lastName}</h2>
+                  <div className="flex items-center gap-2 text-muted-foreground mt-1">
+                    <Mail className="h-4 w-4" />
+                    <span className="text-sm font-medium">{user.email}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 mt-3">
+                <Badge variant={user.isActive ? "success" : "destructive"} className="px-4 py-1.5 text-sm font-semibold">
+                  {user.isActive ? "Active" : "Inactive"}
+                </Badge>
+                <Badge variant="outline" className="px-4 py-1.5 text-sm font-semibold">
+                  {user.role}
+                </Badge>
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {user.isActive ? (
-                <Button variant="destructive" onClick={handleDeactivate} disabled={deactivateUserMutation.status === 'pending'}>Deactivate</Button>
+                <Button variant="destructive" onClick={handleDeactivate} disabled={deactivateUserMutation.status === 'pending'} className="font-semibold">
+                  <UserX className="h-4 w-4 mr-2" />
+                  Deactivate
+                </Button>
               ) : (
-                <Button variant="default" onClick={handleReactivate} disabled={reactivateUserMutation.status === 'pending'}>Reactivate</Button>
+                <Button variant="default" onClick={handleReactivate} disabled={reactivateUserMutation.status === 'pending'} className="font-semibold">
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Reactivate
+                </Button>
               )}
-              <Button variant="outline" onClick={handleHardDelete} disabled={deleteUserMutation.status === 'pending'}>Delete</Button>
+              <Button variant="outline" onClick={handleHardDelete} disabled={deleteUserMutation.status === 'pending'} className="font-semibold">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="mb-2 font-semibold">Contact Info</div>
-              <div>Email: {user.email}</div>
-              <div>Phone: {user.phone || <span className="text-muted-foreground">N/A</span>}</div>
-              <div>Address: {user.address || <span className="text-muted-foreground">N/A</span>}</div>
-              <div>TRN: {editTrn ? (
-                <span className="flex items-center gap-2">
-                  <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32" />
-                  <Button size="sm" onClick={handleTrnSave} disabled={updateUserMutation.status === 'pending'}>Save</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditTrn(false)}>Cancel</Button>
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">{user.trn || <span className="text-muted-foreground">N/A</span>} <Button size="sm" variant="ghost" onClick={handleTrnEdit}>Edit</Button></span>
-              )}</div>
+        <CardContent className="pt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-xl font-bold text-primary">
+                <Contact className="h-6 w-6" />
+                Contact Information
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">Email:</span>
+                  <span className="text-gray-600">{user.email}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Phone className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">Phone:</span>
+                  <span className="text-gray-600">{user.phone || <span className="text-muted-foreground">N/A</span>}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">Address:</span>
+                  <span className="text-gray-600">{user.address || <span className="text-muted-foreground">N/A</span>}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Hash className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">TRN:</span>
+                  {editTrn ? (
+                    <span className="flex items-center gap-2">
+                      <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32 font-medium" />
+                      <Button size="sm" onClick={handleTrnSave} disabled={updateUserMutation.status === 'pending'}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditTrn(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span className="text-gray-600">{user.trn || <span className="text-muted-foreground">N/A</span>}</span>
+                      <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="mb-2 font-semibold">Other Info</div>
-              <div>Created: {new Date(user.createdAt).toLocaleString()}</div>
-              <div>Updated: {new Date(user.updatedAt).toLocaleString()}</div>
-              <div>Company ID: {user.companyId}</div>
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-xl font-bold text-primary">
+                <Info className="h-6 w-6" />
+                Account Information
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">Created:</span>
+                  <span className="text-gray-600">{new Date(user.createdAt).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">Updated:</span>
+                  <span className="text-gray-600">{new Date(user.updatedAt).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Building2 className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold text-gray-700">Company ID:</span>
+                  <span className="text-gray-600">{user.companyId}</span>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Enhanced Customer Statistics Section */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-8">
+        {/* Total Packages */}
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium text-blue-900">Total Packages</CardTitle>
+            </div>
+            <div className="rounded-full bg-blue-100 p-2">
+              <Package className="h-5 w-5 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-20 rounded" />
+            ) : (
+              <div className="text-3xl font-bold text-blue-900">{stats?.totalPackages ?? '-'}</div>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">All packages for this customer</div>
+          </CardContent>
+        </Card>
+        {/* Delivered */}
+        <Card className="border-green-200 bg-green-50/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium text-green-900">Delivered</CardTitle>
+            </div>
+            <div className="rounded-full bg-green-100 p-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-20 rounded" />
+            ) : (
+              <div className="text-3xl font-bold text-green-900">{stats?.packagesByStatus?.delivered ?? 0}</div>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">Completed deliveries</div>
+          </CardContent>
+        </Card>
+        {/* Pre-Alerts */}
+        <Card className="border-yellow-200 bg-yellow-50/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium text-yellow-900">Pre-Alerts</CardTitle>
+            </div>
+            <div className="rounded-full bg-yellow-100 p-2">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-20 rounded" />
+            ) : (
+              <div className="text-3xl font-bold text-yellow-900">{stats?.packagesByStatus?.pre_alert ?? 0}</div>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">Registered pre-alerts</div>
+          </CardContent>
+        </Card>
+        {/* Outstanding Invoices */}
+        <Card className="border-red-200 bg-red-50/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium text-red-900">Outstanding Invoices</CardTitle>
+            </div>
+            <div className="rounded-full bg-red-100 p-2">
+              <CreditCard className="h-5 w-5 text-red-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-20 rounded" />
+            ) : (
+              <div className="text-3xl font-bold text-red-900">{stats?.outstandingInvoices?.count ?? 0}</div>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">Unpaid invoices</div>
+          </CardContent>
+        </Card>
+      </div>
+      {statsError && (
+        <div className="text-red-600 mt-2">Failed to load statistics.</div>
+      )}
 
       <div className="mt-8">
         <div className="flex gap-4 mb-4">
