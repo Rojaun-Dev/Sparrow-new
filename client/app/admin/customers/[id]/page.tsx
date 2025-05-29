@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile';
 import { useQueryClient } from '@tanstack/react-query';
+import { AddPackageModal } from "@/components/packages/AddPackageModal";
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -118,12 +119,13 @@ export default function AdminCustomerViewPage() {
   const [paymentFilter, setPaymentFilter] = useState({ status: '', search: '' });
   const [invoiceFilter, setInvoiceFilter] = useState({ status: '', search: '' });
 
+  // Add state for AddPackageModal
+  const [addPackageOpen, setAddPackageOpen] = useState(false);
+
   // Handlers for action buttons
   const handleAddPackage = useCallback(() => {
-    // TODO: Open add package modal or redirect
-    toast({ title: 'Add Package', description: 'Open add package modal/form (not implemented).' });
-    // router.refresh(); // Uncomment when API call is implemented
-  }, [toast]);
+    setAddPackageOpen(true);
+  }, []);
   const handleMatchPrealerts = useCallback(() => {
     // TODO: Open match prealerts modal or trigger match
     toast({ title: 'Match Prealerts', description: 'Open match prealerts modal/action (not implemented).' });
@@ -659,6 +661,19 @@ export default function AdminCustomerViewPage() {
           )}
         </div>
       </div>
+
+      {/* AddPackageModal integration */}
+      <AddPackageModal
+        open={addPackageOpen}
+        onClose={() => setAddPackageOpen(false)}
+        customerId={userId}
+        customerSelectable={false}
+        companyId={user.companyId}
+        onSuccess={() => {
+          toast({ title: 'Package added', description: 'A new package was added for this customer.' });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+        }}
+      />
     </div>
   );
 }
