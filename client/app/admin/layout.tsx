@@ -4,7 +4,7 @@ import { Inter } from "next/font/google"
 import "../globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AdminHeader } from "@/components/admin/header"
-import { AdminSidebar } from "@/components/admin/sidebar"
+import { AdminSidebarDesktop, AdminSidebarMobile } from "@/components/admin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 
 // Config to prevent static optimization
@@ -29,8 +29,9 @@ export default function AdminLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <div className="flex min-h-screen flex-col">
             <AdminHeader />
+            <AdminSidebarMobile />
             <div className="flex flex-1">
-              <AdminSidebar />
+              <AdminSidebarDesktop />
               <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">
                 <Breadcrumbs className="mb-4" homeHref="/admin" homeLabel="Dashboard" rootPath="/admin" />
                 {children}
