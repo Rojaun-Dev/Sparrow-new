@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   useUpdateCompanyUser,
   useDeleteCompanyUser,
@@ -24,11 +24,13 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const userId = params.id as string;
   // companyId may be undefined if not in route
   const [companyId, setCompanyId] = useState<string | undefined>(params.companyId as string | undefined);
@@ -110,6 +112,33 @@ export default function AdminCustomerViewPage() {
   const [trnValue, setTrnValue] = useState("");
   const [tab, setTab] = useState("packages");
 
+  // Add filter state for each table
+  const [packageFilter, setPackageFilter] = useState({ status: '', search: '' });
+  const [prealertFilter, setPrealertFilter] = useState({ status: '', search: '' });
+  const [paymentFilter, setPaymentFilter] = useState({ status: '', search: '' });
+  const [invoiceFilter, setInvoiceFilter] = useState({ status: '', search: '' });
+
+  // Handlers for action buttons
+  const handleAddPackage = useCallback(() => {
+    // TODO: Open add package modal or redirect
+    toast({ title: 'Add Package', description: 'Open add package modal/form (not implemented).' });
+    // router.refresh(); // Uncomment when API call is implemented
+  }, [toast]);
+  const handleMatchPrealerts = useCallback(() => {
+    // TODO: Open match prealerts modal or trigger match
+    toast({ title: 'Match Prealerts', description: 'Open match prealerts modal/action (not implemented).' });
+    // router.refresh(); // Uncomment when API call is implemented
+  }, [toast]);
+  const handleMakePayment = useCallback(() => {
+    // TODO: Open make payment modal or redirect
+    toast({ title: 'Make Payment', description: 'Open make payment modal/form (not implemented).' });
+    // router.refresh(); // Uncomment when API call is implemented
+  }, [toast]);
+  const handleGenerateInvoice = useCallback(() => {
+    toast({ title: 'Generate Invoice', description: 'Open generate invoice modal/form (not implemented).' });
+    // router.refresh(); // Uncomment when API call is implemented
+  }, [toast]);
+
   // Handle TRN edit
   const handleTrnEdit = () => {
     setEditTrn(true);
@@ -122,6 +151,13 @@ export default function AdminCustomerViewPage() {
         onSuccess: () => {
           toast({ title: "TRN updated", description: "User TRN was updated.", variant: "default" });
           setEditTrn(false);
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-prealerts', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['customer-statistics', userId, companyId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId], exact: true });
+          // router.refresh(); // Not needed for client data
         },
         onError: (err: any) => {
           toast({ title: "Error", description: err.message || "Failed to update TRN", variant: "destructive" });
@@ -137,8 +173,13 @@ export default function AdminCustomerViewPage() {
       {
         onSuccess: () => {
           toast({ title: "User deactivated", description: "User was deactivated.", variant: "default" });
-          // Invalidate user and related queries
-          router.refresh();
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-prealerts', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['customer-statistics', userId, companyId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId], exact: true });
+          // router.refresh();
         },
         onError: (err: any) => {
           toast({ title: "Error", description: err.message || "Failed to deactivate user", variant: "destructive" });
@@ -154,7 +195,13 @@ export default function AdminCustomerViewPage() {
       {
         onSuccess: () => {
           toast({ title: "User reactivated", description: "User was reactivated.", variant: "default" });
-          router.refresh();
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-prealerts', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['customer-statistics', userId, companyId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId], exact: true });
+          // router.refresh();
         },
         onError: (err: any) => {
           toast({ title: "Error", description: err.message || "Failed to reactivate user", variant: "destructive" });
@@ -171,6 +218,12 @@ export default function AdminCustomerViewPage() {
       {
         onSuccess: () => {
           toast({ title: "User deleted", description: "User was permanently deleted.", variant: "default" });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-prealerts', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['customer-statistics', userId, companyId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId], exact: true });
           router.push("/admin/customers");
         },
         onError: (err: any) => {
@@ -223,6 +276,7 @@ export default function AdminCustomerViewPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
+      <h1 className="text-3xl font-bold tracking-tight mb-6">Customer Details</h1>
       <Card className="border-2 border-gray-100 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
           <div className="flex items-center justify-between">
@@ -232,7 +286,7 @@ export default function AdminCustomerViewPage() {
                   <User className="h-7 w-7 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-gray-900">{user.firstName} {user.lastName}</h2>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">{user.firstName} {user.lastName}</h2>
                   <div className="flex items-center gap-2 text-muted-foreground mt-1">
                     <Mail className="h-4 w-4" />
                     <span className="text-sm font-medium">{user.email}</span>
@@ -270,29 +324,26 @@ export default function AdminCustomerViewPage() {
         <CardContent className="pt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div className="space-y-5">
-              <div className="flex items-center gap-2 text-xl font-bold text-primary">
-                <Contact className="h-6 w-6" />
-                Contact Information
-              </div>
+              <CardTitle className="text-lg font-semibold tracking-tight flex items-center gap-2"><Contact className="h-6 w-6" />Contact Information</CardTitle>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <Mail className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">Email:</span>
-                  <span className="text-gray-600">{user.email}</span>
+                  <span className="font-semibold text-foreground">Email:</span>
+                  <span className="text-foreground">{user.email}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">Phone:</span>
-                  <span className="text-gray-600">{user.phone || <span className="text-muted-foreground">N/A</span>}</span>
+                  <span className="font-semibold text-foreground">Phone:</span>
+                  <span className="text-foreground">{user.phone || <span className="text-muted-foreground">N/A</span>}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <MapPin className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">Address:</span>
-                  <span className="text-gray-600">{user.address || <span className="text-muted-foreground">N/A</span>}</span>
+                  <span className="font-semibold text-foreground">Address:</span>
+                  <span className="text-foreground">{user.address || <span className="text-muted-foreground">N/A</span>}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Hash className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">TRN:</span>
+                  <span className="font-semibold text-foreground">TRN:</span>
                   {editTrn ? (
                     <span className="flex items-center gap-2">
                       <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32 font-medium" />
@@ -305,7 +356,7 @@ export default function AdminCustomerViewPage() {
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <span className="text-gray-600">{user.trn || <span className="text-muted-foreground">N/A</span>}</span>
+                      <span className="text-foreground">{user.trn || <span className="text-muted-foreground">N/A</span>}</span>
                       <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -315,25 +366,22 @@ export default function AdminCustomerViewPage() {
               </div>
             </div>
             <div className="space-y-5">
-              <div className="flex items-center gap-2 text-xl font-bold text-primary">
-                <Info className="h-6 w-6" />
-                Account Information
-              </div>
+              <CardTitle className="text-lg font-semibold tracking-tight flex items-center gap-2"><Info className="h-6 w-6" />Account Information</CardTitle>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">Created:</span>
-                  <span className="text-gray-600">{new Date(user.createdAt).toLocaleString()}</span>
+                  <span className="font-semibold text-foreground">Created:</span>
+                  <span className="text-foreground">{new Date(user.createdAt).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">Updated:</span>
-                  <span className="text-gray-600">{new Date(user.updatedAt).toLocaleString()}</span>
+                  <span className="font-semibold text-foreground">Updated:</span>
+                  <span className="text-foreground">{new Date(user.updatedAt).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Building2 className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-gray-700">Company ID:</span>
-                  <span className="text-gray-600">{user.companyId}</span>
+                  <span className="font-semibold text-foreground">Company ID:</span>
+                  <span className="text-foreground">{user.companyId}</span>
                 </div>
               </div>
             </div>
@@ -342,7 +390,8 @@ export default function AdminCustomerViewPage() {
       </Card>
 
       {/* Enhanced Customer Statistics Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-8">
+      <h2 className="text-xl font-semibold tracking-tight mt-10 mb-4">Customer Statistics</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Packages */}
         <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -395,7 +444,7 @@ export default function AdminCustomerViewPage() {
             {statsLoading ? (
               <Skeleton className="h-8 w-20 rounded" />
             ) : (
-              <div className="text-3xl font-bold text-yellow-900">{stats?.packagesByStatus?.pre_alert ?? 0}</div>
+              <div className="text-3xl font-bold text-yellow-900">{stats?.pendingPreAlerts ?? 0}</div>
             )}
             <div className="text-xs text-muted-foreground mt-1">Registered pre-alerts</div>
           </CardContent>
@@ -433,70 +482,180 @@ export default function AdminCustomerViewPage() {
         </div>
         <div className="rounded-lg border bg-background p-4 shadow-sm">
           {tab === "packages" && (
-            <EnhancedDataTable
-              type="package"
-              data={getArray(packagesData)}
-              loading={packagesLoading}
-              error={packagesError}
-              formatDate={formatDate}
-              {...(isPaginatedResult(packagesData) ? {
-                pagination: packagesData.pagination,
-                page: packagesPage,
-                pageSize: packagesPageSize,
-                onPageChange: setPackagesPage,
-                onPageSizeChange: setPackagesPageSize,
-              } : {})}
-            />
+            <div>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search tracking number..."
+                    value={packageFilter.search}
+                    onChange={e => setPackageFilter(f => ({ ...f, search: e.target.value }))}
+                    className="w-48"
+                  />
+                  <select
+                    value={packageFilter.status}
+                    onChange={e => setPackageFilter(f => ({ ...f, status: e.target.value }))}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="ready_for_pickup">Ready for Pickup</option>
+                    <option value="returned">Returned</option>
+                    <option value="processed">Processed</option>
+                    <option value="received">Received</option>
+                    <option value="pre_alert">Pre-Alert</option>
+                  </select>
+                </div>
+                <Button onClick={handleAddPackage} variant="default">Add Package</Button>
+              </div>
+              <EnhancedDataTable
+                type="package"
+                data={getArray(packagesData).filter(pkg =>
+                  (!packageFilter.status || (pkg as any).status === packageFilter.status) &&
+                  (!packageFilter.search || ((pkg as any).trackingNumber || '').toLowerCase().includes(packageFilter.search.toLowerCase()))
+                )}
+                loading={packagesLoading}
+                error={packagesError}
+                formatDate={formatDate}
+                {...(isPaginatedResult(packagesData) ? {
+                  pagination: packagesData.pagination,
+                  page: packagesPage,
+                  pageSize: packagesPageSize,
+                  onPageChange: setPackagesPage,
+                  onPageSizeChange: setPackagesPageSize,
+                } : {})}
+              />
+            </div>
           )}
           {tab === "prealerts" && (
-            <EnhancedDataTable
-              type="prealert"
-              data={getArray(preAlertsData)}
-              loading={preAlertsLoading}
-              error={preAlertsError}
-              formatDate={formatDate}
-              {...(isPaginatedResult(preAlertsData) ? {
-                pagination: preAlertsData.pagination,
-                page: prealertsPage,
-                pageSize: prealertsPageSize,
-                onPageChange: setPrealertsPage,
-                onPageSizeChange: setPrealertsPageSize,
-              } : {})}
-            />
+            <div>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search tracking number..."
+                    value={prealertFilter.search}
+                    onChange={e => setPrealertFilter(f => ({ ...f, search: e.target.value }))}
+                    className="w-48"
+                  />
+                  <select
+                    value={prealertFilter.status}
+                    onChange={e => setPrealertFilter(f => ({ ...f, status: e.target.value }))}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="matched">Matched</option>
+                    <option value="pending">Pending</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <Button onClick={handleMatchPrealerts} variant="default">Match Prealerts</Button>
+              </div>
+              <EnhancedDataTable
+                type="prealert"
+                data={getArray(preAlertsData).filter(pre =>
+                  (!prealertFilter.status || (pre as any).status === prealertFilter.status) &&
+                  (!prealertFilter.search || ((pre as any).trackingNumber || '').toLowerCase().includes(prealertFilter.search.toLowerCase()))
+                )}
+                loading={preAlertsLoading}
+                error={preAlertsError}
+                formatDate={formatDate}
+                {...(isPaginatedResult(preAlertsData) ? {
+                  pagination: preAlertsData.pagination,
+                  page: prealertsPage,
+                  pageSize: prealertsPageSize,
+                  onPageChange: setPrealertsPage,
+                  onPageSizeChange: setPrealertsPageSize,
+                } : {})}
+              />
+            </div>
           )}
           {tab === "payments" && (
-            <EnhancedDataTable
-              type="payment"
-              data={getArray(paymentsData)}
-              loading={paymentsLoading}
-              error={paymentsError}
-              formatDate={formatDate}
-              formatCurrency={formatCurrency}
-              {...(isPaginatedResult(paymentsData) ? {
-                pagination: paymentsData.pagination,
-                page: paymentsPage,
-                pageSize: paymentsPageSize,
-                onPageChange: setPaymentsPage,
-                onPageSizeChange: setPaymentsPageSize,
-              } : {})}
-            />
+            <div>
+              <div className="flex gap-2 mb-2">
+                <Input
+                  placeholder="Search method..."
+                  value={paymentFilter.search}
+                  onChange={e => setPaymentFilter(f => ({ ...f, search: e.target.value }))}
+                  className="w-48"
+                />
+                <select
+                  value={paymentFilter.status}
+                  onChange={e => setPaymentFilter(f => ({ ...f, status: e.target.value }))}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                  <option value="refunded">Refunded</option>
+                </select>
+              </div>
+              <EnhancedDataTable
+                type="payment"
+                data={getArray(paymentsData).filter(pay =>
+                  (!paymentFilter.status || (pay as any).status === paymentFilter.status) &&
+                  (!paymentFilter.search || ((pay as any).paymentMethod || '').toLowerCase().includes(paymentFilter.search.toLowerCase()))
+                )}
+                loading={paymentsLoading}
+                error={paymentsError}
+                formatDate={formatDate}
+                formatCurrency={formatCurrency}
+                {...(isPaginatedResult(paymentsData) ? {
+                  pagination: paymentsData.pagination,
+                  page: paymentsPage,
+                  pageSize: paymentsPageSize,
+                  onPageChange: setPaymentsPage,
+                  onPageSizeChange: setPaymentsPageSize,
+                } : {})}
+              />
+            </div>
           )}
           {tab === "invoices" && (
-            <EnhancedDataTable
-              type="invoice"
-              data={getArray(invoicesData)}
-              loading={invoicesLoading}
-              error={invoicesError}
-              formatDate={formatDate}
-              formatCurrency={formatCurrency}
-              {...(isPaginatedResult(invoicesData) ? {
-                pagination: invoicesData.pagination,
-                page: invoicesPage,
-                pageSize: invoicesPageSize,
-                onPageChange: setInvoicesPage,
-                onPageSizeChange: setInvoicesPageSize,
-              } : {})}
-            />
+            <div>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search invoice number..."
+                    value={invoiceFilter.search}
+                    onChange={e => setInvoiceFilter(f => ({ ...f, search: e.target.value }))}
+                    className="w-48"
+                  />
+                  <select
+                    value={invoiceFilter.status}
+                    onChange={e => setInvoiceFilter(f => ({ ...f, status: e.target.value }))}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="paid">Paid</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="issued">Issued</option>
+                    <option value="draft">Draft</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleMakePayment} variant="default">Make Payment</Button>
+                  <Button onClick={handleGenerateInvoice} variant="default">Generate Invoice</Button>
+                </div> 
+              </div>
+              <EnhancedDataTable
+                type="invoice"
+                data={getArray(invoicesData).filter(inv =>
+                  (!invoiceFilter.status || (inv as any).status === invoiceFilter.status) &&
+                  (!invoiceFilter.search || ((inv as any).invoiceNumber || '').toLowerCase().includes(invoiceFilter.search.toLowerCase()))
+                )}
+                loading={invoicesLoading}
+                error={invoicesError}
+                formatDate={formatDate}
+                formatCurrency={formatCurrency}
+                {...(isPaginatedResult(invoicesData) ? {
+                  pagination: invoicesData.pagination,
+                  page: invoicesPage,
+                  pageSize: invoicesPageSize,
+                  onPageChange: setInvoicesPage,
+                  onPageSizeChange: setInvoicesPageSize,
+                } : {})}
+              />
+            </div>
           )}
         </div>
       </div>

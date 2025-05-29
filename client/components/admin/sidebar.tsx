@@ -117,19 +117,14 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    title: "Company Settings",
+    title: "Company Management",
     href: "/admin/settings",
     icon: Settings,
     adminL2Only: true,
     submenu: [
       { title: "General", href: "/admin/settings" },
       { title: "Branding", href: "/admin/settings/branding" },
-      { title: "Shipping Rates", href: "/admin/settings/shipping-rates" },
-      { title: "Handling Fees", href: "/admin/settings/handling-fees" },
-      { title: "Customs Fees", href: "/admin/settings/customs-fees" },
-      { title: "Tax Rates", href: "/admin/settings/tax-rates" },
-      { title: "Notifications", href: "/admin/settings/notifications" },
-      { title: "Locations", href: "/admin/settings/locations" },
+      { title: "Fee Management", href: "/admin/settings/fee-management" },
     ],
   },
 ]
