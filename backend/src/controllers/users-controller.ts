@@ -401,6 +401,8 @@ export class UsersController {
         order?: 'asc' | 'desc';
         createdFrom?: string;
         createdTo?: string;
+        page?: number;
+        limit?: number;
       } = {
         companyId,
         ...(roleParam ? { role: roleParam } : {}),
@@ -409,7 +411,9 @@ export class UsersController {
         sort: sort as string,
         order: order as 'asc' | 'desc',
         createdFrom: createdFrom as string,
-        createdTo: createdTo as string
+        createdTo: createdTo as string,
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
       };
       
       const result = await this.service.getUsersForCompany(params);

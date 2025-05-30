@@ -53,7 +53,6 @@ export class PreAlertsController {
     try {
       const { userId } = req.params;
       const companyId = req.companyId as string;
-      
       // Always use searchPreAlerts for pagination, even if no query params
       const searchParams: Record<string, any> = {
         userId: userId, // Add the userId as a filter
@@ -201,28 +200,22 @@ export class PreAlertsController {
       const companyId = req.companyId as string;
       // Create a new object for manipulation
       const searchParams: Record<string, any> = {};
-      
       // Copy properties from req.query
       Object.assign(searchParams, req.query);
-      
       // Convert numeric query parameters
       if (searchParams.page) {
         searchParams.page = Number(searchParams.page);
       }
-      
       if (searchParams.pageSize) {
         searchParams.pageSize = Number(searchParams.pageSize);
       }
-      
       // Convert date query parameters
       if (searchParams.estimatedArrivalFrom) {
         searchParams.estimatedArrivalFrom = new Date(searchParams.estimatedArrivalFrom as string);
       }
-      
       if (searchParams.estimatedArrivalTo) {
         searchParams.estimatedArrivalTo = new Date(searchParams.estimatedArrivalTo as string);
       }
-      
       const result = await this.service.searchPreAlerts(companyId, searchParams);
       return ApiResponse.success(res, result);
     } catch (error) {

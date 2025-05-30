@@ -8,7 +8,11 @@ const companiesService = new CompaniesService();
  */
 export const getAllCompanies = async (req: Request, res: Response) => {
   try {
-    const companies = await companiesService.getAllCompanies(req.query);
+    // Parse pagination params as numbers
+    const query = { ...req.query };
+    if (query.page) query.page = parseInt(query.page as string, 10);
+    if (query.limit) query.limit = parseInt(query.limit as string, 10);
+    const companies = await companiesService.getAllCompanies(query);
     return res.status(200).json({
       success: true,
       data: companies
