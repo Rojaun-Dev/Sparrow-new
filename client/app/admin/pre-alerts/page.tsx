@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Eye, Link } from "lucide-react";
 import { useExportCsv } from "@/hooks/useExportCsv";
 import { preAlertService } from "@/lib/api/preAlertService";
 
@@ -33,9 +33,6 @@ export default function PreAlertsPage() {
             <CardTitle>Pre-Alerts</CardTitle>
             <CardDescription>View and manage all pre-alerts for your company</CardDescription>
           </div>
-          <Button onClick={handleExport} variant="outline">
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-          </Button>
         </CardHeader>
         <CardContent>
           {/* Placeholder for filters */}
@@ -66,8 +63,26 @@ export default function PreAlertsPage() {
                       <TableCell>{alert.status}</TableCell>
                       <TableCell>{alert.estimatedArrival ? new Date(alert.estimatedArrival).toLocaleDateString() : "-"}</TableCell>
                       <TableCell>
-                        {/* Actions: View, etc. */}
-                        <Button size="sm" variant="outline">View</Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="flex items-center gap-1"
+                            onClick={() => {/* TODO: Implement view handler */}}
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="flex items-center gap-1"
+                            onClick={() => {/* TODO: Implement match handler */}}
+                          >
+                            <Link className="h-4 w-4" />
+                            Match
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )) : (

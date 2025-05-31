@@ -25,6 +25,7 @@ class PackageService {
     const companyId = filters.companyId || await this.getCompanyId();
     return apiClient.get<any>(`${this.baseUrl}/${companyId}/packages`, {
       params: {
+        search: filters.search,
         status: filters.status,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
