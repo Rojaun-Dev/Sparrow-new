@@ -1,0 +1,1 @@
+ALTER TABLE "fees" ADD COLUMN "percentage_of" varchar(50);

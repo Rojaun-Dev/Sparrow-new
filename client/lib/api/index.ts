@@ -12,4 +12,5 @@ export { paymentService } from './paymentService';
 export { profileService } from './profileService';
 export { authService } from './authService';
 export { usersService } from './customerService';
-export { companyService } from './companyService'; 
+export { companyService } from './companyService';
+export { feeService } from './feeService'; 

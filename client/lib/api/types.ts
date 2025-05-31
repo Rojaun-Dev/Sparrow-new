@@ -203,6 +203,10 @@ export interface Fee extends BaseEntity {
   amount: number;
   currency: string;
   appliesTo: string[];
+  /**
+   * For percentage fees, metadata.baseAttribute (string) determines what the percentage is of (e.g., 'subtotal').
+   * For tiered fees, metadata.tiers (array) and metadata.tierAttribute (string) define the tiers.
+   */
   metadata?: any;
   description?: string;
   isActive: boolean;

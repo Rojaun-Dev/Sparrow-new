@@ -124,7 +124,7 @@ const navItems: NavItem[] = [
     submenu: [
       { title: "General", href: "/admin/settings" },
       { title: "Branding", href: "/admin/settings/branding" },
-      { title: "Fee Management", href: "/admin/settings/fee-management" },
+      { title: "Fee Management", href: "/admin/settings/fees" },
     ],
   },
 ]

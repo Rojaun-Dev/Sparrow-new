@@ -269,12 +269,13 @@ export class BillingService {
     
     // Apply tax if applicable
     const taxFees = await this.getApplicableFees(packageData, companyId, 'tax');
+    // Build a context object for percentage-based fees
+    const context = { shipping: result.shipping, handling: result.handling, customs: result.customs, other: result.other, subtotal: result.subtotal };
     for (const fee of taxFees) {
       // Tax is typically calculated on the subtotal
-      const amount = this.feesService.calculateFeeAmount(fee, result.subtotal, packageData);
+      const amount = this.feesService.calculateFeeAmount(fee, result.subtotal, packageData, context);
       const finalAmount = this.applyLimits(amount, fee.metadata);
       result.taxes += finalAmount;
-      
       // Add to line items
       result.lineItems.push({
         packageId: packageData.id,
@@ -289,7 +290,10 @@ export class BillingService {
     // Calculate total
     result.total = result.subtotal + result.taxes;
     
-    return result;
+    return {
+      ...result,
+      context,
+    };
   }
 
   /**

@@ -1,0 +1,1 @@
+ALTER TABLE "fees" DROP COLUMN IF EXISTS "percentage_of";
