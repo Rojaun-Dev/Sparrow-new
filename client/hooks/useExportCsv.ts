@@ -1,10 +1,11 @@
+'use client';
 import { useState } from 'react';
 
 export function useExportCsv() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // fetchCsvBlob: async function that returns a Blob (e.g., usersService.exportUsersCsv)
+  // fetchCsvBlob: async function that returns a Blob (e.g., usersService.exportUsersCsv, packageService.exportPackagesCsv, paymentService.exportPaymentsCsv)
   // params: query params to pass to the API
   // filename: name for the downloaded file
   const exportCsv = async (

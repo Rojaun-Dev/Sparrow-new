@@ -49,10 +49,102 @@ export class PackagesService {
   }
 
   /**
-   * Get all packages for a company
+   * Get all packages for a company (paginated, with filtering)
    */
-  async getAllPackages(companyId: string) {
-    return this.packagesRepository.findAll(companyId);
+  async getAllPackages(companyId: string, page = 1, limit = 10, filters: any = {}) {
+    // Accept filters: status, search, dateFrom, dateTo, sortBy, sortOrder
+    const db = this.packagesRepository.getDatabaseInstance();
+    const offset = (page - 1) * limit;
+
+    // Set up sorting
+    const orderBy: SQL[] = [];
+    if (filters.sortBy) {
+      const direction = filters.sortOrder === 'desc' ? desc : asc;
+      switch(filters.sortBy) {
+        case 'trackingNumber':
+          orderBy.push(direction(packages.trackingNumber));
+          break;
+        case 'status':
+          orderBy.push(direction(packages.status));
+          break;
+        case 'receivedDate':
+          orderBy.push(direction(packages.receivedDate));
+          break;
+        case 'createdAt':
+          orderBy.push(direction(packages.createdAt));
+          break;
+        default:
+          orderBy.push(desc(packages.createdAt));
+      }
+    } else {
+      orderBy.push(desc(packages.createdAt));
+    }
+
+    // Build filter conditions
+    const conditions: SQL<unknown>[] = [eq(packages.companyId, companyId)];
+    if (filters.status) {
+      conditions.push(eq(packages.status, filters.status as any));
+    }
+    if (filters.dateFrom) {
+      const fromDate = new Date(filters.dateFrom);
+      conditions.push(gte(packages.createdAt, fromDate));
+    }
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      conditions.push(lte(packages.createdAt, toDate));
+    }
+    if (filters.search) {
+      const searchTerm = `%${filters.search}%`;
+      const searchConditions: SQL<unknown>[] = [
+        ilike(packages.trackingNumber, searchTerm),
+        ilike(packages.internalTrackingId, searchTerm),
+        ilike(packages.description, searchTerm)
+      ];
+      if (searchConditions.length > 0) {
+        conditions.push(or(...searchConditions) as SQL<unknown>);
+      }
+    }
+    const finalConditions = and(...conditions);
+
+    // Get total count for pagination
+    const [{ count: totalItems }] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(packages)
+      .where(finalConditions);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Get the data with pagination
+    const data = await db
+      .select({
+        id: packages.id,
+        userId: packages.userId,
+        trackingNumber: packages.trackingNumber,
+        internalTrackingId: packages.internalTrackingId,
+        status: packages.status,
+        description: packages.description,
+        weight: packages.weight,
+        dimensions: packages.dimensions,
+        receivedDate: packages.receivedDate,
+        processingDate: packages.processingDate,
+        createdAt: packages.createdAt,
+        updatedAt: packages.updatedAt,
+      })
+      .from(packages)
+      .where(finalConditions)
+      .orderBy(...orderBy)
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages
+      }
+    };
   }
 
   /**
@@ -508,5 +600,15 @@ export class PackagesService {
         totalPages
       }
     };
+  }
+
+  async exportPackagesCsv(companyId: string, filters: any = {}) {
+    // Use the repository to get all packages for the company with filters (no pagination)
+    // Remove pagination params if present
+    const repoFilters = { ...filters };
+    delete repoFilters.page;
+    delete repoFilters.limit;
+    // You may want to add more fields to filter as needed
+    return this.packagesRepository.findAllForExport(companyId, repoFilters);
   }
 } 

@@ -139,6 +139,14 @@ class InvoiceService {
       throw error;
     }
   }
+
+  /**
+   * Export invoices as CSV for the current company
+   */
+  async exportInvoicesCsv(params?: any, companyId?: string): Promise<Blob> {
+    const id = companyId || await this.getCompanyId();
+    return apiClient.downloadFile(`${this.baseUrl}/${id}/invoices/export-csv`, params);
+  }
 }
 
 // Export as singleton

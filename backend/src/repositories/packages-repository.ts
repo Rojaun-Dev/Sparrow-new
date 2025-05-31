@@ -324,4 +324,25 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       .orderBy(desc(this.table.createdAt))
       .then(results => results.map(r => r.package));
   }
+
+  async findAllForExport(companyId: string, filters: any = {}) {
+    let conditions: SQL<unknown>[] = [eq(this.table.companyId, companyId)];
+    if (filters.status) {
+      conditions.push(eq(this.table.status, filters.status));
+    }
+    if (filters.search) {
+      conditions.push(like(this.table.trackingNumber, `%${filters.search}%`));
+    }
+    if (filters.dateFrom) {
+      conditions.push(gte(this.table.createdAt, new Date(filters.dateFrom)));
+    }
+    if (filters.dateTo) {
+      conditions.push(lte(this.table.createdAt, new Date(filters.dateTo)));
+    }
+    // Add more filters as needed
+    return this.db
+      .select()
+      .from(this.table)
+      .where(and(...conditions));
+  }
 } 

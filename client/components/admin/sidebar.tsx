@@ -68,11 +68,11 @@ const navItems: NavItem[] = [
   },
   {
     title: "Pre-alerts",
-    href: "/admin/prealerts",
+    href: "/admin/pre-alerts",
     icon: Bell,
     submenu: [
-      { title: "All Pre-alerts", href: "/admin/prealerts" },
-      { title: "Match to Packages", href: "/admin/prealerts/match" },
+      { title: "All Pre-alerts", href: "/admin/pre-alerts" },
+      { title: "Match to Packages", href: "/admin/pre-alerts/match" },
     ],
   },
   {

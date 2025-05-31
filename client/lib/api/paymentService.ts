@@ -146,7 +146,19 @@ class PaymentService {
     const cId = companyId || await this.getCompanyId();
     return apiClient.post<Payment>(`${this.baseUrl}/${cId}/payments/${id}/refund`, { reason });
   }
+
+  /**
+   * Export payments as CSV for the current company
+   */
+  async exportPaymentsCsv(params?: any, companyId?: string): Promise<Blob> {
+    const id = companyId || await this.getCompanyId();
+    return apiClient.downloadFile(`${this.baseUrl}/${id}/payments/export-csv`, params);
+  }
 }
 
 // Export as singleton
-export const paymentService = new PaymentService(); 
+export const paymentService = new PaymentService();
+
+export const exportPaymentsCsv = async (params?: any, companyId?: string): Promise<Blob> => {
+  return paymentService.exportPaymentsCsv(params, companyId);
+}; 

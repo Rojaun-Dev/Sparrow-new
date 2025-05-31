@@ -234,4 +234,25 @@ export class PaymentsRepository extends BaseRepository<typeof payments> {
       },
     };
   }
+
+  async findAllForExport(companyId: string, filters: any = {}) {
+    let conditions = [eq(this.table.companyId, companyId)];
+    if (filters.status) {
+      conditions.push(eq(this.table.status, filters.status));
+    }
+    if (filters.search) {
+      conditions.push(sql`${this.table.transactionId} LIKE ${`%${filters.search}%`}`);
+    }
+    if (filters.dateFrom) {
+      conditions.push(sql`${this.table.paymentDate} >= ${filters.dateFrom}`);
+    }
+    if (filters.dateTo) {
+      conditions.push(sql`${this.table.paymentDate} <= ${filters.dateTo}`);
+    }
+    // Add more filters as needed
+    return this.db
+      .select()
+      .from(this.table)
+      .where(and(...conditions));
+  }
 } 

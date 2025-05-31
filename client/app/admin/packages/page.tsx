@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { 
   Search, 
@@ -8,7 +8,6 @@ import {
   Filter, 
   Download, 
   MoreHorizontal, 
-  Package, 
   CircleDollarSign, 
   Truck, 
   ArrowUpDown,
@@ -45,89 +44,12 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog"
-
-// Config to prevent static optimization
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-// Mock data for packages
-const PACKAGES = [
-  {
-    id: "PKG-1001",
-    internalTrackingId: "INT-78542",
-    trackingNumber: "UPS3827465927",
-    customerId: "cust-1234",
-    customerName: "John Smith",
-    status: "received",
-    weight: 5.2,
-    dimensions: { length: 12, width: 8, height: 6 },
-    declaredValue: 150,
-    receivedDate: "2023-07-15T14:30:00Z",
-    processingDate: null,
-    description: "Clothing items from Amazon",
-    photos: ["/package-photo-1.jpg"]
-  },
-  {
-    id: "PKG-1002",
-    internalTrackingId: "INT-78543",
-    trackingNumber: "FEDEX923842983",
-    customerId: "cust-1235",
-    customerName: "Sarah Johnson",
-    status: "processed",
-    weight: 12.8,
-    dimensions: { length: 24, width: 18, height: 12 },
-    declaredValue: 350,
-    receivedDate: "2023-07-14T09:45:00Z",
-    processingDate: "2023-07-14T11:30:00Z",
-    description: "Electronics - Bluetooth speakers",
-    photos: ["/package-photo-2.jpg", "/package-photo-3.jpg"]
-  },
-  {
-    id: "PKG-1003",
-    internalTrackingId: "INT-78544",
-    trackingNumber: "USPS8273648273",
-    customerId: "cust-1236",
-    customerName: "Michael Brown",
-    status: "ready_for_pickup",
-    weight: 3.1,
-    dimensions: { length: 10, width: 7, height: 4 },
-    declaredValue: 85,
-    receivedDate: "2023-07-12T16:20:00Z",
-    processingDate: "2023-07-12T17:45:00Z",
-    description: "Books from Barnes & Noble",
-    photos: ["/package-photo-4.jpg"]
-  },
-  {
-    id: "PKG-1004",
-    internalTrackingId: "INT-78545",
-    trackingNumber: "DHL93847293847",
-    customerId: "cust-1237",
-    customerName: "Alicia Williams",
-    status: "delivered",
-    weight: 8.5,
-    dimensions: { length: 15, width: 12, height: 10 },
-    declaredValue: 210,
-    receivedDate: "2023-07-10T11:10:00Z",
-    processingDate: "2023-07-10T13:25:00Z",
-    description: "Household items",
-    photos: ["/package-photo-5.jpg"]
-  },
-  {
-    id: "PKG-1005",
-    internalTrackingId: "INT-78546",
-    trackingNumber: "AMZL9283742937",
-    customerId: "cust-1238",
-    customerName: "David Wilson",
-    status: "pre_alert",
-    weight: null,
-    dimensions: null,
-    declaredValue: 120,
-    receivedDate: null,
-    processingDate: null,
-    description: "Computer accessories",
-    photos: []
-  },
-]
+import { useExportCsv } from '@/hooks/useExportCsv';
+import { packageService } from '@/lib/api/packageService';
+import { useAuth } from '@/hooks/useAuth';
+import { usePackages } from '@/hooks/usePackages';
+import { useUsers } from '@/hooks/useUsers';
+import type { Package, PackageStatus, PaginatedResponse } from '@/lib/api/types';
 
 // Status maps
 const STATUS_LABELS: Record<string, string> = {
@@ -153,20 +75,31 @@ export default function PackagesPage() {
   const [activeTab, setActiveTab] = useState("all")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const { exportCsv, loading: exportLoading } = useExportCsv();
+  const { user } = useAuth();
   
-  // Filter packages based on search query and active tab
-  const filteredPackages = PACKAGES.filter(pkg => {
-    const matchesSearch = 
-      pkg.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.internalTrackingId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.trackingNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (pkg.description && pkg.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    
-    const matchesStatus = activeTab === "all" || pkg.status === activeTab
-    
-    return matchesSearch && matchesStatus
-  })
+  // Fetch packages from backend
+  const {
+    data: packagesData,
+    isLoading,
+    error,
+  } = usePackages({
+    search: searchQuery,
+    status: activeTab === 'all' ? undefined : activeTab as PackageStatus,
+    page,
+    limit: pageSize,
+  });
+
+  // Fetch all users for the company
+  const { data: usersData, isLoading: usersLoading } = useUsers();
+  // Build a map of userId to user object
+  const userMap = (usersData && Array.isArray(usersData)) ? Object.fromEntries(usersData.map((u: any) => [u.id, u])) : {};
+
+  const packagesDataTyped = packagesData as PaginatedResponse<Package> | undefined;
+  const packages: Package[] = Array.isArray(packagesDataTyped?.data) ? packagesDataTyped.data : [];
+  const pagination = packagesDataTyped?.pagination;
 
   const openDeleteDialog = (packageId: string) => {
     setPackageToDelete(packageId)
@@ -180,7 +113,7 @@ export default function PackagesPage() {
     setPackageToDelete(null)
   }
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "-"
     
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -190,22 +123,30 @@ export default function PackagesPage() {
     })
   }
 
-  const formatDimensions = (dimensions: { length: number, width: number, height: number } | null) => {
-    if (!dimensions) return "-"
+  const formatDimensions = (dimensions: { length?: number, width?: number, height?: number } | null | undefined) => {
+    if (!dimensions || !dimensions.length || !dimensions.width || !dimensions.height) return "-"
     return `${dimensions.length}″ × ${dimensions.width}″ × ${dimensions.height}″`
   }
+
+  // Export handler
+  const handleExport = async () => {
+    await exportCsv(
+      (params) => packageService.exportPackagesCsv(params, user?.companyId),
+      {
+        search: searchQuery,
+        status: activeTab === 'all' ? undefined : activeTab,
+        page,
+        limit: pageSize,
+      },
+      'packages.csv'
+    );
+  };
 
   return (
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Packages</h1>
         <div className="flex items-center gap-2">
-          <Button asChild>
-            <Link href="/admin/packages/register">
-              <Plus className="mr-2 h-4 w-4" />
-              Register Package
-            </Link>
-          </Button>
         </div>
       </div>
 
@@ -235,11 +176,20 @@ export default function PackagesPage() {
                   placeholder="Search packages..."
                   className="pl-8 w-full sm:w-[300px]"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1); // Reset to first page on search
+                  }}
                 />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button variant="outline" className="gap-1">
+          <Button asChild>
+            <Link href="/admin/packages/register">
+              <Plus className="mr-2 h-4 w-4" />
+              Register Package
+            </Link>
+          </Button>
+                <Button variant="outline" className="gap-1" onClick={handleExport} disabled={exportLoading}>
                   <Download className="h-4 w-4" />
                   Export
                 </Button>
@@ -247,117 +197,158 @@ export default function PackagesPage() {
             </div>
 
             <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <div className="flex items-center gap-1">
-                        Package ID
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Weight</TableHead>
-                    <TableHead className="hidden lg:table-cell">Dimensions</TableHead>
-                    <TableHead className="hidden lg:table-cell">Received Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPackages.length === 0 ? (
+              {isLoading || usersLoading ? (
+                <div className="py-8 text-center">Loading...</div>
+              ) : error ? (
+                <div className="py-8 text-center text-red-600">Failed to load packages</div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No packages found. Try adjusting your search or filters.
-                      </TableCell>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Package ID
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="hidden md:table-cell">Weight</TableHead>
+                      <TableHead className="hidden lg:table-cell">Dimensions</TableHead>
+                      <TableHead className="hidden lg:table-cell">Received Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredPackages.map(pkg => (
-                      <TableRow key={pkg.id}>
-                        <TableCell>
-                          <div className="font-medium">{pkg.id}</div>
-                          <div className="text-xs text-muted-foreground">{pkg.internalTrackingId}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Link 
-                            href={`/admin/customers/${pkg.customerId}`}
-                            className="hover:underline"
-                          >
-                            {pkg.customerName}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANTS[pkg.status] as any}>
-                            {STATUS_LABELS[pkg.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {pkg.weight ? `${pkg.weight} lbs` : "-"}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          {formatDimensions(pkg.dimensions)}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          {formatDate(pkg.receivedDate)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/packages/${pkg.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/packages/${pkg.id}/edit`}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  Edit Package
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/packages/${pkg.id}/photos`}>
-                                  <Camera className="mr-2 h-4 w-4" />
-                                  Manage Photos
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/invoices/create?packageId=${pkg.id}`}>
-                                  <CircleDollarSign className="mr-2 h-4 w-4" />
-                                  Create Invoice
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/packages/${pkg.id}/update-status`}>
-                                  <Truck className="mr-2 h-4 w-4" />
-                                  Update Status
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                className="text-destructive focus:text-destructive"
-                                onClick={() => openDeleteDialog(pkg.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Package
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  </TableHeader>
+                  <TableBody>
+                    {packages.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No packages found. Try adjusting your search or filters.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      packages.map((pkg) => {
+                        const user = userMap[pkg.userId];
+                        const customerName = user ? `${user.firstName} ${user.lastName}` : pkg.userId;
+                        return (
+                          <TableRow key={pkg.id}>
+                            <TableCell>
+                              <div className="font-medium">{pkg.description || pkg.trackingNumber || pkg.id}</div>
+                              <div className="text-xs text-muted-foreground">{pkg.internalTrackingId}</div>
+                            </TableCell>
+                            <TableCell>
+                              {user ? (
+                                <Link href={`/admin/customers/${pkg.userId}`} className="hover:underline">
+                                  {customerName}
+                                  {user.email ? <span className="text-xs text-muted-foreground ml-1">({user.email})</span> : null}
+                                </Link>
+                              ) : (
+                                <span>{pkg.userId}</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={STATUS_VARIANTS[pkg.status] as any}>
+                                {STATUS_LABELS[pkg.status]}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {pkg.weight ? `${pkg.weight} lbs` : "-"}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              {formatDimensions(pkg.dimensions)}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              {formatDate(pkg.receivedDate)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/admin/packages/${pkg.id}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/admin/invoices/create?packageId=${pkg.id}`}>
+                                      <CircleDollarSign className="mr-2 h-4 w-4" />
+                                      Create Invoice
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/admin/packages/${pkg.id}/update-status`}>
+                                      <Truck className="mr-2 h-4 w-4" />
+                                      Mark as Ready
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => openDeleteDialog(pkg.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Package
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </div>
+
+            {/* Pagination Controls */}
+            {pagination && typeof pagination.page === 'number' && typeof pagination.totalPages === 'number' && (
+              <div className="flex items-center justify-between mt-4">
+                <div>
+                  Page {pagination.page} of {pagination.totalPages}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pagination.page === 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pagination.page === pagination.totalPages}
+                    onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+                <div>
+                  <select
+                    className="border rounded px-2 py-1 text-sm"
+                    value={pageSize}
+                    onChange={e => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    {[10, 20, 50, 100].map(size => (
+                      <option key={size} value={size}>{size} / page</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </Tabs>

@@ -20,6 +20,9 @@ router.get('/user/:userId', controller.getPackagesByUserId);
 // Get all packages (Admin L1+)
 router.get('/', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.getAllPackages);
 
+// Get packages as CSV
+router.get('/export-csv', controller.exportPackagesCsv);
+
 // Get package by ID (access control handled at service level for customers)
 router.get('/:id', controller.getPackageById);
 

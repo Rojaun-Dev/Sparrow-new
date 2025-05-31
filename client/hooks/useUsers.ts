@@ -19,4 +19,13 @@ export function useUser(id?: string) {
     enabled: !!id, // Only run the query if we have an ID
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+}
+
+// Hook for fetching all users for the current company
+export function useUsers() {
+  return useQuery({
+    queryKey: userKeys.all,
+    queryFn: () => usersService.getUsers(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 } 

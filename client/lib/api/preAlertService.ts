@@ -182,6 +182,14 @@ class PreAlertService {
     const cId = companyId || await this.getCompanyId();
     return apiClient.patch<PreAlert>(`${this.baseUrl}/${cId}/prealerts/${id}/cancel`, {});
   }
+
+  /**
+   * Export pre-alerts as CSV for the current company
+   */
+  async exportPreAlertsCsv(params?: any, companyId?: string): Promise<Blob> {
+    const id = companyId || await this.getCompanyId();
+    return apiClient.downloadFile(`${this.baseUrl}/${id}/prealerts/export-csv`, params);
+  }
 }
 
 // Export as singleton

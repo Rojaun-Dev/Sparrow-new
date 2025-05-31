@@ -21,16 +21,15 @@ class PackageService {
   /**
    * Get all packages with optional filters
    */
-  async getPackages(filters: PackageFilterParams = {}): Promise<Package[]> {
+  async getPackages(filters: PackageFilterParams = {}): Promise<any> {
     const companyId = filters.companyId || await this.getCompanyId();
-    
-    return apiClient.get<Package[]>(`${this.baseUrl}/${companyId}/packages`, {
+    return apiClient.get<any>(`${this.baseUrl}/${companyId}/packages`, {
       params: {
         status: filters.status,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
+        page: filters.page,
         limit: filters.limit,
-        offset: filters.offset
       }
     });
   }
@@ -225,6 +224,14 @@ class PackageService {
   async getPackagesByInvoiceId(invoiceId: string, companyId?: string): Promise<Package[]> {
     const cId = companyId || await this.getCompanyId();
     return apiClient.get<Package[]>(`${this.baseUrl}/${cId}/packages/by-invoice/${invoiceId}`);
+  }
+
+  /**
+   * Export packages as CSV for the current company
+   */
+  async exportPackagesCsv(params?: any, companyId?: string): Promise<Blob> {
+    const id = companyId || await this.getCompanyId();
+    return apiClient.downloadFile(`${this.baseUrl}/${id}/packages/export-csv`, params);
   }
 }
 

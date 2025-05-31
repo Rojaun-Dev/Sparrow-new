@@ -182,4 +182,12 @@ export class PaymentsService extends BaseService<typeof payments> {
   ) {
     return this.paymentsRepository.search(companyId, searchParams);
   }
+
+  async exportPaymentsCsv(companyId: string, filters: any = {}) {
+    // Remove pagination params if present
+    const repoFilters = { ...filters };
+    delete repoFilters.page;
+    delete repoFilters.limit;
+    return this.paymentsRepository.findAllForExport(companyId, repoFilters);
+  }
 } 

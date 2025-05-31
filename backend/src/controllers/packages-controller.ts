@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { PackagesService, createPackageSchema, updatePackageSchema } from '../services/packages-service';
 import { ApiResponse } from '../utils/response';
+import { format as csvFormat } from 'fast-csv';
+import { PassThrough } from 'stream';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -19,8 +21,18 @@ export class PackagesController {
   getAllPackages = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-      const packages = await this.service.getAllPackages(companyId);
-      return ApiResponse.success(res, packages);
+      // Accept filters from query params
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+      const filters: Record<string, any> = {};
+      if (req.query.status) filters.status = req.query.status;
+      if (req.query.search) filters.search = req.query.search;
+      if (req.query.dateFrom) filters.dateFrom = req.query.dateFrom;
+      if (req.query.dateTo) filters.dateTo = req.query.dateTo;
+      if (req.query.sortBy) filters.sortBy = req.query.sortBy;
+      if (req.query.sortOrder) filters.sortOrder = req.query.sortOrder;
+      const result = await this.service.getAllPackages(companyId, page, limit, filters);
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;
@@ -256,6 +268,24 @@ export class PackagesController {
     } catch (error) {
       next(error);
       return undefined;
+    }
+  };
+
+  exportPackagesCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const filters: Record<string, any> = { ...req.query };
+      const packages = await this.service.exportPackagesCsv(companyId, filters);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="packages.csv"');
+      const csvStream = csvFormat({ headers: true });
+      const passThrough = new PassThrough();
+      csvStream.pipe(passThrough);
+      packages.forEach(pkg => csvStream.write(pkg));
+      csvStream.end();
+      passThrough.pipe(res);
+    } catch (error) {
+      next(error);
     }
   };
 } 

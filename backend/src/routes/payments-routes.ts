@@ -71,4 +71,7 @@ router.get(
   paymentsController.getTotalPaymentsInPeriod
 );
 
+// Export payments as CSV
+router.get('/export-csv', paymentsController.exportPaymentsCsv);
+
 export default router; 

@@ -1,6 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { PaymentsService } from '../services/payments-service';
 import { z } from 'zod';
+import { format as csvFormat } from 'fast-csv';
+import { PassThrough } from 'stream';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -213,6 +215,24 @@ export class PaymentsController {
     } catch (error: any) {
       console.error('Error calculating total payments:', error);
       return res.status(500).json({ error: 'Failed to calculate total payments', message: error.message });
+    }
+  };
+
+  exportPaymentsCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const filters: Record<string, any> = { ...req.query };
+      const payments = await this.paymentsService.exportPaymentsCsv(companyId, filters);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="payments.csv"');
+      const csvStream = csvFormat({ headers: true });
+      const passThrough = new PassThrough();
+      csvStream.pipe(passThrough);
+      payments.forEach(payment => csvStream.write(payment));
+      csvStream.end();
+      passThrough.pipe(res);
+    } catch (error) {
+      next(error);
     }
   };
 } 
