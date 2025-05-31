@@ -23,8 +23,16 @@ export class PreAlertsController {
   getAllPreAlerts = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-      const preAlerts = await this.service.getAllPreAlerts(companyId);
-      return ApiResponse.success(res, preAlerts);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+      const filters: Record<string, any> = {};
+      if (req.query.status) filters.status = req.query.status;
+      if (req.query.sortBy) filters.sortBy = req.query.sortBy;
+      if (req.query.sortOrder) filters.sortOrder = req.query.sortOrder;
+      if (req.query.search) filters.trackingNumber = req.query.search;
+      // Add more filters as needed
+      const result = await this.service.getAllPreAlerts(companyId, page, limit, filters);
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;

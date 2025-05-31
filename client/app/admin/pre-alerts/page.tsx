@@ -9,19 +9,31 @@ import { Button } from "@/components/ui/button";
 import { Download, Eye, Link } from "lucide-react";
 import { useExportCsv } from "@/hooks/useExportCsv";
 import { preAlertService } from "@/lib/api/preAlertService";
+import { useUsers } from '@/hooks/useUsers';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
+import { Info } from 'lucide-react';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Badge } from "@/components/ui/badge";
 
 export default function PreAlertsPage() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
   // Placeholder for filters
-  const [filters] = useState({});
+  const [filters, setFilters] = useState({});
 
-  const { data, isLoading, error } = usePreAlerts({ page, limit: pageSize, ...filters });
+  // Fetch all users for the company
+  const { data: usersData, isLoading: usersLoading } = useUsers();
+  // Build a map of userId to user object
+  const userMap = (usersData && Array.isArray(usersData)) ? Object.fromEntries(usersData.map((u: any) => [u.id, u])) : {};
+
+  const { data, isLoading, error } = usePreAlerts({ page, limit: pageSize, search: searchQuery, ...filters });
   const { exportCsv } = useExportCsv();
 
   const handleExport = async () => {
-    await exportCsv(async () => preAlertService.exportPreAlertsCsv({ ...filters }), undefined, "pre-alerts.csv");
+    await exportCsv(async () => preAlertService.exportPreAlertsCsv({ ...filters, search: searchQuery }), undefined, "pre-alerts.csv");
   };
 
   return (
@@ -35,8 +47,33 @@ export default function PreAlertsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Placeholder for filters */}
-          <div className="mb-4">{/* Filters coming soon */}</div>
+          {/* Search filter */}
+          <div className="mb-4 flex items-center gap-2">
+            <div className="relative w-full sm:w-auto flex items-center gap-2">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search pre-alerts..."
+                className="pl-8 w-full sm:w-[300px]"
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="ml-1 cursor-pointer text-muted-foreground">
+                      <Info className="h-4 w-4" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <span>Search only works for tracking numbers at this time.</span>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
           {isLoading ? (
             <div className="py-8 text-center">Loading...</div>
           ) : error ? (
@@ -58,30 +95,41 @@ export default function PreAlertsPage() {
                   {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(alert => (
                     <TableRow key={alert.id}>
                       <TableCell>{alert.trackingNumber}</TableCell>
-                      <TableCell>{alert.userId}</TableCell>
+                      <TableCell>{userMap[alert.userId] ? `${userMap[alert.userId].firstName} ${userMap[alert.userId].lastName}` : alert.userId}</TableCell>
                       <TableCell>{alert.courier}</TableCell>
-                      <TableCell>{alert.status}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          alert.status === 'pending' ? 'secondary'
+                          : alert.status === 'matched' ? 'success'
+                          : alert.status === 'cancelled' ? 'destructive'
+                          : 'outline'
+                        }>
+                          {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
+                        </Badge>
+                      </TableCell>
                       <TableCell>{alert.estimatedArrival ? new Date(alert.estimatedArrival).toLocaleDateString() : "-"}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button 
                             size="sm" 
                             variant="outline"
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1.5 hover:bg-blue-50 transition-colors border-blue-200"
                             onClick={() => {/* TODO: Implement view handler */}}
                           >
-                            <Eye className="h-4 w-4" />
-                            View
+                            <Eye className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-600">View</span>
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="flex items-center gap-1"
-                            onClick={() => {/* TODO: Implement match handler */}}
-                          >
-                            <Link className="h-4 w-4" />
-                            Match
-                          </Button>
+                          {alert.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="flex items-center gap-1.5 hover:bg-green-50 transition-colors border-green-200"
+                              onClick={() => {/* TODO: Implement match handler */}}
+                            >
+                              <Link className="h-4 w-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-600">Match</span>
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

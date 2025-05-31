@@ -2,6 +2,13 @@ import { SQL, and, eq, desc, asc, like, isNull, gte, lte, sql } from 'drizzle-or
 import { preAlerts, preAlertStatusEnum } from '../db/schema/pre-alerts';
 import { BaseRepository } from './base-repository';
 
+// Add ilike import if available
+let ilike: any;
+try {
+  // Some drizzle-orm versions export ilike
+  ({ ilike } = require('drizzle-orm'));
+} catch {}
+
 export class PreAlertsRepository extends BaseRepository<typeof preAlerts> {
   constructor() {
     super(preAlerts);
@@ -132,7 +139,12 @@ export class PreAlertsRepository extends BaseRepository<typeof preAlerts> {
     
     // Add filters
     if (trackingNumber) {
-      conditions.push(like(this.table.trackingNumber, `%${trackingNumber}%`));
+      if (typeof ilike === 'function') {
+        conditions.push(ilike(this.table.trackingNumber, `%${trackingNumber}%`));
+      } else {
+        // Fallback: use LOWER for case-insensitive search
+        conditions.push(sql`LOWER(${this.table.trackingNumber}) LIKE LOWER(${`%${trackingNumber}%`})`);
+      }
     }
     
     if (userId) {
@@ -193,5 +205,9 @@ export class PreAlertsRepository extends BaseRepository<typeof preAlerts> {
         totalPages: Math.ceil(totalCount / pageSize),
       },
     };
+  }
+
+  public getDatabaseInstance() {
+    return this.db;
   }
 } 

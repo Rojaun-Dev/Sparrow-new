@@ -25,11 +25,12 @@ class PreAlertService {
     const companyId = params?.companyId || await this.getCompanyId();
     return apiClient.get<PaginatedResponse<PreAlert>>(`${this.baseUrl}/${companyId}/prealerts`, { 
       params: {
+        page: params?.page,
+        limit: params?.limit,
         status: params?.status,
         sortBy: params?.sortBy,
         sortOrder: params?.sortOrder,
-        limit: params?.limit,
-        offset: params?.offset
+        search: params?.search,
       }
     });
   }

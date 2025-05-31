@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { PreAlertsRepository } from '../repositories/pre-alerts-repository';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
-import { preAlertStatusEnum } from '../db/schema/pre-alerts';
+import { preAlerts, preAlertStatusEnum } from '../db/schema/pre-alerts';
+import { SQL, eq, sql, and, desc } from 'drizzle-orm';
 
 // Validation schema for pre-alert creation
 export const createPreAlertSchema = z.object({
@@ -31,8 +32,62 @@ export class PreAlertsService {
   /**
    * Get all pre-alerts for a company
    */
-  async getAllPreAlerts(companyId: string) {
-    return this.preAlertsRepository.findAll(companyId);
+  async getAllPreAlerts(companyId: string, page = 1, limit = 10, filters: any = {}) {
+    // If searching by tracking number, use the repository's search method for LIKE queries
+    if (filters.trackingNumber) {
+      return this.preAlertsRepository.search(companyId, {
+        trackingNumber: filters.trackingNumber,
+        status: filters.status,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
+        page,
+        pageSize: limit,
+      });
+    }
+    const db = this.preAlertsRepository.getDatabaseInstance();
+    const offset = (page - 1) * limit;
+
+    // Build filter conditions (add more as needed)
+    const conditions: SQL<unknown>[] = [eq(preAlerts.companyId, companyId)];
+    if (filters.status) {
+      conditions.push(eq(preAlerts.status, filters.status));
+    }
+    // Add more filters here as needed
+    const finalConditions = and(...conditions);
+
+    // Get total count for pagination
+    const [{ count: totalItems }] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(preAlerts)
+      .where(finalConditions);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Get the data with pagination
+    const data = await db
+      .select({
+        id: preAlerts.id,
+        userId: preAlerts.userId,
+        trackingNumber: preAlerts.trackingNumber,
+        courier: preAlerts.courier,
+        status: preAlerts.status,
+        estimatedArrival: preAlerts.estimatedArrival,
+        // ...other fields
+      })
+      .from(preAlerts)
+      .where(finalConditions)
+      .orderBy(desc(preAlerts.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages
+      }
+    };
   }
 
   /**
