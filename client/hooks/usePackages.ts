@@ -73,15 +73,14 @@ export function useUpdatePackageStatus() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => 
-      packageService.updatePackageStatus(id, status),
+    mutationFn: ({ id, status, sendNotification }: { id: string; status: string; sendNotification?: boolean }) => 
+      packageService.updatePackageStatus(id, status, undefined, sendNotification),
     onSuccess: (updatedPackage: Package) => {
       // Update the package in the cache
       queryClient.setQueryData(
         packageKeys.detail(updatedPackage.id),
         updatedPackage
       );
-      
       // Invalidate the packages list to trigger a refetch
       queryClient.invalidateQueries({ queryKey: packageKeys.lists() });
     },

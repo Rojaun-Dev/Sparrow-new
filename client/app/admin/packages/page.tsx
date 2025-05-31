@@ -47,9 +47,11 @@ import {
 import { useExportCsv } from '@/hooks/useExportCsv';
 import { packageService } from '@/lib/api/packageService';
 import { useAuth } from '@/hooks/useAuth';
-import { usePackages } from '@/hooks/usePackages';
+import { usePackages, useUpdatePackageStatus } from '@/hooks/usePackages';
 import { useUsers } from '@/hooks/useUsers';
 import type { Package, PackageStatus, PaginatedResponse } from '@/lib/api/types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 
 // Status maps
 const STATUS_LABELS: Record<string, string> = {
@@ -79,6 +81,20 @@ export default function PackagesPage() {
   const [pageSize, setPageSize] = useState(10)
   const { exportCsv, loading: exportLoading } = useExportCsv();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const updateStatusMutation = useUpdatePackageStatus();
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id, sendNotification }: { id: string; sendNotification?: boolean }) => {
+      await packageService.deletePackage(id, undefined, sendNotification);
+    },
+    onSuccess: () => {
+      toast({ title: 'Package deleted', description: 'The package was deleted successfully.' });
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Error', description: err.message || 'Failed to delete package', variant: 'destructive' });
+    },
+  });
   
   // Fetch packages from backend
   const {
@@ -100,6 +116,12 @@ export default function PackagesPage() {
   const packagesDataTyped = packagesData as PaginatedResponse<Package> | undefined;
   const packages: Package[] = Array.isArray(packagesDataTyped?.data) ? packagesDataTyped.data : [];
   const pagination = packagesDataTyped?.pagination;
+
+  // State for send notification checkboxes
+  const [sendNotificationOnDelete, setSendNotificationOnDelete] = useState(true);
+  const [sendNotificationOnReady, setSendNotificationOnReady] = useState(true);
+  const [markReadyDialogOpen, setMarkReadyDialogOpen] = useState(false);
+  const [packageToMarkReady, setPackageToMarkReady] = useState<string | null>(null);
 
   const openDeleteDialog = (packageId: string) => {
     setPackageToDelete(packageId)
@@ -283,16 +305,24 @@ export default function PackagesPage() {
                                     </Link>
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/admin/packages/${pkg.id}/update-status`}>
-                                      <Truck className="mr-2 h-4 w-4" />
-                                      Mark as Ready
-                                    </Link>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      if (pkg.status !== 'ready_for_pickup' && pkg.status !== 'delivered' && pkg.status !== 'returned') {
+                                        setPackageToMarkReady(pkg.id);
+                                        setSendNotificationOnReady(true);
+                                        setMarkReadyDialogOpen(true);
+                                      }
+                                    }}
+                                    disabled={updateStatusMutation.isPending || pkg.status === 'ready_for_pickup' || pkg.status === 'delivered' || pkg.status === 'returned'}
+                                  >
+                                    <Truck className="mr-2 h-4 w-4" />
+                                    Mark as Ready
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={() => openDeleteDialog(pkg.id)}
+                                    disabled={deleteMutation.isPending}
                                   >
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     Delete Package
@@ -361,12 +391,55 @@ export default function PackagesPage() {
               Are you sure you want to delete this package? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              type="checkbox"
+              id="send-notification-delete"
+              checked={sendNotificationOnDelete}
+              onChange={e => setSendNotificationOnDelete(e.target.checked)}
+            />
+            <label htmlFor="send-notification-delete" className="text-sm">Send notification</label>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeletePackage}>
-              Delete
+            <Button variant="destructive" onClick={() => {
+              if (packageToDelete) deleteMutation.mutate({ id: packageToDelete, sendNotification: sendNotificationOnDelete });
+              setIsDeleteDialogOpen(false);
+            }} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={markReadyDialogOpen} onOpenChange={setMarkReadyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark as Ready</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to mark this package as ready for pickup?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              type="checkbox"
+              id="send-notification-ready"
+              checked={sendNotificationOnReady}
+              onChange={e => setSendNotificationOnReady(e.target.checked)}
+            />
+            <label htmlFor="send-notification-ready" className="text-sm">Send notification</label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMarkReadyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={() => {
+              if (packageToMarkReady) updateStatusMutation.mutate({ id: packageToMarkReady, status: 'ready_for_pickup', sendNotification: sendNotificationOnReady });
+              setMarkReadyDialogOpen(false);
+            }} disabled={updateStatusMutation.isPending}>
+              {updateStatusMutation.isPending ? 'Marking...' : 'Mark as Ready'}
             </Button>
           </DialogFooter>
         </DialogContent>

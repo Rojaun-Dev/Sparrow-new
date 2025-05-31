@@ -43,4 +43,7 @@ router.get(
   controller.getPackagesByInvoiceId
 );
 
+// Update package status (Admin L1+)
+router.put('/:id/status', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.updatePackageStatus);
+
 export default router; 

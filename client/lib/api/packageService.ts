@@ -167,9 +167,9 @@ class PackageService {
   /**
    * Update package status
    */
-  async updatePackageStatus(id: string, status: string, companyId?: string): Promise<Package> {
+  async updatePackageStatus(id: string, status: string, companyId?: string, sendNotification?: boolean): Promise<Package> {
     const cId = companyId || await this.getCompanyId();
-    return apiClient.put<Package>(`${this.baseUrl}/${cId}/packages/${id}/status`, { status });
+    return apiClient.put<Package>(`${this.baseUrl}/${cId}/packages/${id}/status`, { status, sendNotification });
   }
   
   /**
@@ -213,9 +213,13 @@ class PackageService {
   /**
    * Delete a package
    */
-  async deletePackage(id: string, companyId?: string): Promise<void> {
+  async deletePackage(id: string, companyId?: string, sendNotification?: boolean): Promise<void> {
     const cId = companyId || await this.getCompanyId();
-    return apiClient.delete<void>(`${this.baseUrl}/${cId}/packages/${id}`);
+    // Send as query param for delete
+    const url = sendNotification !== undefined
+      ? `${this.baseUrl}/${cId}/packages/${id}?sendNotification=${sendNotification}`
+      : `${this.baseUrl}/${cId}/packages/${id}`;
+    return apiClient.delete<void>(url);
   }
 
   /**

@@ -288,4 +288,25 @@ export class PackagesController {
       next(error);
     }
   };
+
+  /**
+   * Update package status only
+   */
+  updatePackageStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.companyId as string;
+      const { status, sendNotification } = req.body;
+      if (!status) {
+        return ApiResponse.validationError(res, { message: 'Status is required' });
+      }
+      // Optionally: validate status value here
+      const pkg = await this.service.updatePackage(id, { status }, companyId);
+      // Optionally: handle sendNotification here
+      return ApiResponse.success(res, pkg, 'Package status updated');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 
