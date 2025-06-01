@@ -259,7 +259,7 @@ export default function AdminPreAlertDetailPage() {
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Pre-Alert Details</h1>
         <Badge className={`ml-2 ${getStatusBadgeColor(preAlert.status)}`}>{formatStatusLabel(preAlert.status)}</Badge>
       </div>
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 ">
         <div className="md:col-span-2 space-y-6">
           {/* Main Information Card */}
           <Card>
@@ -379,52 +379,6 @@ export default function AdminPreAlertDetailPage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>What happens next?</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">1</div>
-                  <div>
-                    <p className="font-medium">Wait for package arrival</p>
-                    <p className="text-sm text-muted-foreground">Your package is on its way to our facility</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">2</div>
-                  <div>
-                    <p className="font-medium">Package processing</p>
-                    <p className="text-sm text-muted-foreground">Once received, we'll match it with this pre-alert</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">3</div>
-                  <div>
-                    <p className="font-medium">Ready for pickup/delivery</p>
-                    <p className="text-sm text-muted-foreground">You'll be notified when your package is ready</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Need Help?</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                If you have questions about this pre-alert or want to update any information, contact customer service.
-              </p>
-              <Button className="w-full" asChild variant="outline">
-                <Link href="/admin/help">Contact Support</Link>
-              </Button>
             </CardContent>
           </Card>
         </div>
