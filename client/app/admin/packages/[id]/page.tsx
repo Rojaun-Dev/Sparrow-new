@@ -389,7 +389,7 @@ export default function AdminPackageDetailPage() {
                         className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
                         asChild
                       >
-                        <Link href={`/admin/prealerts?search=${packageData.trackingNumber}`}>
+                        <Link href={`/admin/pre-alerts?search=${packageData.trackingNumber}`}>
                         Match Prealert
                         </Link>
                       </Button>

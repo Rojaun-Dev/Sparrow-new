@@ -6,13 +6,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download, Eye, Link } from "lucide-react";
+import { Download, Eye, Link, X } from "lucide-react";
 import { useExportCsv } from "@/hooks/useExportCsv";
 import { preAlertService } from "@/lib/api/preAlertService";
 import { useUsers } from '@/hooks/useUsers';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import { Info } from 'lucide-react';
+import { Search, Info } from 'lucide-react';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -20,14 +19,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { usePackages, useMatchPreAlertToPackage } from '@/hooks/usePackages';
 import type { PreAlert, Package } from '@/lib/api/types';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function PreAlertsPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") || "";
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   // Placeholder for filters
   const [filters, setFilters] = useState({});
 
@@ -120,10 +121,25 @@ export default function PreAlertsPage() {
                   setPage(1);
                 }}
               />
+              {searchQuery && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="ml-[-36px] mr-2 h-5 w-5 p-0 text-muted-foreground hover:text-red-500"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setPage(1);
+                  }}
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="ml-1 cursor-pointer text-muted-foreground">
+                    <span className="cursor-pointer text-muted-foreground">
                       <Info className="h-4 w-4" />
                     </span>
                   </TooltipTrigger>
