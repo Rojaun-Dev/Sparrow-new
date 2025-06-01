@@ -207,6 +207,21 @@ export class PreAlertsRepository extends BaseRepository<typeof preAlerts> {
     };
   }
 
+  /**
+   * Find pre-alerts by package ID within a company
+   */
+  async findByPackageId(packageId: string, companyId: string) {
+    return this.db
+      .select()
+      .from(this.table)
+      .where(
+        and(
+          eq(this.table.packageId, packageId),
+          eq(this.table.companyId, companyId)
+        )
+      );
+  }
+
   public getDatabaseInstance() {
     return this.db;
   }

@@ -8,11 +8,13 @@ import {
   getCompanyStatistics
 } from '../controllers/companies-controller';
 import { CompanyInvitationsController } from '../controllers/company-invitations-controller';
+import { PreAlertsController } from '../controllers/pre-alerts-controller';
 import { checkJwt, checkRole } from '../middleware/auth';
 // import { checkJwt, checkRole } from '../middleware/auth';
 
 const router = express.Router();
 const companyInvitationsController = new CompanyInvitationsController();
+const preAlertsController = new PreAlertsController();
 
 // Apply JWT authentication to all routes
 // router.use(checkJwt); NOTE: enable this and checkRole when we have login and auth implemented fully
@@ -53,5 +55,8 @@ router.post(
   '/register/:token',
   companyInvitationsController.registerFromInvitation.bind(companyInvitationsController)
 );
+
+// Get pre-alerts by package ID
+router.get('/:companyId/packages/:packageId/prealerts', preAlertsController.getPreAlertsByPackageId.bind(preAlertsController));
 
 export default router; 

@@ -299,4 +299,19 @@ export class PreAlertsController {
       return undefined;
     }
   };
+
+  /**
+   * Get pre-alerts by package ID
+   */
+  getPreAlertsByPackageId = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { packageId } = req.params;
+      const companyId = req.companyId as string;
+      const preAlerts = await this.service.getPreAlertsByPackageId(packageId, companyId);
+      return ApiResponse.success(res, preAlerts);
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 

@@ -141,4 +141,13 @@ export function useCancelPreAlert() {
       queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
     },
   });
+}
+
+// Hook for fetching preAlerts by packageId
+export function usePreAlertsByPackageId(packageId: string) {
+  return useQuery({
+    queryKey: ["preAlerts", "byPackage", packageId],
+    queryFn: () => preAlertService.getPreAlertsByPackageId(packageId),
+    enabled: !!packageId,
+  });
 } 

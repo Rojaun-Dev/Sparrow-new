@@ -283,4 +283,11 @@ export class PreAlertsService {
     
     return this.preAlertsRepository.update(id, { documents: updatedDocuments }, companyId);
   }
+
+  /**
+   * Get pre-alerts by package ID with company isolation
+   */
+  async getPreAlertsByPackageId(packageId: string, companyId: string) {
+    return this.preAlertsRepository.findByPackageId(packageId, companyId);
+  }
 } 

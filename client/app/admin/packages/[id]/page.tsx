@@ -6,7 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePackage, useUpdatePackageStatus } from "@/hooks/usePackages"
 import { useInvoiceByPackageId } from "@/hooks/useInvoices"
-import { usePreAlerts } from "@/hooks/usePreAlerts"
+import { usePreAlertsByPackageId } from "@/hooks/usePreAlerts"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -52,9 +52,7 @@ export default function AdminPackageDetailPage() {
   const [sendNotification, setSendNotification] = useState(false);
   const { data: packageData, isLoading, isError, error } = usePackage(id);
   const { data: relatedInvoice, isLoading: isLoadingInvoice, isError: isInvoiceError, error: invoiceError } = useInvoiceByPackageId(id);
-  const { data: prealerts, isLoading: isLoadingPrealerts } = usePreAlerts(
-    packageData ? { search: packageData.trackingNumber } : {}
-  );
+  const { data: prealerts, isLoading: isLoadingPrealerts } = usePreAlertsByPackageId(id);
   const updateStatusMutation = useUpdatePackageStatus();
   const [form, setForm] = useState<any>(null);
   const [activeImage, setActiveImage] = useState(0);
@@ -361,9 +359,9 @@ export default function AdminPackageDetailPage() {
                 <CardContent>
                   {isLoadingPrealerts ? (
                     <Skeleton className="h-8 w-full" />
-                  ) : prealerts && prealerts.data && prealerts.data.length > 0 ? (
+                  ) : prealerts && prealerts.length > 0 ? (
                     <ul className="space-y-2">
-                      {prealerts.data.map((prealert: any) => (
+                      {prealerts.map((prealert: any) => (
                         <li key={prealert.id} className="border rounded p-2 flex flex-col">
                           <span className="font-medium">{prealert.trackingNumber}</span>
                           <span className="text-xs text-muted-foreground">{prealert.description}</span>
