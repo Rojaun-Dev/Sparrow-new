@@ -362,10 +362,21 @@ export default function AdminPackageDetailPage() {
                   ) : prealerts && prealerts.length > 0 ? (
                     <ul className="space-y-2">
                       {prealerts.map((prealert: any) => (
-                        <li key={prealert.id} className="border rounded p-2 flex flex-col">
-                          <span className="font-medium">{prealert.trackingNumber}</span>
-                          <span className="text-xs text-muted-foreground">{prealert.description}</span>
-                          <span className="text-xs">Status: {prealert.status}</span>
+                        <li key={prealert.id} className="border rounded p-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <span className="font-medium">{prealert.trackingNumber}</span>
+                            <span className="block text-xs text-muted-foreground">{prealert.description}</span>
+                            <span className="block text-xs">Status: {prealert.status}</span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="mt-2 md:mt-0"
+                            asChild
+                          >
+                            <Link href={`/admin/pre-alerts/${prealert.id}`}>
+                              View
+                            </Link>
+                          </Button>
                         </li>
                       ))}
                     </ul>
