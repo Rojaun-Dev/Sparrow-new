@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PackageStatus } from "@/lib/api/types"
 import { toast } from "@/components/ui/use-toast"
 import { Pencil } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 const PACKAGE_STATUS_OPTIONS: PackageStatus[] = [
   "pre_alert",
@@ -27,6 +29,19 @@ const PACKAGE_STATUS_OPTIONS: PackageStatus[] = [
   "ready_for_pickup",
   "delivered",
   "returned"
+];
+
+// Predefined tags for dropdown
+const PREDEFINED_TAGS = [
+  "general",
+  "fragile",
+  "express",
+  "electronics",
+  "clothing",
+  "documents",
+  "oversized",
+  "hazardous",
+  "priority"
 ];
 
 export default function AdminPackageDetailPage() {
@@ -95,6 +110,22 @@ export default function AdminPackageDetailPage() {
   // Photos
   const packagePhotos = packageData.photos || [];
 
+  // Tag helpers for edit mode
+  const tagsArray = form?.tags ? form.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
+  const [tagInput, setTagInput] = useState("");
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) {
+      e.preventDefault();
+      if (!tagsArray.includes(tagInput.trim())) {
+        handleFormChange("tags", [...tagsArray, tagInput.trim()].join(", "));
+      }
+      setTagInput("");
+    }
+  };
+  const handleRemoveTag = (tag: string) => {
+    handleFormChange("tags", tagsArray.filter((t: string) => t !== tag).join(", "));
+  };
+
   if (isLoading) {
     return <Skeleton className="h-96 w-full" />;
   }
@@ -119,7 +150,7 @@ export default function AdminPackageDetailPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" asChild>
+          <Button variant="outline" size="sm" asChild>
             <Link href="/admin/packages">Back</Link>
           </Button>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Package Details </h1>
@@ -127,7 +158,7 @@ export default function AdminPackageDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 ">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <Card>
             <CardHeader>
@@ -184,7 +215,46 @@ export default function AdminPackageDetailPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Tags (comma separated)</label>
-                    <Input value={form.tags} onChange={e => handleFormChange("tags", e.target.value)} />
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {tagsArray.map((tag: string) => (
+                        <Badge key={tag} className="flex items-center gap-1 px-2 py-1">
+                          {tag}
+                          <button
+                            type="button"
+                            className="ml-1 text-xs text-red-500 hover:text-red-700"
+                            onClick={() => handleRemoveTag(tag)}
+                            aria-label={`Remove tag ${tag}`}
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        value={tagInput}
+                        onChange={e => setTagInput(e.target.value)}
+                        onKeyDown={handleTagInputKeyDown}
+                        placeholder="Type a tag and press Enter or comma"
+                        className="flex-1"
+                      />
+                      <Select
+                        onValueChange={tag => {
+                          if (!tagsArray.includes(tag)) {
+                            handleFormChange("tags", [...tagsArray, tag].join(", "));
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Add tag" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PREDEFINED_TAGS.filter(tag => !tagsArray.includes(tag)).map(tag => (
+                            <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Tracking Number</label>
@@ -276,83 +346,135 @@ export default function AdminPackageDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Related Prealerts Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Related Prealerts</CardTitle>
-              <CardDescription>Show all prealerts linked to this package.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingPrealerts ? (
-                <Skeleton className="h-8 w-full" />
-              ) : prealerts && prealerts.data && prealerts.data.length > 0 ? (
-                <ul className="space-y-2">
-                  {prealerts.data.map((prealert: any) => (
-                    <li key={prealert.id} className="border rounded p-2 flex flex-col">
-                      <span className="font-medium">{prealert.trackingNumber}</span>
-                      <span className="text-xs text-muted-foreground">{prealert.description}</span>
-                      <span className="text-xs">Status: {prealert.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground">No related prealerts found.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Related Invoice Section */}
-          {isLoadingInvoice ? (
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-5 w-40" />
-                <Skeleton className="h-4 w-60" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-4 w-full" />
-              </CardContent>
-            </Card>
-          ) : isInvoiceError && typeof invoiceError === 'object' && invoiceError !== null && 'status' in invoiceError && (invoiceError as any).status === 404 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Related Invoice</CardTitle>
-                <CardDescription>No invoice found for this package.</CardDescription>
-              </CardHeader>
-            </Card>
-          ) : relatedInvoice ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Related Invoice</CardTitle>
-                <CardDescription>Billing information for this package</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Invoice Number</h3>
-                      <p className="text-base font-medium">{relatedInvoice.invoiceNumber}</p>
+          {/* Tabs for Related Prealerts and Related Invoice */}
+          <Tabs defaultValue="prealerts" className="w-full mt-4">
+            <TabsList className="mb-2">
+              <TabsTrigger value="prealerts">Related Prealerts</TabsTrigger>
+              <TabsTrigger value="invoice">Related Invoice</TabsTrigger>
+            </TabsList>
+            <TabsContent value="prealerts">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Related Prealerts</CardTitle>
+                  <CardDescription>Show all prealerts linked to this package.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingPrealerts ? (
+                    <Skeleton className="h-8 w-full" />
+                  ) : prealerts && prealerts.data && prealerts.data.length > 0 ? (
+                    <ul className="space-y-2">
+                      {prealerts.data.map((prealert: any) => (
+                        <li key={prealert.id} className="border rounded p-2 flex flex-col">
+                          <span className="font-medium">{prealert.trackingNumber}</span>
+                          <span className="text-xs text-muted-foreground">{prealert.description}</span>
+                          <span className="text-xs">Status: {prealert.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4">
+                      <p className="text-muted-foreground">No related prealerts found.</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                        asChild
+                      >
+                        <Link href={`/admin/prealerts?search=${packageData.trackingNumber}`}>
+                        Match Prealert
+                        </Link>
+                      </Button>
                     </div>
-                    <Badge>{relatedInvoice.status}</Badge>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
-                    <p className="text-base font-medium">${relatedInvoice.totalAmount}</p>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Due Date</h3>
-                      <p className="text-base">{new Date(relatedInvoice.dueDate).toLocaleDateString()}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="invoice">
+              {isLoadingInvoice ? (
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-4 w-60" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-4 w-full" />
+                  </CardContent>
+                </Card>
+              ) : isInvoiceError && typeof invoiceError === 'object' && invoiceError !== null && 'status' in invoiceError && (invoiceError as any).status === 404 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Related Invoice</CardTitle>
+                    <CardDescription>No invoice found for this package.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                          >
+                            Quick Invoice
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Generate invoice for this item only</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                          >
+                            Create Invoice
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Manually create invoice for customer</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/invoices/${relatedInvoice.id}`}>
-                        View Invoice
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
+                  </CardContent>
+                </Card>
+              ) : relatedInvoice ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Related Invoice</CardTitle>
+                    <CardDescription>Billing information for this package</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div>
+                          <h3 className="text-sm font-medium text-muted-foreground">Invoice Number</h3>
+                          <p className="text-base font-medium">{relatedInvoice.invoiceNumber}</p>
+                        </div>
+                        <Badge>{relatedInvoice.status}</Badge>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
+                        <p className="text-base font-medium">${relatedInvoice.totalAmount}</p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h3 className="text-sm font-medium text-muted-foreground">Due Date</h3>
+                          <p className="text-base">{new Date(relatedInvoice.dueDate).toLocaleDateString()}</p>
+                        </div>
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/admin/invoices/${relatedInvoice.id}`}>
+                            View Invoice
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+            </TabsContent>
+          </Tabs>
         </div>
         <div className="space-y-6">
           {/* Notification Prompt */}

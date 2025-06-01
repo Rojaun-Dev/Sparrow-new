@@ -10,6 +10,7 @@ import { AuthProvider } from "@/hooks/useAuth"
 import "./globals.css"
 import { QueryProvider } from "@/lib/providers/QueryProvider"
 import type { Metadata } from "next"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -32,7 +33,9 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <QueryProvider>
           <AuthProvider>
-              <FeedbackProvider>{children}</FeedbackProvider>
+              <TooltipProvider>
+                <FeedbackProvider>{children}</FeedbackProvider>
+              </TooltipProvider>
           </AuthProvider>
             </QueryProvider>
         </ThemeProvider>
