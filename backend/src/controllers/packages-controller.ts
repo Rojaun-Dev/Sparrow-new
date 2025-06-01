@@ -309,4 +309,23 @@ export class PackagesController {
       return undefined;
     }
   };
+
+  /**
+   * Match a pre-alert to a package
+   */
+  matchPreAlertToPackage = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const { packageId } = req.params;
+      const { preAlertId } = req.body;
+      if (!preAlertId) {
+        return ApiResponse.validationError(res, { message: 'preAlertId is required' });
+      }
+      const result = await this.service.matchPreAlertToPackage(preAlertId, packageId, companyId);
+      return ApiResponse.success(res, result, 'Pre-alert matched to package');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 

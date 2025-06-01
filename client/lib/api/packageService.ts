@@ -238,6 +238,17 @@ class PackageService {
     const id = companyId || await this.getCompanyId();
     return apiClient.downloadFile(`${this.baseUrl}/${id}/packages/export-csv`, params);
   }
+
+  /**
+   * Match a pre-alert to a package
+   */
+  async matchPreAlertToPackage(packageId: string, preAlertId: string, sendNotification?: boolean, companyId?: string): Promise<any> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.post<any>(
+      `${this.baseUrl}/${cId}/packages/${packageId}/match-prealert`,
+      { preAlertId, sendNotification }
+    );
+  }
 }
 
 // Create and export a single instance of the service

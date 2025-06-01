@@ -46,4 +46,7 @@ router.get(
 // Update package status (Admin L1+)
 router.put('/:id/status', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.updatePackageStatus);
 
+// Match a pre-alert to a package (Admin L1+)
+router.post('/:packageId/match-prealert', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.matchPreAlertToPackage);
+
 export default router; 

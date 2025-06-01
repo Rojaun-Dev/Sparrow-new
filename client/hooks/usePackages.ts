@@ -104,6 +104,21 @@ export function useUploadPackagePhotos() {
   });
 }
 
+// Hook for matching a pre-alert to a package
+export function useMatchPreAlertToPackage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ packageId, preAlertId, sendNotification }: { packageId: string; preAlertId: string; sendNotification?: boolean }) =>
+      packageService.matchPreAlertToPackage(packageId, preAlertId, sendNotification),
+    onSuccess: () => {
+      // Invalidate both packages and pre-alerts lists
+      queryClient.invalidateQueries({ queryKey: packageKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['preAlerts', 'list'] });
+    },
+  });
+}
+
 // Hook for fetching packages by invoice ID
 export function usePackagesByInvoiceId(invoiceId: string) {
   return useQuery({
