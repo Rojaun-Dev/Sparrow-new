@@ -20,9 +20,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { usePackages, useMatchPreAlertToPackage } from '@/hooks/usePackages';
 import type { PreAlert, Package } from '@/lib/api/types';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from "next/navigation";
 
 export default function PreAlertsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState("");
@@ -87,6 +89,11 @@ export default function PreAlertsPage() {
         },
       }
     );
+  };
+
+  // Handler to navigate to pre-alert detail page
+  const handleViewPreAlert = (id: string) => {
+    router.push(`/admin/pre-alerts/${id}`);
   };
 
   return (
@@ -167,7 +174,7 @@ export default function PreAlertsPage() {
                             size="sm" 
                             variant="outline"
                             className="flex items-center gap-1.5 hover:bg-blue-50 transition-colors border-blue-200"
-                            onClick={() => {/* TODO: Implement view handler */}}
+                            onClick={() => handleViewPreAlert(alert.id)}
                           >
                             <Eye className="h-4 w-4 text-blue-600" />
                             <span className="text-sm font-medium text-blue-600">View</span>

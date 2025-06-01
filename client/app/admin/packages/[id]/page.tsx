@@ -58,6 +58,8 @@ export default function AdminPackageDetailPage() {
   const updateStatusMutation = useUpdatePackageStatus();
   const [form, setForm] = useState<any>(null);
   const [activeImage, setActiveImage] = useState(0);
+  const [tagInput, setTagInput] = useState("");
+  const tagsArray = form?.tags ? form.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
 
   if (!packageData) {
     return null;
@@ -111,8 +113,6 @@ export default function AdminPackageDetailPage() {
   const packagePhotos = packageData.photos || [];
 
   // Tag helpers for edit mode
-  const tagsArray = form?.tags ? form.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
-  const [tagInput, setTagInput] = useState("");
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) {
       e.preventDefault();
