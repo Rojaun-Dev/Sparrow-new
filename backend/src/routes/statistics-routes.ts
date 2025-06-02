@@ -37,7 +37,7 @@ router.get(
   '/customer/:userId',
   checkJwt,
   checkRole(['admin_l1', 'admin_l2']),
-  (req, res, next) => {
+  (req, _res, next) => {
     (req as any).userId = req.params.userId;
     next();
   },

@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { UsersService, createUserSchema, updateUserSchema, UserRole } from '../services/users-service';
+import { UsersService, createUserSchema, updateUserSchema } from '../services/users-service';
 import { ApiResponse } from '../utils/response';
 import bcrypt from 'bcrypt';
-import { parse as csvParse, format as csvFormat } from 'fast-csv';
+import { format as csvFormat } from 'fast-csv';
 import { PassThrough } from 'stream';
 import { AuditLogsService } from '../services/audit-logs-service';
 
@@ -100,7 +100,6 @@ export class UsersController {
       const { id } = req.params;
       const companyId = req.companyId as string;
       const adminUserId = req.userId as string;
-      const adminUserRole = req.userRole;
       const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
       
@@ -563,6 +562,7 @@ export class UsersController {
       users.forEach(user => csvStream.write(user));
       csvStream.end();
       passThrough.pipe(res);
+      return undefined;
     } catch (error) {
       next(error);
       return undefined;

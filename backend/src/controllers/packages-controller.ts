@@ -296,7 +296,7 @@ export class PackagesController {
     try {
       const { id } = req.params;
       const companyId = req.companyId as string;
-      const { status, sendNotification } = req.body;
+      const { status } = req.body;
       if (!status) {
         return ApiResponse.validationError(res, { message: 'Status is required' });
       }

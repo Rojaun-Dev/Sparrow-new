@@ -1,4 +1,4 @@
-import { SQL, and, eq, desc, asc, like, isNull, gte, lte, sql } from 'drizzle-orm';
+import { SQL, and, eq, desc, asc, isNull, gte, lte, sql } from 'drizzle-orm';
 import { preAlerts, preAlertStatusEnum } from '../db/schema/pre-alerts';
 import { BaseRepository } from './base-repository';
 

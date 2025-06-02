@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
-import { and, eq, sql, or, like, asc, desc, gte, lte, SQL } from 'drizzle-orm';
+import { and, eq, sql, or, asc, desc, gte, lte, SQL } from 'drizzle-orm';
 import { users } from '../db/schema/users';
 import { companies } from '../db/schema/companies';
 import { ilike } from 'drizzle-orm';
@@ -119,7 +119,13 @@ export class UsersService {
         // Handle multiple roles
         else {
           const roleConditions = validRoles.map(r => eq(users.role, r));
-          conditions.push(or(...roleConditions));
+          const filteredRoleConditions = roleConditions.filter((c): c is SQL<unknown> => c !== undefined);
+          if (filteredRoleConditions.length > 1) {
+            const orCondition = or(...filteredRoleConditions);
+            if (orCondition !== undefined) conditions.push(orCondition);
+          } else if (filteredRoleConditions.length === 1) {
+            conditions.push(filteredRoleConditions[0]);
+          }
         }
       }
     }
@@ -134,10 +140,14 @@ export class UsersService {
     
     if (search) {
       const searchPattern = `%${search}%`;
-      const emailCond = like(users.email, searchPattern);
-      const firstNameCond = like(users.firstName, searchPattern);
-      const lastNameCond = like(users.lastName, searchPattern);
-      conditions.push(or(emailCond, firstNameCond, lastNameCond));
+      const searchConditions = [ilike(users.firstName, searchPattern), ilike(users.lastName, searchPattern), ilike(users.email, searchPattern)];
+      const filteredSearchConditions = searchConditions.filter((c): c is SQL<unknown> => c !== undefined);
+      if (filteredSearchConditions.length > 1) {
+        const orCondition = or(...filteredSearchConditions);
+        if (orCondition !== undefined) conditions.push(orCondition);
+      } else if (filteredSearchConditions.length === 1) {
+        conditions.push(filteredSearchConditions[0]);
+      }
     }
     
     if (createdFrom) {
@@ -512,15 +522,18 @@ export class UsersService {
     const conditions: SQL[] = [eq(users.companyId, params.companyId)];
     
     // Add role filter if provided
-    if (params.role && params.role.length > 0) {
-      if (params.role.length === 1) {
-        conditions.push(eq(users.role, params.role[0]));
-      } else {
-        const roleConditions = params.role.map(r => eq(users.role, r)).filter(Boolean);
-        if (roleConditions.length > 1) {
-          conditions.push(or(...roleConditions));
-        } else if (roleConditions.length === 1) {
-          conditions.push(roleConditions[0]);
+    if (params.role) {
+      const roles = Array.isArray(params.role) ? params.role : [params.role];
+      if (roles.length === 1) {
+        conditions.push(eq(users.role, roles[0]));
+      } else if (roles.length > 1) {
+        const roleConditions = roles.map(r => eq(users.role, r));
+        const filteredRoleConditions = roleConditions.filter((c): c is SQL<unknown> => c !== undefined);
+        if (filteredRoleConditions.length > 1) {
+          const orCondition = or(...filteredRoleConditions);
+          if (orCondition !== undefined) conditions.push(orCondition);
+        } else if (filteredRoleConditions.length === 1) {
+          conditions.push(filteredRoleConditions[0]);
         }
       }
     }
@@ -533,15 +546,13 @@ export class UsersService {
     // Add search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`;
-      const searchConditions = [
-        ilike(users.firstName, searchTerm),
-        ilike(users.lastName, searchTerm),
-        ilike(users.email, searchTerm)
-      ].filter(Boolean);
-      if (searchConditions.length > 1) {
-        conditions.push(or(...searchConditions));
-      } else if (searchConditions.length === 1) {
-        conditions.push(searchConditions[0]);
+      const searchConditions = [ilike(users.firstName, searchTerm), ilike(users.lastName, searchTerm), ilike(users.email, searchTerm)];
+      const filteredSearchConditions = searchConditions.filter((c): c is SQL<unknown> => c !== undefined);
+      if (filteredSearchConditions.length > 1) {
+        const orCondition = or(...filteredSearchConditions);
+        if (orCondition !== undefined) conditions.push(orCondition);
+      } else if (filteredSearchConditions.length === 1) {
+        conditions.push(filteredSearchConditions[0]);
       }
     }
     
@@ -691,15 +702,18 @@ export class UsersService {
     const conditions: SQL[] = [eq(users.companyId, params.companyId)];
 
     // Add role filter if provided
-    if (params.role && params.role.length > 0) {
-      if (params.role.length === 1) {
-        conditions.push(eq(users.role, params.role[0]));
-      } else if (params.role.length > 1) {
-        const roleConditions = params.role.map(roleValue => eq(users.role, roleValue));
-        if (roleConditions.length > 1) {
-          conditions.push(or(...roleConditions));
-        } else if (roleConditions.length === 1) {
-          conditions.push(roleConditions[0]);
+    if (params.role) {
+      const roles = Array.isArray(params.role) ? params.role : [params.role];
+      if (roles.length === 1) {
+        conditions.push(eq(users.role, roles[0]));
+      } else if (roles.length > 1) {
+        const roleConditions = roles.map(r => eq(users.role, r));
+        const filteredRoleConditions = roleConditions.filter((c): c is SQL<unknown> => c !== undefined);
+        if (filteredRoleConditions.length > 1) {
+          const orCondition = or(...filteredRoleConditions);
+          if (orCondition !== undefined) conditions.push(orCondition);
+        } else if (filteredRoleConditions.length === 1) {
+          conditions.push(filteredRoleConditions[0]);
         }
       }
     }
@@ -712,15 +726,13 @@ export class UsersService {
     // Add search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`;
-      const searchConditions = [
-        ilike(users.firstName, searchTerm),
-        ilike(users.lastName, searchTerm),
-        ilike(users.email, searchTerm)
-      ].filter(Boolean);
-      if (searchConditions.length > 1) {
-        conditions.push(or(...searchConditions));
-      } else if (searchConditions.length === 1) {
-        conditions.push(searchConditions[0]);
+      const searchConditions = [ilike(users.firstName, searchTerm), ilike(users.lastName, searchTerm), ilike(users.email, searchTerm)];
+      const filteredSearchConditions = searchConditions.filter((c): c is SQL<unknown> => c !== undefined);
+      if (filteredSearchConditions.length > 1) {
+        const orCondition = or(...filteredSearchConditions);
+        if (orCondition !== undefined) conditions.push(orCondition);
+      } else if (filteredSearchConditions.length === 1) {
+        conditions.push(filteredSearchConditions[0]);
       }
     }
 
