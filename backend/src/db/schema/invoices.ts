@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, pgEnum, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, pgEnum, decimal, jsonb } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 import { users } from './users';
 
@@ -27,6 +27,7 @@ export const invoices = pgTable('invoices', {
   taxAmount: decimal('tax_amount', { precision: 10, scale: 2 }).notNull().default('0'),
   totalAmount: decimal('total_amount', { precision: 10, scale: 2 }).notNull().default('0'),
   notes: text('notes'),
+  feeBreakdown: jsonb('fee_breakdown').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }); 

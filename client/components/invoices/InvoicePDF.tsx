@@ -1,12 +1,12 @@
 import React from 'react';
-import { 
-  Document as PDFDocument, 
-  Page as PDFPage, 
-  Text as PDFText, 
-  View as PDFView, 
-  StyleSheet, 
-  Image as PDFImage,
-  Font 
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Image,
+  Font
 } from '@react-pdf/renderer';
 import { Invoice } from '@/lib/api/types';
 
@@ -214,146 +214,163 @@ interface InvoicePDFProps {
 }
 
 const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, company }) => (
-  <PDFDocument>
-    <PDFPage size="A4" style={styles.page}>
+  <Document>
+    <Page size="A4" style={styles.page}>
       {/* Header with Logo and Company Info */}
-      <PDFView style={styles.header}>
-        <PDFView>
+      <View style={styles.header}>
+        <View>
           {company?.logoUrl ? (
-            <PDFImage src={company.logoUrl} style={styles.logo} />
+            <Image src={company.logoUrl} style={styles.logo} />
           ) : (
-            <PDFText style={styles.companyName}>{company?.name || 'Company Name'}</PDFText>
+            <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
           )}
-        </PDFView>
-        <PDFView style={styles.companyInfo}>
-          <PDFText style={styles.companyName}>{company?.name || 'Company Name'}</PDFText>
-          <PDFText>{company?.address?.street || ''}</PDFText>
-          <PDFText>{`${company?.address?.city || ''}, ${company?.address?.state || ''} ${company?.address?.postalCode || ''}`}</PDFText>
-          <PDFText>{company?.phone || ''}</PDFText>
-          <PDFText>{company?.email || ''}</PDFText>
-        </PDFView>
-      </PDFView>
+        </View>
+        <View style={styles.companyInfo}>
+          <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
+          <Text>{company?.address?.street || ''}</Text>
+          <Text>{`${company?.address?.city || ''}, ${company?.address?.state || ''} ${company?.address?.postalCode || ''}`}</Text>
+          <Text>{company?.phone || ''}</Text>
+          <Text>{company?.email || ''}</Text>
+        </View>
+      </View>
 
       {/* Invoice Title and Number */}
-      <PDFView style={{ marginBottom: 20 }}>
-        <PDFText style={styles.invoiceTitle}>INVOICE</PDFText>
-        <PDFView style={styles.invoiceNumberRow}>
-          <PDFText style={styles.invoiceNumber}>Invoice #: {invoice.invoiceNumber}</PDFText>
-          <PDFText style={styles.invoiceNumber}>
-            Status: <PDFText style={{ color: getStatusColor(invoice.status) }}>{formatStatusLabel(invoice.status)}</PDFText>
-          </PDFText>
-        </PDFView>
-        <PDFView style={styles.invoiceNumberRow}>
-          <PDFText style={styles.invoiceNumber}>Issue Date: {formatDate(invoice.issueDate)}</PDFText>
-          <PDFText style={styles.invoiceNumber}>Due Date: {formatDate(invoice.dueDate)}</PDFText>
-        </PDFView>
-      </PDFView>
+      <View style={{ marginBottom: 20 }}>
+        <Text style={styles.invoiceTitle}>INVOICE</Text>
+        <View style={styles.invoiceNumberRow}>
+          <Text style={styles.invoiceNumber}>Invoice #: {invoice.invoiceNumber}</Text>
+          <Text style={styles.invoiceNumber}>
+            Status: <Text style={{ color: getStatusColor(invoice.status) }}>{formatStatusLabel(invoice.status)}</Text>
+          </Text>
+        </View>
+        <View style={styles.invoiceNumberRow}>
+          <Text style={styles.invoiceNumber}>Issue Date: {formatDate(invoice.issueDate)}</Text>
+          <Text style={styles.invoiceNumber}>Due Date: {formatDate(invoice.dueDate)}</Text>
+        </View>
+      </View>
 
       {/* Customer Information */}
-      <PDFView style={styles.section}>
-        <PDFText style={styles.sectionTitle}>Customer Information</PDFText>
-        <PDFView style={styles.infoRow}>
-          <PDFText style={styles.col1}>Name:</PDFText>
-          <PDFText style={styles.col2}>{user?.firstName} {user?.lastName}</PDFText>
-        </PDFView>
-        <PDFView style={styles.infoRow}>
-          <PDFText style={styles.col1}>Email:</PDFText>
-          <PDFText style={styles.col2}>{user?.email}</PDFText>
-        </PDFView>
-        <PDFView style={styles.infoRow}>
-          <PDFText style={styles.col1}>Phone:</PDFText>
-          <PDFText style={styles.col2}>{user?.phone || 'N/A'}</PDFText>
-        </PDFView>
-      </PDFView>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Customer Information</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.col1}>Name:</Text>
+          <Text style={styles.col2}>{user?.firstName} {user?.lastName}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.col1}>Email:</Text>
+          <Text style={styles.col2}>{user?.email}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.col1}>Phone:</Text>
+          <Text style={styles.col2}>{user?.phone || 'N/A'}</Text>
+        </View>
+      </View>
 
       {/* Invoice Items */}
-      <PDFView style={styles.section}>
-        <PDFText style={styles.sectionTitle}>Invoice Items</PDFText>
-        <PDFView style={styles.tableHeader}>
-          <PDFText style={styles.description}>Description</PDFText>
-          <PDFText style={styles.amount}>Amount</PDFText>
-        </PDFView>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Invoice Items</Text>
+        <View style={styles.tableHeader}>
+          <Text style={styles.description}>Description</Text>
+          <Text style={styles.amount}>Amount</Text>
+        </View>
         
         {invoice.items && invoice.items.length > 0 ? (
           invoice.items.map((item: any, index: number) => (
-            <PDFView key={`item-${index}`} style={styles.tableRow}>
-              <PDFText style={styles.description}>{item.description}</PDFText>
-              <PDFText style={styles.amount}>
+            <View key={`item-${index}`} style={styles.tableRow}>
+              <Text style={styles.description}>{item.description}</Text>
+              <Text style={styles.amount}>
                 {formatCurrency(item.lineTotal)}
-              </PDFText>
-            </PDFView>
+              </Text>
+            </View>
           ))
         ) : (
-          <PDFView style={styles.tableRow}>
-            <PDFText style={{ width: '100%', textAlign: 'center', fontSize: 10, color: '#666' }}>
+          <View style={styles.tableRow}>
+            <Text style={{ width: '100%', textAlign: 'center', fontSize: 10, color: '#666' }}>
               No detailed items available
-            </PDFText>
-          </PDFView>
+            </Text>
+          </View>
         )}
         
-        <PDFView style={styles.tableRow}>
-          <PDFText style={[styles.description, { textAlign: 'right', fontWeight: 'bold' }]}>Subtotal:</PDFText>
-          <PDFText style={styles.amount}>{formatCurrency(invoice.subtotal)}</PDFText>
-        </PDFView>
+        <View style={styles.tableRow}>
+          <Text style={[styles.description, { textAlign: 'right', fontWeight: 'bold' }]}>Subtotal:</Text>
+          <Text style={styles.amount}>{formatCurrency(invoice.subtotal)}</Text>
+        </View>
         
-        <PDFView style={styles.tableRow}>
-          <PDFText style={[styles.description, { textAlign: 'right', fontWeight: 'bold' }]}>Tax:</PDFText>
-          <PDFText style={styles.amount}>{formatCurrency(invoice.taxAmount)}</PDFText>
-        </PDFView>
+        <View style={styles.tableRow}>
+          <Text style={[styles.description, { textAlign: 'right', fontWeight: 'bold' }]}>Tax:</Text>
+          <Text style={styles.amount}>{formatCurrency(invoice.taxAmount)}</Text>
+        </View>
         
-        <PDFView style={styles.total}>
-          <PDFText style={styles.totalLabel}>Total:</PDFText>
-          <PDFText style={styles.totalAmount}>{formatCurrency(invoice.totalAmount)}</PDFText>
-        </PDFView>
-      </PDFView>
+        <View style={styles.total}>
+          <Text style={styles.totalLabel}>Total:</Text>
+          <Text style={styles.totalAmount}>{formatCurrency(invoice.totalAmount)}</Text>
+        </View>
+      </View>
+
+      {/* Fee Breakdown */}
+      {invoice.feeBreakdown && Object.keys(invoice.feeBreakdown).length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Fee Breakdown</Text>
+          <View style={styles.tableHeader}>
+            <Text style={styles.description}>Type</Text>
+            <Text style={styles.amount}>Amount</Text>
+          </View>
+          {Object.entries(invoice.feeBreakdown).map(([type, amount], idx) => (
+            <View key={`fee-${type}`} style={styles.tableRow}>
+              <Text style={styles.description}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
+              <Text style={styles.amount}>{formatCurrency(amount)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Related Packages */}
       {packages && packages.length > 0 && (
-        <PDFView style={styles.section}>
-          <PDFText style={styles.sectionTitle}>Related Packages</PDFText>
-          <PDFView style={styles.tableHeader}>
-            <PDFText style={styles.description}>Tracking #</PDFText>
-            <PDFText style={{ width: '20%', fontSize: 10 }}>Status</PDFText>
-            <PDFText style={styles.amount}>Description</PDFText>
-          </PDFView>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Related Packages</Text>
+          <View style={styles.tableHeader}>
+            <Text style={styles.description}>Tracking #</Text>
+            <Text style={{ width: '20%', fontSize: 10 }}>Status</Text>
+            <Text style={styles.amount}>Description</Text>
+          </View>
           
           {packages.map((pkg: any, index: number) => (
-            <PDFView key={`package-${index}`} style={styles.tableRow}>
-              <PDFText style={styles.description}>{pkg.trackingNumber}</PDFText>
-              <PDFText style={[
+            <View key={`package-${index}`} style={styles.tableRow}>
+              <Text style={styles.description}>{pkg.trackingNumber}</Text>
+              <Text style={[
                 styles.statusBadge, 
                 { color: getStatusColor(pkg.status) }
               ]}>
                 {formatStatusLabel(pkg.status)}
-              </PDFText>
-              <PDFText style={styles.amount}>{pkg.description || 'No description'}</PDFText>
-            </PDFView>
+              </Text>
+              <Text style={styles.amount}>{pkg.description || 'No description'}</Text>
+            </View>
           ))}
-        </PDFView>
+        </View>
       )}
 
       {/* Notes */}
       {invoice.notes && (
-        <PDFView style={styles.notes}>
-          <PDFText style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Notes:</PDFText>
-          <PDFText style={{ fontSize: 10 }}>{invoice.notes}</PDFText>
-        </PDFView>
+        <View style={styles.notes}>
+          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Notes:</Text>
+          <Text style={{ fontSize: 10 }}>{invoice.notes}</Text>
+        </View>
       )}
 
       {/* Payment Information */}
-      <PDFView style={styles.notes}>
-        <PDFText style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Payment Information:</PDFText>
-        <PDFText style={{ fontSize: 10 }}>
+      <View style={styles.notes}>
+        <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Payment Information:</Text>
+        <Text style={{ fontSize: 10 }}>
           Please include the invoice number in your payment reference.
-        </PDFText>
-      </PDFView>
+        </Text>
+      </View>
 
       {/* Footer */}
-      <PDFView style={styles.footer}>
-        <PDFText>Thank you for your business! This invoice was generated on {new Date().toLocaleDateString()}</PDFText>
-      </PDFView>
-    </PDFPage>
-  </PDFDocument>
+      <View style={styles.footer}>
+        <Text>Thank you for your business! This invoice was generated on {new Date().toLocaleDateString()}</Text>
+      </View>
+    </Page>
+  </Document>
 );
 
 export default InvoicePDF; 

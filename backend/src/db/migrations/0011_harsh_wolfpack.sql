@@ -1,0 +1,1 @@
+ALTER TABLE "invoices" ADD COLUMN "fee_breakdown" jsonb DEFAULT '{}'::jsonb;

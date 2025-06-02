@@ -30,10 +30,12 @@ export class InvoicesService {
   }
 
   /**
-   * Get all invoices for a company
+   * Get all invoices for a company (paginated)
    */
-  async getAllInvoices(companyId: string) {
-    return this.invoicesRepository.findAll(companyId);
+  async getAllInvoices(companyId: string, params: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}) {
+    // Default values
+    const { page = 1, pageSize = 10, sortBy = 'createdAt', sortOrder = 'desc' } = params;
+    return this.invoicesRepository.search(companyId, { page, pageSize, sortBy, sortOrder });
   }
 
   /**

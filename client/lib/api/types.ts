@@ -159,6 +159,7 @@ export interface Invoice extends BaseEntity {
   totalAmount: number;
   notes?: string;
   items?: InvoiceItem[];
+  feeBreakdown?: Record<string, number>;
 }
 
 export type InvoiceItemType = 'shipping' | 'handling' | 'customs' | 'tax' | 'other';

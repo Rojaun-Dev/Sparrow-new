@@ -9,7 +9,6 @@ export const feeTypeEnum = pgEnum('fee_type', [
   'handling',
   'customs', 
   'other',
-  'threshold',
 ]);
 
 // Define the calculation method enum

@@ -33,9 +33,6 @@ export default function InvoicesPage() {
             <CardTitle>Invoices</CardTitle>
             <CardDescription>View and manage all invoices for your company</CardDescription>
           </div>
-          <Button onClick={handleExport} variant="outline">
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-          </Button>
         </CardHeader>
         <CardContent>
           {/* Placeholder for filters */}

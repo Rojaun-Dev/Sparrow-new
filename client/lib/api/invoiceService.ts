@@ -28,8 +28,8 @@ class InvoiceService {
         status: params?.status,
         sortBy: params?.sortBy,
         sortOrder: params?.sortOrder,
-        limit: params?.limit,
-        offset: params?.offset
+        page: params?.page,
+        pageSize: params?.limit,
       }
     });
   }
@@ -146,6 +146,21 @@ class InvoiceService {
   async exportInvoicesCsv(params?: any, companyId?: string): Promise<Blob> {
     const id = companyId || await this.getCompanyId();
     return apiClient.downloadFile(`${this.baseUrl}/${id}/invoices/export-csv`, params);
+  }
+
+  async previewInvoice(data: any, companyId?: string): Promise<any> {
+    const cid = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cid}/invoices/preview`, data);
+  }
+
+  async generateInvoice(data: any, companyId?: string): Promise<any> {
+    const cid = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cid}/invoices`, data);
+  }
+
+  async autoBill(companyId?: string): Promise<any> {
+    const cid = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cid}/invoices/auto-bill`);
   }
 }
 

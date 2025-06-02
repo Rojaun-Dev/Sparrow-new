@@ -102,4 +102,16 @@ export function useInvoiceByPackageId(packageId: string) {
     queryFn: () => invoiceService.getInvoiceByPackageId(packageId),
     enabled: !!packageId, // Only run the query if we have a package ID
   });
-} 
+}
+
+export function usePreviewInvoice() {
+  return useMutation((data: any) => invoiceService.previewInvoice(data));
+}
+
+export function useGenerateInvoice() {
+  return useMutation((data: any) => invoiceService.generateInvoice(data));
+}
+
+export function useAutoBill() {
+  return useMutation(() => invoiceService.autoBill());
+}
