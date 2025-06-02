@@ -25,13 +25,29 @@ class FeeService {
 
   async createFee(data: Partial<Fee>, companyId?: string): Promise<Fee> {
     const cId = companyId || await this.getCompanyId();
-    // Build metadata for percentage and tiered fees
+    // Build metadata for percentage, tiered, and threshold fees
     let metadata = data.metadata || {};
     if (data.calculationMethod === 'percentage') {
       metadata = { ...metadata, baseAttribute: metadata.baseAttribute };
     }
     if (data.calculationMethod === 'tiered') {
       metadata = { ...metadata, tiers: metadata.tiers, tierAttribute: metadata.tierAttribute };
+    }
+    if (data.calculationMethod === 'threshold') {
+      metadata = {
+        ...metadata,
+        attribute: metadata.attribute,
+        min: metadata.min,
+        max: metadata.max,
+        application: metadata.application,
+      };
+    }
+    if (data.calculationMethod === 'timed') {
+      metadata = {
+        ...metadata,
+        days: metadata.days,
+        application: metadata.application,
+      };
     }
     const payload = { ...data, amount: data.amount !== undefined ? Number(data.amount) : undefined, metadata };
     return apiClient.post<Fee>(`${this.baseUrl}/${cId}/fees`, payload);
@@ -39,13 +55,29 @@ class FeeService {
 
   async updateFee(id: string, data: Partial<Fee>, companyId?: string): Promise<Fee> {
     const cId = companyId || await this.getCompanyId();
-    // Build metadata for percentage and tiered fees
+    // Build metadata for percentage, tiered, and threshold fees
     let metadata = data.metadata || {};
     if (data.calculationMethod === 'percentage') {
       metadata = { ...metadata, baseAttribute: metadata.baseAttribute };
     }
     if (data.calculationMethod === 'tiered') {
       metadata = { ...metadata, tiers: metadata.tiers, tierAttribute: metadata.tierAttribute };
+    }
+    if (data.calculationMethod === 'threshold') {
+      metadata = {
+        ...metadata,
+        attribute: metadata.attribute,
+        min: metadata.min,
+        max: metadata.max,
+        application: metadata.application,
+      };
+    }
+    if (data.calculationMethod === 'timed') {
+      metadata = {
+        ...metadata,
+        days: metadata.days,
+        application: metadata.application,
+      };
     }
     const payload = { ...data, amount: data.amount !== undefined ? Number(data.amount) : undefined, metadata };
     return apiClient.put<Fee>(`${this.baseUrl}/${cId}/fees/${id}`, payload);

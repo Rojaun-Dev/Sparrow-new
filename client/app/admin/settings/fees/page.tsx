@@ -17,14 +17,17 @@ import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Plus, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
-const FEE_TYPES: FeeType[] = ["tax", "service", "shipping", "handling", "customs", "other"];
+const FEE_TYPES: FeeType[] = ["tax", "service", "shipping", "handling", "customs", "other", "threshold"];
 const CALC_METHODS: CalculationMethod[] = [
-  "fixed", "percentage", "per_weight", "per_item", "dimensional", "tiered"
+  "fixed", "percentage", "per_weight", "per_item", "dimensional", "tiered", "threshold", "timed"
 ];
 const PERCENTAGE_BASES = ["subtotal", "shipping", "customs", "handling", "other"];
 const PACKAGE_TAGS = [
   "general", "fragile", "urgent", "oversized", "perishable", "high value", "documents", "other"
 ];
+const THRESHOLD_ATTRIBUTES = ["weight", "declaredValue", ...FEE_TYPES];
+const THRESHOLD_APPLICATIONS = ["before", "during", "after"];
+const TIMED_APPLICATIONS = ["before", "after"];
 
 function FeeForm({
   initial, onSubmit, onCancel, loading
@@ -89,6 +92,15 @@ function FeeForm({
         errs["metadata.tierAttribute"] = "Tier attribute is required (e.g., weight)";
       }
     }
+    if (form.calculationMethod === "threshold") {
+      if (!form.metadata?.attribute) errs["metadata.attribute"] = "Attribute is required";
+      if (form.metadata?.min === undefined || form.metadata?.min === null || isNaN(Number(form.metadata.min))) errs["metadata.min"] = "Min is required";
+      if (!form.metadata?.application) errs["metadata.application"] = "Application is required";
+    }
+    if (form.calculationMethod === "timed") {
+      if (form.metadata?.days === undefined || form.metadata?.days === null || isNaN(Number(form.metadata.days))) errs["metadata.days"] = "Number of days is required";
+      if (!form.metadata?.application) errs["metadata.application"] = "Application is required";
+    }
     return errs;
   };
 
@@ -127,12 +139,50 @@ function FeeForm({
         </div>
         <div>
           <label className="block text-xs font-medium mb-1">Calculation Method</label>
-          <Select value={form.calculationMethod} onValueChange={v => handleChange("calculationMethod", v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CALC_METHODS.map(method => <SelectItem key={method} value={method}>{method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={form.calculationMethod} onValueChange={v => handleChange("calculationMethod", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CALC_METHODS.map(method => <SelectItem key={method} value={method}>{method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {form.calculationMethod === "tiered" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="w-64 text-xs">Tiered: Apply different rates based on a package attribute (e.g., weight). Each tier defines a min/max and a rate. The rate is applied for the range of the tier.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {form.calculationMethod === "threshold" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="w-64 text-xs">Threshold: Apply a fee before, during, or after a value threshold for a package attribute (e.g., weight, declared value, or another fee type). You specify the range and when the fee applies.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {form.calculationMethod === "timed" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="w-64 text-xs">Timed: Apply a fee before or after a certain number of days (e.g., storage fees after 7 days). You specify the number of days and when the fee applies.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           {errors.calculationMethod && <div className="text-xs text-red-600">{errors.calculationMethod}</div>}
         </div>
         <div>
@@ -235,6 +285,66 @@ function FeeForm({
             </div>
           </div>
         )}
+        {form.calculationMethod === "threshold" && (
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium mb-1">Threshold Attribute</label>
+            <Select value={form.metadata?.attribute || ""} onValueChange={v => handleChange("metadata.attribute", v)}>
+              <SelectTrigger><SelectValue placeholder="Select attribute" /></SelectTrigger>
+              <SelectContent>
+                {THRESHOLD_ATTRIBUTES.map(attr => (
+                  <SelectItem key={attr} value={attr}>{attr.charAt(0).toUpperCase() + attr.slice(1)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2 mt-2">
+              <div>
+                <label className="block text-xs font-medium mb-1">Min</label>
+                <Input type="number" value={form.metadata?.min ?? ''} onChange={e => handleChange("metadata.min", e.target.value === '' ? undefined : Number(e.target.value))} className="w-24" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Max</label>
+                <Input type="number" value={form.metadata?.max ?? ''} onChange={e => handleChange("metadata.max", e.target.value === '' ? null : Number(e.target.value))} className="w-24" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Application</label>
+                <Select value={form.metadata?.application || ""} onValueChange={v => handleChange("metadata.application", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {THRESHOLD_APPLICATIONS.map(app => (
+                      <SelectItem key={app} value={app}>{app.charAt(0).toUpperCase() + app.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {errors["metadata.attribute"] && <div className="text-xs text-red-600">{errors["metadata.attribute"]}</div>}
+            {errors["metadata.min"] && <div className="text-xs text-red-600">{errors["metadata.min"]}</div>}
+            {errors["metadata.application"] && <div className="text-xs text-red-600">{errors["metadata.application"]}</div>}
+          </div>
+        )}
+        {form.calculationMethod === "timed" && (
+          <div className="md:col-span-2">
+            <div className="flex gap-2 items-end">
+              <div>
+                <label className="block text-xs font-medium mb-1">Number of Days</label>
+                <Input type="number" value={form.metadata?.days ?? ''} onChange={e => handleChange("metadata.days", e.target.value === '' ? undefined : Number(e.target.value))} className="w-24" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Application</label>
+                <Select value={form.metadata?.application || ""} onValueChange={v => handleChange("metadata.application", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {TIMED_APPLICATIONS.map(app => (
+                      <SelectItem key={app} value={app}>{app.charAt(0).toUpperCase() + app.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {errors["metadata.days"] && <div className="text-xs text-red-600">{errors["metadata.days"]}</div>}
+            {errors["metadata.application"] && <div className="text-xs text-red-600">{errors["metadata.application"]}</div>}
+          </div>
+        )}
         <div className="md:col-span-2">
           <label className="block text-xs font-medium mb-1">Applies To Tags</label>
           <div className="flex flex-wrap gap-2 mb-1">
@@ -331,6 +441,11 @@ export default function FeesManagementPage() {
         baseAttribute: data.calculationMethod === "percentage" ? data.metadata?.baseAttribute : undefined,
         tiers: data.calculationMethod === "tiered" ? data.metadata?.tiers : undefined,
         tierAttribute: data.calculationMethod === "tiered" ? data.metadata?.tierAttribute : undefined,
+        attribute: data.calculationMethod === "threshold" ? data.metadata?.attribute : undefined,
+        min: data.calculationMethod === "threshold" ? data.metadata?.min : undefined,
+        max: data.calculationMethod === "threshold" ? data.metadata?.max : undefined,
+        application: ["threshold", "timed"].includes(data.calculationMethod as string) ? data.metadata?.application : undefined,
+        days: data.calculationMethod === "timed" ? data.metadata?.days : undefined,
       },
     };
 
@@ -390,7 +505,15 @@ export default function FeesManagementPage() {
                       <TableCell>{fee.calculationMethod.replace(/_/g, ' ')}</TableCell>
                       <TableCell>{fee.amount}</TableCell>
                       <TableCell>{fee.currency}</TableCell>
-                      <TableCell>{fee.calculationMethod === "percentage" ? fee.metadata?.baseAttribute : fee.calculationMethod === "tiered" ? (fee.metadata?.tiers ? fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ") : "-") : "-"}</TableCell>
+                      <TableCell>{fee.calculationMethod === "percentage"
+                        ? fee.metadata?.baseAttribute
+                        : fee.calculationMethod === "tiered"
+                          ? (fee.metadata?.tiers ? fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ") : "-")
+                          : fee.calculationMethod === "threshold"
+                            ? `${fee.metadata?.attribute ?? ''} ${fee.metadata?.application ?? ''} [${fee.metadata?.min ?? ''} - ${fee.metadata?.max ?? '∞'}]`
+                            : fee.calculationMethod === "timed"
+                              ? `${fee.metadata?.application ?? ''} ${fee.metadata?.days ?? ''} days`
+                              : "-"}</TableCell>
                       <TableCell>{fee.appliesTo?.join(", ")}</TableCell>
                       <TableCell>
                         <Badge variant={fee.isActive ? "success" : "secondary"}>{fee.isActive ? "Active" : "Inactive"}</Badge>
@@ -413,7 +536,7 @@ export default function FeesManagementPage() {
               </Table>
               {/* Calculation Details Legend */}
               <div className="mt-2 text-xs text-muted-foreground">
-                <strong>Calculation Details:</strong> For percentage fees, shows the base attribute. For tiered fees, shows the tier structure.
+                <strong>Calculation Details:</strong> For percentage fees, shows the base attribute. For tiered fees, shows the tier structure. For threshold fees, shows the attribute, application, and range.
               </div>
             </div>
           )}

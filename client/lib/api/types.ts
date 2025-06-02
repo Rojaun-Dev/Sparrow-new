@@ -191,8 +191,8 @@ export interface Payment extends BaseEntity {
 }
 
 // Fee related types
-export type FeeType = 'tax' | 'service' | 'shipping' | 'handling' | 'customs' | 'other';
-export type CalculationMethod = 'fixed' | 'percentage' | 'per_weight' | 'per_item' | 'dimensional' | 'tiered';
+export type FeeType = 'tax' | 'service' | 'shipping' | 'handling' | 'customs' | 'other' | 'threshold';
+export type CalculationMethod = 'fixed' | 'percentage' | 'per_weight' | 'per_item' | 'dimensional' | 'tiered' | 'threshold' | 'timed';
 
 export interface Fee extends BaseEntity {
   companyId: string;
@@ -206,6 +206,14 @@ export interface Fee extends BaseEntity {
   /**
    * For percentage fees, metadata.baseAttribute (string) determines what the percentage is of (e.g., 'subtotal').
    * For tiered fees, metadata.tiers (array) and metadata.tierAttribute (string) define the tiers.
+   * For threshold fees, metadata should include:
+   *   - attribute: 'weight' | 'declaredValue' | FeeType
+   *   - min: number (inclusive)
+   *   - max: number (inclusive or null for no upper bound)
+   *   - application: 'before' | 'during' | 'after' (when the fee applies relative to the threshold)
+   * For timed fees, metadata should include:
+   *   - days: number (number of days)
+   *   - application: 'before' | 'after' (when the fee applies relative to the days)
    */
   metadata?: any;
   description?: string;

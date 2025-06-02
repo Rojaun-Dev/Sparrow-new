@@ -28,6 +28,45 @@ export const createFeeSchema = baseFeeSchema.superRefine((data, ctx) => {
       });
     }
   }
+  if (data.calculationMethod === 'threshold') {
+    if (!data.metadata || typeof data.metadata.attribute !== 'string' || data.metadata.attribute.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'attribute (in metadata) is required for threshold calculation method',
+        path: ['metadata', 'attribute']
+      });
+    }
+    if (data.metadata?.min === undefined || data.metadata?.min === null || isNaN(Number(data.metadata.min))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'min (in metadata) is required for threshold calculation method',
+        path: ['metadata', 'min']
+      });
+    }
+    if (!['before', 'during', 'after'].includes(data.metadata?.application)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'application (in metadata) must be one of before, during, after for threshold calculation method',
+        path: ['metadata', 'application']
+      });
+    }
+  }
+  if (data.calculationMethod === 'timed') {
+    if (data.metadata?.days === undefined || data.metadata?.days === null || isNaN(Number(data.metadata.days))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'days (in metadata) is required for timed calculation method',
+        path: ['metadata', 'days']
+      });
+    }
+    if (!['before', 'after'].includes(data.metadata?.application)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'application (in metadata) must be one of before, after for timed calculation method',
+        path: ['metadata', 'application']
+      });
+    }
+  }
 });
 
 export const updateFeeSchema = baseFeeSchema.partial().omit({ code: true }).superRefine((data, ctx) => {
@@ -37,6 +76,45 @@ export const updateFeeSchema = baseFeeSchema.partial().omit({ code: true }).supe
         code: z.ZodIssueCode.custom,
         message: 'baseAttribute (in metadata) is required and must be at least 2 characters when calculationMethod is percentage',
         path: ['metadata', 'baseAttribute']
+      });
+    }
+  }
+  if (data.calculationMethod === 'threshold') {
+    if (!data.metadata || typeof data.metadata.attribute !== 'string' || data.metadata.attribute.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'attribute (in metadata) is required for threshold calculation method',
+        path: ['metadata', 'attribute']
+      });
+    }
+    if (data.metadata?.min === undefined || data.metadata?.min === null || isNaN(Number(data.metadata.min))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'min (in metadata) is required for threshold calculation method',
+        path: ['metadata', 'min']
+      });
+    }
+    if (!['before', 'during', 'after'].includes(data.metadata?.application)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'application (in metadata) must be one of before, during, after for threshold calculation method',
+        path: ['metadata', 'application']
+      });
+    }
+  }
+  if (data.calculationMethod === 'timed') {
+    if (data.metadata?.days === undefined || data.metadata?.days === null || isNaN(Number(data.metadata.days))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'days (in metadata) is required for timed calculation method',
+        path: ['metadata', 'days']
+      });
+    }
+    if (!['before', 'after'].includes(data.metadata?.application)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'application (in metadata) must be one of before, after for timed calculation method',
+        path: ['metadata', 'application']
       });
     }
   }
@@ -178,6 +256,36 @@ export class FeesService extends BaseService<typeof fees> {
           value >= t.min && (t.max === null || value < t.max)
         );
         return tier ? tier.rate : 0;
+      case 'threshold': {
+        // Threshold logic: attribute, min, max, application
+        const attribute = metadata.attribute;
+        const min = metadata.min;
+        const max = metadata.max ?? null;
+        const application = metadata.application; // 'before' | 'during' | 'after'
+        if (!attribute || min === undefined || !application) return 0;
+        const value = packageData?.[attribute];
+        if (typeof value !== 'number') return 0;
+        // Determine if value is before, during, or after threshold
+        const inRange = (max === null || max === undefined)
+          ? value >= min
+          : value >= min && value <= max;
+        if (application === 'before' && value < min) return fee.amount;
+        if (application === 'during' && inRange) return fee.amount;
+        if (application === 'after' && max !== null && value > max) return fee.amount;
+        if (application === 'after' && max === null && value > min) return fee.amount;
+        return 0;
+      }
+      case 'timed': {
+        // Timed logic: days, application
+        const days = metadata.days;
+        const application = metadata.application; // 'before' | 'after'
+        if (days === undefined || !application) return 0;
+        const value = packageData?.days;
+        if (typeof value !== 'number') return 0;
+        if (application === 'before' && value < days) return fee.amount;
+        if (application === 'after' && value > days) return fee.amount;
+        return 0;
+      }
       default:
         throw new Error(`Unsupported calculation method: ${fee.calculationMethod}`);
     }

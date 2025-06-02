@@ -57,6 +57,6 @@ router.post(
 );
 
 // Get pre-alerts by package ID
-router.get('/:companyId/packages/:packageId/prealerts', preAlertsController.getPreAlertsByPackageId.bind(preAlertsController));
+router.get('/:companyId/packages/:packageId/prealerts', (req, res, next) => preAlertsController.getPreAlertsByPackageId(req as any, res, next));
 
 export default router; 
