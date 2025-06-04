@@ -158,15 +158,6 @@ export default function AdminPackageDetailPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Package Details </h1>
           <Badge>{packageData.status}</Badge>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          className="ml-2"
-          onClick={() => setShowQuickInvoice(true)}
-          disabled={!!relatedInvoice}
-        >
-          Create Quick Invoice
-        </Button>
       </div>
 
       <div className="grid gap-6 ">
@@ -436,6 +427,7 @@ export default function AdminPackageDetailPage() {
                             variant="outline" 
                             size="sm"
                             className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+          onClick={() => setShowQuickInvoice(true)}
                           >
                             Quick Invoice
                           </Button>

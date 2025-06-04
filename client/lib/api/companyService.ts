@@ -186,4 +186,12 @@ export const resendCompanyInvitation = async (id: number): Promise<void> => {
  */
 export const revokeCompanyInvitation = async (id: number): Promise<void> => {
   await apiClient.post(`/superadmin/invitations/${id}/revoke`);
-}; 
+};
+
+export async function getMyCompany() {
+  return await apiClient.get('/companies/me');
+}
+
+export async function getMyAdminCompany() {
+  return await apiClient.get('/companies/admin/me');
+} 

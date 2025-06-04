@@ -155,7 +155,7 @@ class InvoiceService {
 
   async generateInvoice(data: any, companyId?: string): Promise<any> {
     const cid = companyId || await this.getCompanyId();
-    return apiClient.post(`${this.baseUrl}/${cid}/invoices`, data);
+    return apiClient.post(`${this.baseUrl}/${cid}/billing/invoices/generate`, data);
   }
 
   async autoBill(companyId?: string): Promise<any> {

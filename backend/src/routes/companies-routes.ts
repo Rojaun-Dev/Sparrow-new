@@ -59,4 +59,22 @@ router.post(
 // Get pre-alerts by package ID
 router.get('/:companyId/packages/:packageId/prealerts', (req, res, next) => preAlertsController.getPreAlertsByPackageId(req as any, res, next));
 
+// Get current company for authenticated customer
+router.get('/me', /*checkRole(['customer']),*/ (req, res) => {
+  const companyId = req.companyId;
+  if (!companyId) {
+    return res.status(401).json({ success: false, message: 'No companyId in request' });
+  }
+  return getCompanyById({ ...req, params: { id: companyId } }, res);
+});
+
+// Get current company for authenticated admin
+router.get('/admin/me', /*checkRole(['admin_l1', 'admin_l2']),*/ (req, res) => {
+  const companyId = req.companyId;
+  if (!companyId) {
+    return res.status(401).json({ success: false, message: 'No companyId in request' });
+  }
+  return getCompanyById({ ...req, params: { id: companyId } }, res);
+});
+
 export default router; 

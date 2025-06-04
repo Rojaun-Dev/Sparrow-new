@@ -1,4 +1,4 @@
-import React from 'react';
+// @ts-expect-error
 import {
   Document,
   Page,
@@ -6,7 +6,8 @@ import {
   View,
   StyleSheet,
   Image,
-  Font
+  Font,
+  Link
 } from '@react-pdf/renderer';
 import { Invoice } from '@/lib/api/types';
 
@@ -213,164 +214,137 @@ interface InvoicePDFProps {
   company: any;
 }
 
-const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, company }) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      {/* Header with Logo and Company Info */}
-      <View style={styles.header}>
-        <View>
-          {company?.logoUrl ? (
-            <Image src={company.logoUrl} style={styles.logo} />
-          ) : (
+const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, company }) => {
+  // Deduplicate packages by id
+  const uniquePackages = Array.isArray(packages)
+    ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
+    : [];
+  // Use app base URL from env
+  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_APP_BASE_URL ? process.env.NEXT_PUBLIC_APP_BASE_URL : '';
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header with Logo and Company Info */}
+        <View style={styles.header}>
+          <View>
+            {company?.logoUrl ? (
+              <Image src={company.logoUrl} style={styles.logo} />
+            ) : (
+              <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
+            )}
+          </View>
+          <View style={styles.companyInfo}>
             <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
-          )}
+            <Text>{company?.address?.street || ''}</Text>
+            <Text>{`${company?.address?.city || ''}, ${company?.address?.state || ''} ${company?.address?.postalCode || ''}`}</Text>
+            <Text>{company?.phone || ''}</Text>
+            <Text>{company?.email || ''}</Text>
+          </View>
         </View>
-        <View style={styles.companyInfo}>
-          <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
-          <Text>{company?.address?.street || ''}</Text>
-          <Text>{`${company?.address?.city || ''}, ${company?.address?.state || ''} ${company?.address?.postalCode || ''}`}</Text>
-          <Text>{company?.phone || ''}</Text>
-          <Text>{company?.email || ''}</Text>
-        </View>
-      </View>
 
-      {/* Invoice Title and Number */}
-      <View style={{ marginBottom: 20 }}>
-        <Text style={styles.invoiceTitle}>INVOICE</Text>
-        <View style={styles.invoiceNumberRow}>
-          <Text style={styles.invoiceNumber}>Invoice #: {invoice.invoiceNumber}</Text>
-          <Text style={styles.invoiceNumber}>
-            Status: <Text style={{ color: getStatusColor(invoice.status) }}>{formatStatusLabel(invoice.status)}</Text>
-          </Text>
-        </View>
-        <View style={styles.invoiceNumberRow}>
-          <Text style={styles.invoiceNumber}>Issue Date: {formatDate(invoice.issueDate)}</Text>
-          <Text style={styles.invoiceNumber}>Due Date: {formatDate(invoice.dueDate)}</Text>
-        </View>
-      </View>
-
-      {/* Customer Information */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Customer Information</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.col1}>Name:</Text>
-          <Text style={styles.col2}>{user?.firstName} {user?.lastName}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.col1}>Email:</Text>
-          <Text style={styles.col2}>{user?.email}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.col1}>Phone:</Text>
-          <Text style={styles.col2}>{user?.phone || 'N/A'}</Text>
-        </View>
-      </View>
-
-      {/* Invoice Items */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Invoice Items</Text>
-        <View style={styles.tableHeader}>
-          <Text style={styles.description}>Description</Text>
-          <Text style={styles.amount}>Amount</Text>
-        </View>
-        
-        {invoice.items && invoice.items.length > 0 ? (
-          invoice.items.map((item: any, index: number) => (
-            <View key={`item-${index}`} style={styles.tableRow}>
-              <Text style={styles.description}>{item.description}</Text>
-              <Text style={styles.amount}>
-                {formatCurrency(item.lineTotal)}
-              </Text>
-            </View>
-          ))
-        ) : (
-          <View style={styles.tableRow}>
-            <Text style={{ width: '100%', textAlign: 'center', fontSize: 10, color: '#666' }}>
-              No detailed items available
+        {/* Invoice Title and Number */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={styles.invoiceTitle}>INVOICE</Text>
+          <View style={styles.invoiceNumberRow}>
+            <Text style={styles.invoiceNumber}>Invoice #: {invoice.invoiceNumber}</Text>
+            <Text style={styles.invoiceNumber}>
+              Status: <Text style={{ color: getStatusColor(invoice.status) }}>{formatStatusLabel(invoice.status)}</Text>
             </Text>
           </View>
-        )}
-        
-        <View style={styles.tableRow}>
-          <Text style={[styles.description, { textAlign: 'right', fontWeight: 'bold' }]}>Subtotal:</Text>
-          <Text style={styles.amount}>{formatCurrency(invoice.subtotal)}</Text>
+          <View style={styles.invoiceNumberRow}>
+            <Text style={styles.invoiceNumber}>Issue Date: {formatDate(invoice.issueDate)}</Text>
+            <Text style={styles.invoiceNumber}>Due Date: {formatDate(invoice.dueDate)}</Text>
+          </View>
         </View>
-        
-        <View style={styles.tableRow}>
-          <Text style={[styles.description, { textAlign: 'right', fontWeight: 'bold' }]}>Tax:</Text>
-          <Text style={styles.amount}>{formatCurrency(invoice.taxAmount)}</Text>
-        </View>
-        
-        <View style={styles.total}>
-          <Text style={styles.totalLabel}>Total:</Text>
-          <Text style={styles.totalAmount}>{formatCurrency(invoice.totalAmount)}</Text>
-        </View>
-      </View>
 
-      {/* Fee Breakdown */}
-      {invoice.feeBreakdown && Object.keys(invoice.feeBreakdown).length > 0 && (
+        {/* Customer Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fee Breakdown</Text>
+          <Text style={styles.sectionTitle}>Customer Information</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.col1}>Name:</Text>
+            <Text style={styles.col2}>{user?.firstName} {user?.lastName}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.col1}>Email:</Text>
+            <Text style={styles.col2}>{user?.email}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.col1}>Phone:</Text>
+            <Text style={styles.col2}>{user?.phone || 'N/A'}</Text>
+          </View>
+        </View>
+
+        {/* Invoice Items */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Invoice Items</Text>
           <View style={styles.tableHeader}>
-            <Text style={styles.description}>Type</Text>
+            <Text style={styles.description}>Description</Text>
             <Text style={styles.amount}>Amount</Text>
           </View>
-          {Object.entries(invoice.feeBreakdown).map(([type, amount], idx) => (
-            <View key={`fee-${type}`} style={styles.tableRow}>
-              <Text style={styles.description}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
-              <Text style={styles.amount}>{formatCurrency(amount)}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Related Packages */}
-      {packages && packages.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Related Packages</Text>
-          <View style={styles.tableHeader}>
-            <Text style={styles.description}>Tracking #</Text>
-            <Text style={{ width: '20%', fontSize: 10 }}>Status</Text>
-            <Text style={styles.amount}>Description</Text>
-          </View>
-          
-          {packages.map((pkg: any, index: number) => (
-            <View key={`package-${index}`} style={styles.tableRow}>
-              <Text style={styles.description}>{pkg.trackingNumber}</Text>
-              <Text style={[
-                styles.statusBadge, 
-                { color: getStatusColor(pkg.status) }
-              ]}>
-                {formatStatusLabel(pkg.status)}
+          {invoice.items && invoice.items.length > 0 ? (
+            invoice.items.map((item: any, index: number) => (
+              <View key={`item-${index}`} style={styles.tableRow}>
+                <Text style={styles.description}>{item.description}</Text>
+                <Text style={styles.amount}>{formatCurrency(item.lineTotal)}</Text>
+              </View>
+            ))
+          ) : (
+            <View style={styles.tableRow}>
+              <Text style={{ width: '100%', textAlign: 'center', fontSize: 10, color: '#666' }}>
+                No detailed items available
               </Text>
-              <Text style={styles.amount}>{pkg.description || 'No description'}</Text>
             </View>
-          ))}
+          )}
         </View>
-      )}
 
-      {/* Notes */}
-      {invoice.notes && (
+        {/* Related Packages */}
+        {uniquePackages && uniquePackages.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Related Packages</Text>
+            <View style={styles.tableHeader}>
+              <Text style={styles.description}>Description</Text>
+              <Text style={styles.amount}>Sender</Text>
+              <Text style={styles.amount}>Tracking #</Text>
+            </View>
+            {uniquePackages.map((pkg: any, index: number) => (
+              <View key={`package-${index}`} style={styles.tableRow}>
+                <Text style={styles.description}>{pkg.description || 'No description'}</Text>
+                <Text style={styles.amount}>{pkg.senderInfo?.name || '-'}</Text>
+                {/* Render as a clickable link if possible, otherwise as text */}
+                {/* @react-pdf/renderer supports <Link> for URLs */}
+                <Text style={styles.amount}>
+                  {pkg.trackingNumber ? (
+                    <Link src={`${appBaseUrl}/admin/packages/${pkg.id}`}>{pkg.trackingNumber}</Link>
+                  ) : '-'}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Notes */}
+        {invoice.notes && (
+          <View style={styles.notes}>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Notes:</Text>
+            <Text style={{ fontSize: 10 }}>{invoice.notes}</Text>
+          </View>
+        )}
+
+        {/* Payment Information */}
         <View style={styles.notes}>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Notes:</Text>
-          <Text style={{ fontSize: 10 }}>{invoice.notes}</Text>
+          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Payment Information:</Text>
+          <Text style={{ fontSize: 10 }}>
+            Please include the invoice number in your payment reference.
+          </Text>
         </View>
-      )}
 
-      {/* Payment Information */}
-      <View style={styles.notes}>
-        <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Payment Information:</Text>
-        <Text style={{ fontSize: 10 }}>
-          Please include the invoice number in your payment reference.
-        </Text>
-      </View>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text>Thank you for your business! This invoice was generated on {new Date().toLocaleDateString()}</Text>
-      </View>
-    </Page>
-  </Document>
-);
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text>Thank you for your business! This invoice was generated on {new Date().toLocaleDateString()}</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+};
 
 export default InvoicePDF; 

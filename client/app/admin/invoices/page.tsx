@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { useExportCsv } from "@/hooks/useExportCsv";
 import { invoiceService } from "@/lib/api/invoiceService";
+import { useUsers } from "@/hooks/useUsers";
+import Link from "next/link";
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -19,6 +21,8 @@ export default function InvoicesPage() {
 
   const { data, isLoading, error } = useInvoices({ page, limit: pageSize, ...filters });
   const { exportCsv } = useExportCsv();
+  const { data: usersData } = useUsers();
+  const usersMap = Array.isArray(usersData) ? usersData.reduce((acc, u) => { acc[u.id] = u; return acc; }, {}) : {};
 
   const handleExport = async () => {
     await exportCsv(async () => invoiceService.exportInvoicesCsv({ ...filters }), undefined, "invoices.csv");
@@ -47,7 +51,7 @@ export default function InvoicesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice #</TableHead>
-                    <TableHead>User</TableHead>
+                    <TableHead>Associated Customer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Issue Date</TableHead>
                     <TableHead>Due Date</TableHead>
@@ -59,14 +63,22 @@ export default function InvoicesPage() {
                   {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(inv => (
                     <TableRow key={inv.id}>
                       <TableCell>{inv.invoiceNumber}</TableCell>
-                      <TableCell>{inv.userId}</TableCell>
+                      <TableCell>
+                        {usersMap[inv.userId] ? `${usersMap[inv.userId].firstName} ${usersMap[inv.userId].lastName}` : inv.userId}
+                      </TableCell>
                       <TableCell>{inv.status}</TableCell>
                       <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
                       <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
-                      <TableCell>{typeof inv.totalAmount === "number" ? `$${inv.totalAmount.toFixed(2)}` : "-"}</TableCell>
+                      <TableCell>{inv.totalAmount ? `$${inv.totalAmount}` : "-"}</TableCell>
                       <TableCell>
-                        {/* Actions: View, Download, etc. */}
-                        <Button size="sm" variant="outline">View</Button>
+                        <div className="flex gap-2">
+                          <Link href={`/admin/invoices/${inv.id}`} passHref legacyBehavior>
+                            <Button size="sm" variant="outline">View</Button>
+                          </Link>
+                          <Link href={`/admin/invoices/${inv.id}?view=pdf`} passHref legacyBehavior>
+                            <Button size="sm" variant="outline">View PDF</Button>
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )) : (

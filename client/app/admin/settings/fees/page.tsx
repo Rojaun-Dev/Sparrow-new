@@ -346,7 +346,19 @@ function FeeForm({
           </div>
         )}
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium mb-1">Applies To Tags</label>
+          <div className="flex items-center gap-1 mb-1">
+            <label className="block text-xs font-medium">Applies To Tags</label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  If no tags are added, this fee will be applied to all packages regardless of their tags.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <div className="flex flex-wrap gap-2 mb-1">
             {form.appliesTo?.map((tag: string) => (
               <Badge key={tag} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center gap-1">

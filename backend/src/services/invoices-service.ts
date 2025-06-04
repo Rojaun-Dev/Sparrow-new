@@ -47,8 +47,17 @@ export class InvoicesService {
     if (!invoice) {
       throw AppError.notFound('Invoice not found');
     }
-    
-    return invoice;
+    // Fetch invoice items and attach to invoice
+    const InvoiceItemsRepository = (await import('../repositories/invoice-items-repository')).InvoiceItemsRepository;
+    const invoiceItemsRepo = new InvoiceItemsRepository();
+    let items = await invoiceItemsRepo.findByInvoiceId(id, companyId);
+    // Convert unitPrice and lineTotal to numbers for each item
+    items = items.map(item => ({
+      ...item,
+      unitPrice: Number(item.unitPrice),
+      lineTotal: Number(item.lineTotal),
+    }));
+    return { ...invoice, items };
   }
 
   /**

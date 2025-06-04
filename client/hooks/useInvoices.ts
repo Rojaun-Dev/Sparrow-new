@@ -12,6 +12,13 @@ const invoiceKeys = {
   outstanding: () => [...invoiceKeys.all, 'outstanding'] as const,
 };
 
+// Type for invoice generation payload
+export type GenerateInvoicePayload = {
+  userId: string;
+  packageIds: string[];
+  // Optionally add other fields if needed
+};
+
 // Hook for fetching invoices list with filters
 export function useInvoices(filters: InvoiceFilterParams = {}) {
   return useQuery({
@@ -105,13 +112,19 @@ export function useInvoiceByPackageId(packageId: string) {
 }
 
 export function usePreviewInvoice() {
-  return useMutation((data: any) => invoiceService.previewInvoice(data));
+  return useMutation({
+    mutationFn: (data: GenerateInvoicePayload) => invoiceService.previewInvoice(data),
+  });
 }
 
 export function useGenerateInvoice() {
-  return useMutation((data: any) => invoiceService.generateInvoice(data));
+  return useMutation({
+    mutationFn: (data: GenerateInvoicePayload) => invoiceService.generateInvoice(data),
+  });
 }
 
 export function useAutoBill() {
-  return useMutation(() => invoiceService.autoBill());
+  return useMutation({
+    mutationFn: () => invoiceService.autoBill(),
+  });
 }
