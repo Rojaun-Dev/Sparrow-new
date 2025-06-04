@@ -49,4 +49,7 @@ router.put('/:id/status', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.up
 // Match a pre-alert to a package (Admin L1+)
 router.post('/:packageId/match-prealert', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.matchPreAlertToPackage);
 
+// Get unbilled packages for a user
+router.get('/users/:userId/unbilled-packages', controller.getUnbilledPackagesByUser);
+
 export default router; 

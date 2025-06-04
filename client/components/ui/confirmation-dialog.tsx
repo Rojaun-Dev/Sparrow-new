@@ -24,6 +24,7 @@ interface ConfirmationDialogProps {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
   onConfirm: () => Promise<void> | void
   trigger: React.ReactNode
+  children?: React.ReactNode
 }
 
 export function ConfirmationDialog({
@@ -34,6 +35,7 @@ export function ConfirmationDialog({
   variant = "destructive",
   onConfirm,
   trigger,
+  children,
 }: ConfirmationDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -59,6 +61,7 @@ export function ConfirmationDialog({
             <AlertDialogTitle>{title}</AlertDialogTitle>
             <AlertDialogDescription>{description}</AlertDialogDescription>
           </AlertDialogHeader>
+          {children}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isLoading}>{cancelText}</AlertDialogCancel>
             <AlertDialogAction asChild>

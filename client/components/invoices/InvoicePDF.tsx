@@ -171,8 +171,9 @@ const styles = StyleSheet.create({
 });
 
 // Format currency
-const formatCurrency = (amount: number | string) => {
+const formatCurrency = (amount: number | string | null | undefined) => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (numAmount === null || numAmount === undefined || isNaN(numAmount)) return '$0.00';
   return `$${numAmount.toFixed(2)}`;
 };
 

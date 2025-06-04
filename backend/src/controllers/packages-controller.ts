@@ -328,4 +328,18 @@ export class PackagesController {
       return undefined;
     }
   };
+
+  /**
+   * Get unbilled packages for a user (not already on an invoice)
+   */
+  getUnbilledPackagesByUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const companyId = req.companyId as string;
+      const packages = await this.service.getUnbilledPackagesByUser(userId, companyId);
+      return res.json({ success: true, data: packages });
+    } catch (error) {
+      next(error);
+    }
+  };
 } 

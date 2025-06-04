@@ -16,7 +16,10 @@ const invoiceKeys = {
 export type GenerateInvoicePayload = {
   userId: string;
   packageIds: string[];
-  // Optionally add other fields if needed
+  notes?: string;
+  dueDate?: Date;
+  additionalCharge?: number;
+  sendNotification?: boolean;
 };
 
 // Hook for fetching invoices list with filters

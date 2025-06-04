@@ -625,4 +625,11 @@ export class PackagesService {
     // You may want to add more fields to filter as needed
     return this.packagesRepository.findAllForExport(companyId, repoFilters);
   }
+
+  /**
+   * Get unbilled packages for a user (not already on an invoice)
+   */
+  async getUnbilledPackagesByUser(userId: string, companyId: string) {
+    return this.packagesRepository.findUnbilledByUser(userId, companyId);
+  }
 } 

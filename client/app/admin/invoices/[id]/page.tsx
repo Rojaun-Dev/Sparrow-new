@@ -61,6 +61,12 @@ function getStatusLabel(status: string) {
   }
 }
 
+// Helper to safely format numbers as currency
+function safeToFixed(val: any, digits = 2) {
+  const n = Number(val);
+  return isNaN(n) ? '0.00' : n.toFixed(digits);
+}
+
 export default function AdminInvoiceDetailPage() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : undefined;
@@ -235,8 +241,8 @@ export default function AdminInvoiceDetailPage() {
                           <tr key={index}>
                             <td className="font-medium p-2">{item.description}</td>
                             <td className="p-2 text-right">{item.quantity}</td>
-                            <td className="p-2 text-right">${item.unitPrice.toFixed(2)}</td>
-                            <td className="p-2 text-right">${item.lineTotal.toFixed(2)}</td>
+                            <td className="p-2 text-right">${safeToFixed(item.unitPrice)}</td>
+                            <td className="p-2 text-right">${safeToFixed(item.lineTotal)}</td>
                           </tr>
                         ))
                       ) : (
@@ -249,17 +255,17 @@ export default function AdminInvoiceDetailPage() {
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Subtotal</td>
-                        <td className="text-right">${Number(invoice.subtotal).toFixed(2)}</td>
+                        <td className="text-right">${safeToFixed(invoice.subtotal)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Tax</td>
-                        <td className="text-right">${Number(invoice.taxAmount).toFixed(2)}</td>
+                        <td className="text-right">${safeToFixed(invoice.taxAmount)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-bold">Total</td>
-                        <td className="text-right font-bold">${Number(invoice.totalAmount).toFixed(2)}</td>
+                        <td className="text-right font-bold">${safeToFixed(invoice.totalAmount)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -283,7 +289,7 @@ export default function AdminInvoiceDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Due:</span>
                   <span className="font-bold text-lg">
-                    ${Number(invoice.totalAmount).toFixed(2)}
+                    ${safeToFixed(invoice.totalAmount)}
                   </span>
                 </div>
                 <Separator />

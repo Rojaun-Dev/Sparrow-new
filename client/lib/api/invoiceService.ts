@@ -150,9 +150,12 @@ class InvoiceService {
 
   async previewInvoice(data: any, companyId?: string): Promise<any> {
     const cid = companyId || await this.getCompanyId();
-    return apiClient.post(`${this.baseUrl}/${cid}/invoices/preview`, data);
+    return apiClient.post(`${this.baseUrl}/${cid}/billing/invoices/preview`, data);
   }
 
+  /**
+   * Generate an invoice for selected packages. Supports additionalCharge and sendNotification fields.
+   */
   async generateInvoice(data: any, companyId?: string): Promise<any> {
     const cid = companyId || await this.getCompanyId();
     return apiClient.post(`${this.baseUrl}/${cid}/billing/invoices/generate`, data);

@@ -16,6 +16,8 @@ export const generateInvoiceSchema = z.object({
   packageIds: z.array(z.string().uuid()).min(1),
   notes: z.string().optional(),
   dueDate: z.coerce.date().optional(),
+  additionalCharge: z.number().optional(),
+  sendNotification: z.boolean().optional(),
 });
 
 export class BillingService {
@@ -184,11 +186,10 @@ export class BillingService {
       throw new AppError('Company settings not found', 400);
     }
     // Initialize fee totals
-    const result = {
+    const result: { [key: string]: any; shipping: number; handling: number; customs: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
       shipping: 0,
       handling: 0,
       customs: 0,
-      service: 0,
       other: 0,
       taxes: 0,
       subtotal: 0,
@@ -196,44 +197,43 @@ export class BillingService {
       lineItems: [] as any[],
     };
     // 1. Calculate all base (non-percentage) fees and collect percentage-based fees for later
-    const feeTypes = ['shipping', 'handling', 'customs', 'service', 'other'];
-    const percentageFeesByType: Record<string, any[]> = { shipping: [], handling: [], customs: [], service: [], other: [], subtotal: [], taxes: [] };
-    for (const type of feeTypes) {
+    const feeTypes = ['shipping', 'handling', 'customs', 'other'];
+    const percentageFeesByType: Record<string, any[]> = { shipping: [], handling: [], customs: [], other: [], subtotal: [], taxes: [] };
+    for (const type of ['shipping', 'handling', 'customs', 'service', 'other']) {
       const fees = await this.getApplicableFees(packageData, companyId, type);
       for (const fee of fees) {
         if (fee.calculationMethod === 'percentage') {
-          // Store for later
           const baseAttr = (fee.metadata && fee.metadata.baseAttribute) || 'subtotal';
           if (!percentageFeesByType[baseAttr]) percentageFeesByType[baseAttr] = [];
           percentageFeesByType[baseAttr].push(fee);
           continue;
         }
-        // Calculate base fee
         let baseAmount = 0;
         if (type === 'customs') {
           baseAmount = parseFloat(packageData.declaredValue || '0');
         }
         const amount = this.feesService.calculateFeeAmount(fee, baseAmount, packageData);
         const finalAmount = this.applyLimits(amount, fee.metadata);
-        result[type] += finalAmount;
+        // Map 'service' to 'other' for DB enum
+        const itemType = type === 'service' ? 'other' : type;
+        result[itemType] += finalAmount;
         result.lineItems.push({
           packageId: packageData.id,
           description: fee.name,
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
-          type: type as any,
+          type: itemType as any,
         });
       }
     }
     // 2. Calculate subtotal (before tax/percentage fees)
-    result.subtotal = result.shipping + result.handling + result.customs + result.service + result.other;
+    result.subtotal = result.shipping + result.handling + result.customs + result.other;
     // 3. Build context for percentage-based fees
-    const context = {
+    const context: { [key: string]: any; shipping: number; handling: number; customs: number; other: number; subtotal: number; declaredValue: number } = {
       shipping: result.shipping,
       handling: result.handling,
       customs: result.customs,
-      service: result.service,
       other: result.other,
       subtotal: result.subtotal,
       declaredValue: parseFloat(packageData.declaredValue || '0'),
@@ -358,9 +358,8 @@ export class BillingService {
         shipping: 0,
         handling: 0,
         customs: 0,
-        service: 0,
-        taxes: 0,
         other: 0,
+        taxes: 0,
       };
       
       // Create invoice record
@@ -391,9 +390,8 @@ export class BillingService {
         feeBreakdown.shipping += packageFees.shipping || 0;
         feeBreakdown.handling += packageFees.handling || 0;
         feeBreakdown.customs += packageFees.customs || 0;
-        feeBreakdown.service += packageFees.service || 0;
-        feeBreakdown.taxes += packageFees.taxes || 0;
         feeBreakdown.other += packageFees.other || 0;
+        feeBreakdown.taxes += packageFees.taxes || 0;
         
         // Add all line items to invoice
         for (const item of packageFees.lineItems) {
@@ -414,6 +412,24 @@ export class BillingService {
         }
       }
       
+      // Add additional charge if provided
+      if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
+        const addCharge = {
+          invoiceId: invoice.id,
+          companyId,
+          // Do not set packageId at all if not present
+          // packageId: null,
+          description: 'Additional Charge',
+          quantity: 1,
+          unitPrice: validatedData.additionalCharge,
+          lineTotal: validatedData.additionalCharge,
+          type: 'other',
+        };
+        await this.invoiceItemsRepository.create(addCharge, companyId);
+        subtotal += validatedData.additionalCharge;
+        feeBreakdown.other += validatedData.additionalCharge;
+      }
+      
       // Calculate total
       const totalAmount = subtotal + taxAmount;
       
@@ -423,6 +439,8 @@ export class BillingService {
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),
         feeBreakdown: feeBreakdown,
+        // Store sendNotification flag in notes for now if provided
+        notes: (validatedData.notes || '') + (validatedData.sendNotification !== undefined ? `\n[notify:${validatedData.sendNotification}]` : ''),
       }, companyId);
       
       // Get the updated invoice
@@ -506,42 +524,42 @@ export class BillingService {
         shipping: 0,
         handling: 0,
         customs: 0,
-        service: 0,
-        taxes: 0,
         other: 0,
+        taxes: 0,
       };
       
       // Calculate fees for each package
       for (const packageId of validatedData.packageIds) {
         const packageFees = await this.calculatePackageFees(packageId, companyId);
-        // Aggregate fee breakdown
-        feeBreakdown.shipping += packageFees.shipping || 0;
-        feeBreakdown.handling += packageFees.handling || 0;
-        feeBreakdown.customs += packageFees.customs || 0;
-        feeBreakdown.service += packageFees.service || 0;
-        feeBreakdown.taxes += packageFees.taxes || 0;
-        feeBreakdown.other += packageFees.other || 0;
-        
+        // Aggregate fee breakdown (parse as numbers)
+        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+        feeBreakdown.handling += Number(packageFees.handling) || 0;
+        feeBreakdown.customs += Number(packageFees.customs) || 0;
+        feeBreakdown.other += Number(packageFees.other) || 0;
+        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
         // Track line items
         lineItems.push(...packageFees.lineItems);
-        
-        // Add to totals
-        subtotal += packageFees.subtotal;
-        taxAmount += packageFees.taxes;
+        // Add to totals (parse as numbers)
+        subtotal += Number(packageFees.subtotal) || 0;
+        taxAmount += Number(packageFees.taxes) || 0;
       }
-      
       // Calculate total
       const totalAmount = subtotal + taxAmount;
-      
-      // Return the preview data, including fee breakdown
+      // Return the preview data, including fee breakdown (all numbers)
       return {
         userId: validatedData.userId,
         packageIds: validatedData.packageIds,
-        subtotal,
-        taxAmount,
-        totalAmount,
+        subtotal: Number(subtotal) || 0,
+        taxAmount: Number(taxAmount) || 0,
+        totalAmount: Number(totalAmount) || 0,
         lineItems,
-        feeBreakdown,
+        feeBreakdown: {
+          shipping: Number(feeBreakdown.shipping) || 0,
+          handling: Number(feeBreakdown.handling) || 0,
+          customs: Number(feeBreakdown.customs) || 0,
+          other: Number(feeBreakdown.other) || 0,
+          taxes: Number(feeBreakdown.taxes) || 0,
+        },
       };
     } catch (error) {
       logger.error({ err: error }, 'Error previewing invoice');
