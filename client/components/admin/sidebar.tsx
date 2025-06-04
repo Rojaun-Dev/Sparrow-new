@@ -82,16 +82,7 @@ const navItems: NavItem[] = [
     submenu: [
       { title: "All Invoices", href: "/admin/invoices" },
       { title: "Create Invoice", href: "/admin/invoices/create" },
-    ],
-  },
-  {
-    title: "Payments",
-    href: "/admin/payments",
-    icon: CreditCard,
-    submenu: [
-      { title: "All Payments", href: "/admin/payments" },
-      { title: "Record Payment", href: "/admin/payments/record" },
-      { title: "Payment Methods", href: "/admin/payments/methods", adminL2Only: true },
+      { title: "Payment Historry", href: "/admin/payments", comingSoon: true },
     ],
   },
   {
@@ -99,10 +90,10 @@ const navItems: NavItem[] = [
     href: "/admin/reports",
     icon: BarChart3,
     submenu: [
-      { title: "Package Reports", href: "/admin/reports/packages", comingSoon: true },
-      { title: "Revenue Reports", href: "/admin/reports/revenue", comingSoon: true },
-      { title: "Customer Reports", href: "/admin/reports/customers", comingSoon: true },
-      { title: "Custom Reports", href: "/admin/reports/custom", comingSoon: true },
+      { title: "Package Reports", href: "#", comingSoon: true },
+      { title: "Revenue Reports", href: "#", comingSoon: true },
+      { title: "Customer Reports", href: "#", comingSoon: true },
+      { title: "Custom Reports", href: "#", comingSoon: true },
     ],
     comingSoon: true
   },
@@ -112,8 +103,8 @@ const navItems: NavItem[] = [
     icon: Users,
     adminL2Only: true,
     submenu: [
-      { title: "All Employees", href: "/admin/employees" },
-      { title: "Invite Employee", href: "/admin/employees/invite" },
+      { title: "All Employees", href: "#", comingSoon: true },
+      { title: "Invite Employee", href: "#", comingSoon: true },
     ],
   },
   {

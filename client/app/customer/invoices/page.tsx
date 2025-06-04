@@ -160,7 +160,7 @@ export default function InvoicesPage() {
       // Fetch company data
       let company;
       if (invoice.companyId) {
-        company = await companyService.getCompany(invoice.companyId);
+        company = await companyService.getCompanyById(invoice.companyId);
       } else {
         // Fallback to current company if not specified in invoice
         company = await companyService.getCurrentCompany();

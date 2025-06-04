@@ -442,6 +442,7 @@ export default function AdminPackageDetailPage() {
                             variant="outline" 
                             size="sm"
                             className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                            onClick={() => router.push(`/admin/invoices/create?customerId=${packageData.userId}`)}
                           >
                             Create Invoice
                           </Button>

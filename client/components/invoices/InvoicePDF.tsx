@@ -1,4 +1,3 @@
-// @ts-expect-error
 import {
   Document,
   Page,
@@ -6,19 +5,9 @@ import {
   View,
   StyleSheet,
   Image,
-  Font,
   Link
 } from '@react-pdf/renderer';
 import { Invoice } from '@/lib/api/types';
-
-// Register fonts
-Font.register({
-  family: 'Roboto',
-  fonts: [
-    { src: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.ttf', fontWeight: 'normal' },
-    { src: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.ttf', fontWeight: 'bold' }
-  ]
-});
 
 // Create styles
 const styles = StyleSheet.create({
@@ -26,7 +15,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     backgroundColor: '#fff',
     padding: 30,
-    fontFamily: 'Roboto'
+    fontFamily: 'Helvetica'
   },
   header: {
     flexDirection: 'row',
@@ -46,12 +35,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 4,
+    fontFamily: 'Helvetica'
   },
   invoiceTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#333',
+    fontFamily: 'Helvetica'
   },
   invoiceNumberRow: {
     flexDirection: 'row',
@@ -72,6 +63,7 @@ const styles = StyleSheet.create({
     color: '#333',
     backgroundColor: '#f5f5f5',
     padding: 5,
+    fontFamily: 'Helvetica'
   },
   row: {
     flexDirection: 'row',
@@ -115,11 +107,13 @@ const styles = StyleSheet.create({
     width: '60%',
     fontSize: 10,
     paddingRight: 8,
+    fontFamily: 'Helvetica'
   },
   amount: {
     width: '20%',
     fontSize: 10,
     textAlign: 'right',
+    fontFamily: 'Helvetica'
   },
   statusBadge: {
     width: '20%',
@@ -140,12 +134,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 11,
     paddingRight: 8,
+    fontFamily: 'Helvetica'
   },
   totalAmount: {
     width: '20%',
     textAlign: 'right',
     fontWeight: 'bold',
     fontSize: 11,
+    fontFamily: 'Helvetica'
   },
   footer: {
     position: 'absolute',
@@ -159,6 +155,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#eee',
     borderTopStyle: 'solid',
     paddingTop: 10,
+    fontFamily: 'Helvetica'
   },
   notes: {
     marginTop: 20,
@@ -167,6 +164,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#eee',
     borderTopStyle: 'solid',
+    fontFamily: 'Helvetica'
   }
 });
 
@@ -216,12 +214,30 @@ interface InvoicePDFProps {
 }
 
 const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, company }) => {
-  // Deduplicate packages by id
+  // Remove deduplication and recalculation logic
+  const items = invoice?.items || [];
+  const subtotal = invoice?.subtotal ?? 0;
+  const totalTax = invoice?.taxAmount ?? 0;
+  const total = invoice?.totalAmount ?? 0;
+  // Use app base URL from env
+  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_APP_BASE_URL ? process.env.NEXT_PUBLIC_APP_BASE_URL : '';
+  // Only show each package once in the Related Packages section
   const uniquePackages = Array.isArray(packages)
     ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
     : [];
-  // Use app base URL from env
-  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_APP_BASE_URL ? process.env.NEXT_PUBLIC_APP_BASE_URL : '';
+  // Group items by description and type, summing their lineTotal values
+  const groupedItemsMap = new Map();
+  for (const item of items) {
+    const key = `${item.type}||${item.description}`;
+    if (!groupedItemsMap.has(key)) {
+      groupedItemsMap.set(key, { ...item });
+    } else {
+      const existing = groupedItemsMap.get(key);
+      existing.lineTotal += Number(item.lineTotal);
+      existing.quantity += Number(item.quantity);
+    }
+  }
+  const groupedItems = Array.from(groupedItemsMap.values());
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -282,8 +298,8 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, compan
             <Text style={styles.description}>Description</Text>
             <Text style={styles.amount}>Amount</Text>
           </View>
-          {invoice.items && invoice.items.length > 0 ? (
-            invoice.items.map((item: any, index: number) => (
+          {groupedItems && groupedItems.length > 0 ? (
+            groupedItems.map((item: any, index: number) => (
               <View key={`item-${index}`} style={styles.tableRow}>
                 <Text style={styles.description}>{item.description}</Text>
                 <Text style={styles.amount}>{formatCurrency(item.lineTotal)}</Text>
@@ -296,6 +312,19 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, compan
               </Text>
             </View>
           )}
+          {/* Subtotal and Total Rows */}
+          <View style={styles.tableRow}>
+            <Text style={styles.description}>Subtotal</Text>
+            <Text style={styles.amount}>{formatCurrency(subtotal)}</Text>
+          </View>
+          <View style={styles.tableRow}>
+            <Text style={styles.description}>Tax</Text>
+            <Text style={styles.amount}>{formatCurrency(totalTax)}</Text>
+          </View>
+          <View style={styles.tableRow}>
+            <Text style={styles.description}>Total</Text>
+            <Text style={styles.amount}>{formatCurrency(total)}</Text>
+          </View>
         </View>
 
         {/* Related Packages */}

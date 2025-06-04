@@ -26,6 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile';
 import { useQueryClient } from '@tanstack/react-query';
 import { AddPackageModal } from "@/components/packages/AddPackageModal";
+import { useGenerateInvoice } from '@/hooks/useInvoices';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -122,6 +124,11 @@ export default function AdminCustomerViewPage() {
   // Add state for AddPackageModal
   const [addPackageOpen, setAddPackageOpen] = useState(false);
 
+  // Add state for Quick Invoice
+  const [quickInvoiceOpen, setQuickInvoiceOpen] = useState(false);
+  const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
+  const generateInvoice = useGenerateInvoice();
+
   // Handlers for action buttons
   const handleAddPackage = useCallback(() => {
     setAddPackageOpen(true);
@@ -137,9 +144,8 @@ export default function AdminCustomerViewPage() {
     // router.refresh(); // Uncomment when API call is implemented
   }, [toast]);
   const handleGenerateInvoice = useCallback(() => {
-    toast({ title: 'Generate Invoice', description: 'Open generate invoice modal/form (not implemented).' });
-    // router.refresh(); // Uncomment when API call is implemented
-  }, [toast]);
+    router.push(`/admin/invoices/create?customerId=${userId}`);
+  }, [router, userId]);
 
   // Handle TRN edit
   const handleTrnEdit = () => {
@@ -255,6 +261,12 @@ export default function AdminCustomerViewPage() {
 
   // Add after user, companyId are available
   const { data: stats, isLoading: statsLoading, error: statsError } = useCustomerStatisticsForAdmin(userId, companyId!);
+
+  // Handler for quick invoice
+  const handleQuickInvoice = (packageId: string) => {
+    setQuickInvoicePackageId(packageId);
+    setQuickInvoiceOpen(true);
+  };
 
   // Loading/error states
   if (userLoading || (!companyId && !userError)) return (
@@ -509,7 +521,7 @@ export default function AdminCustomerViewPage() {
                 </div>
                 <Button onClick={handleAddPackage} variant="default">Add Package</Button>
               </div>
-              <EnhancedDataTable
+              <EnhancedDataTableWithQuickInvoice
                 type="package"
                 data={getArray(packagesData).filter(pkg =>
                   (!packageFilter.status || (pkg as any).status === packageFilter.status) &&
@@ -674,6 +686,53 @@ export default function AdminCustomerViewPage() {
           queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
         }}
       />
+
+      {/* Quick Invoice Dialog */}
+      <Dialog open={quickInvoiceOpen} onOpenChange={setQuickInvoiceOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Invoice for this Package?</DialogTitle>
+          </DialogHeader>
+          <div>
+            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
+            {generateInvoice.isError && (
+              <div className="text-red-600 mt-2 text-sm">{generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (!quickInvoicePackageId) return;
+                // Find the package to get the userId
+                const pkg = getArray(packagesData).find((p: any) => p.id === quickInvoicePackageId);
+                if (!pkg) return;
+                generateInvoice.mutate(
+                  { userId: pkg.userId, packageIds: [pkg.id] },
+                  {
+                    onSuccess: (invoice: any) => {
+                      setQuickInvoiceOpen(false);
+                      setQuickInvoicePackageId(null);
+                      toast({ title: 'Invoice created', description: 'The invoice was successfully created.' });
+                      if (invoice && invoice.id) {
+                        router.push(`/admin/invoices/${invoice.id}`);
+                      }
+                    },
+                    onError: (error: any) => {
+                      toast({ title: 'Error', description: error?.message || 'Failed to create invoice', variant: 'destructive' });
+                    },
+                  }
+                );
+              }}
+              disabled={generateInvoice.isPending}
+            >
+              {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
+            </Button>
+            <Button variant="outline" onClick={() => setQuickInvoiceOpen(false)} disabled={generateInvoice.isPending}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -815,4 +874,58 @@ function StatusBadge({ status, type }: { status: string, type?: 'prealert' | 'pa
 
 function formatStatusText(status: string): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// EnhancedDataTableWithQuickInvoice: EnhancedDataTable with Quick Invoice button
+function EnhancedDataTableWithQuickInvoice(props: any) {
+  if (props.type !== 'package') return <EnhancedDataTable {...props} />;
+  const columns = [
+    { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>{row.trackingNumber}</Link> },
+    { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> },
+    { key: 'weight', label: 'Weight', render: (row: any) => row.weight ? `${row.weight} kg` : '-' },
+    { key: 'receivedDate', label: 'Received', render: (row: any) => props.formatDate?.(row.receivedDate) },
+    { key: 'actions', label: 'Actions', render: (row: any) => (
+      <Button size="sm" variant="outline" onClick={() => props.onQuickInvoice(row.id)}>
+        Quick Invoice
+      </Button>
+    ) },
+  ];
+  if (props.loading) return <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded" />)}</div>;
+  if (props.error) return <div className="text-red-600 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Failed to load data.</div>;
+  if (!props.data.length) return <div className="flex flex-col items-center py-8 text-muted-foreground"><span className="text-2xl mb-2">🗂️</span><span>No packages found for this customer.</span></div>;
+  return (
+    <div>
+      <div className="overflow-x-auto rounded border mt-2">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr>
+              {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {props.data.map((row: any, i: number) => (
+              <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
+                {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {props.pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            Page {props.pagination.page} of {props.pagination.totalPages} | {props.pagination.totalCount} total
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="px-2 py-1 border rounded disabled:opacity-50" onClick={() => props.onPageChange && props.onPageChange(Math.max(1, (props.page || 1) - 1))} disabled={props.pagination.page === 1}>Previous</button>
+            <span className="mx-2">{props.pagination.page}</span>
+            <button className="px-2 py-1 border rounded disabled:opacity-50" onClick={() => props.onPageChange && props.onPageChange(Math.min(props.pagination.totalPages, (props.page || 1) + 1))} disabled={props.pagination.page === props.pagination.totalPages}>Next</button>
+            <select className="ml-2 border rounded px-2 py-1" value={props.pageSize} onChange={e => props.onPageSizeChange && props.onPageSizeChange(Number(e.target.value))}>
+              {[10, 20, 50].map((size: number) => <option key={size} value={size}>{size} / page</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 } 

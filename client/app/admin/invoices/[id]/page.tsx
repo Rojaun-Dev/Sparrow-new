@@ -16,12 +16,19 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Printer } from "lucide-react";
+import { invoiceService } from '@/lib/api/invoiceService';
+import { BlobProvider } from '@react-pdf/renderer';
+import InvoicePDF from '@/components/invoices/InvoicePDF';
 
 function CustomerNameDisplay({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId);
   if (isLoading) return <Skeleton className="h-5 w-40" />;
   if (!user) return <p className="text-base">Customer ID: {userId}</p>;
-  return <p className="text-base">{user.firstName} {user.lastName}</p>;
+  return (
+    <Link href={`/admin/customers/${userId}`} className="text-blue-600 hover:underline">
+      {user.firstName} {user.lastName}
+    </Link>
+  );
 }
 
 function CompanyNameDisplay({ company }: { company: any }) {
@@ -76,10 +83,30 @@ export default function AdminInvoiceDetailPage() {
   const { data: relatedPackages, isLoading: isLoadingPackages } = usePackagesByInvoiceId(id || "");
   const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(id || "");
 
-  // Deduplicate relatedPackages by id
+  // Remove deduplication and recalculation logic
+  const items = invoice?.items || [];
+  const subtotal = invoice?.subtotal ?? 0;
+  const totalTax = invoice?.taxAmount ?? 0;
+  const total = invoice?.totalAmount ?? 0;
+
+  // Only show each package once in the Related Packages section
   const uniquePackages = Array.isArray(relatedPackages)
     ? relatedPackages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
     : [];
+
+  // Group items by description and type, summing their lineTotal values
+  const groupedItemsMap = new Map();
+  for (const item of items) {
+    const key = `${item.type}||${item.description}`;
+    if (!groupedItemsMap.has(key)) {
+      groupedItemsMap.set(key, { ...item });
+    } else {
+      const existing = groupedItemsMap.get(key);
+      existing.lineTotal += Number(item.lineTotal);
+      existing.quantity += Number(item.quantity);
+    }
+  }
+  const groupedItems = Array.from(groupedItemsMap.values());
 
   if (!id) {
     return <div className="p-8 text-center text-gray-500">Invalid invoice ID.</div>;
@@ -109,10 +136,22 @@ export default function AdminInvoiceDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print
-          </Button>
+          {invoice && customer && company ? (
+            <InvoicePDFRenderer
+              invoice={{ ...invoice, items }}
+              packages={relatedPackages || []}
+              user={customer}
+              company={company}
+              buttonText="Print"
+              buttonProps={{ className: 'print-pdf-btn' }}
+              onDownloadComplete={() => {}}
+            />
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              <Printer className="mr-2 h-4 w-4" />
+              Print
+            </Button>
+          )}
           <Button variant="secondary" disabled>Email to Customer</Button>
           {invoice && relatedPackages && customer && company ? (
             <InvoicePDFRenderer
@@ -236,8 +275,8 @@ export default function AdminInvoiceDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {invoice.items && invoice.items.length > 0 ? (
-                        invoice.items.map((item, index) => (
+                      {groupedItems && groupedItems.length > 0 ? (
+                        groupedItems.map((item, index) => (
                           <tr key={index}>
                             <td className="font-medium p-2">{item.description}</td>
                             <td className="p-2 text-right">{item.quantity}</td>
@@ -255,17 +294,17 @@ export default function AdminInvoiceDetailPage() {
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Subtotal</td>
-                        <td className="text-right">${safeToFixed(invoice.subtotal)}</td>
+                        <td className="text-right">${safeToFixed(subtotal)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Tax</td>
-                        <td className="text-right">${safeToFixed(invoice.taxAmount)}</td>
+                        <td className="text-right">${safeToFixed(totalTax)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-bold">Total</td>
-                        <td className="text-right font-bold">${safeToFixed(invoice.totalAmount)}</td>
+                        <td className="text-right font-bold">${safeToFixed(total)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -289,7 +328,7 @@ export default function AdminInvoiceDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Due:</span>
                   <span className="font-bold text-lg">
-                    ${safeToFixed(invoice.totalAmount)}
+                    ${safeToFixed(total)}
                   </span>
                 </div>
                 <Separator />

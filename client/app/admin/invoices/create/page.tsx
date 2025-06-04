@@ -14,6 +14,7 @@ import { useUnbilledPackagesByUser } from '@/hooks/usePackages';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Helper to safely convert to number
 function safeNumber(val: any) {
@@ -25,10 +26,13 @@ export default function CreateInvoicePage() {
   // Get current company
   const { data: company } = useMyAdminCompany();
   const companyId = company?.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // State for selected customer and packages
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  const [customerSelectionDisabled, setCustomerSelectionDisabled] = useState(false);
 
   // Customer search/sort state
   const [customerSearch, setCustomerSearch] = useState('');
@@ -104,6 +108,21 @@ export default function CreateInvoicePage() {
   // State to hold preview result
   const [invoicePreview, setInvoicePreview] = useState<any>(null);
 
+  // Notes field
+  const [notes, setNotes] = useState('');
+
+  // On mount, check for customerId in query params and preselect customer
+  React.useEffect(() => {
+    const customerId = searchParams.get('customerId');
+    if (customerId && customersData?.data) {
+      const found = customersData.data.find((c: any) => c.id === customerId);
+      if (found) {
+        setSelectedCustomer(found);
+        setCustomerSelectionDisabled(true);
+      }
+    }
+  }, [searchParams, customersData]);
+
   // Live preview: call previewInvoice when selectedCustomer or selectedPackages changes
   React.useEffect(() => {
     if (selectedCustomer && selectedPackages.length > 0) {
@@ -129,6 +148,7 @@ export default function CreateInvoicePage() {
 
   // Handler for selecting a customer
   const handleSelectCustomer = (customer: any) => {
+    if (customerSelectionDisabled) return;
     setSelectedCustomer(customer);
     setSelectedPackages([]); // Reset packages when customer changes
   };
@@ -151,13 +171,19 @@ export default function CreateInvoicePage() {
           packageIds: selectedPackages,
           additionalCharge: additionalCharge ? Number(additionalCharge) : undefined,
           sendNotification,
+          notes: notes || undefined,
         },
         {
-          onSuccess: () => {
+          onSuccess: (data) => {
             toast({ title: 'Invoice created', description: 'The invoice was successfully created.' });
             setShowConfirm(false);
             setAdditionalCharge('');
             setSendNotification(false);
+            setNotes('');
+            // Optionally redirect to the invoice detail page
+            if (data && data.id) {
+              router.push(`/admin/invoices/${data.id}`);
+            }
             resolve();
           },
           onError: (error: any) => {
@@ -426,7 +452,7 @@ export default function CreateInvoicePage() {
       <div className="flex justify-end mt-2">
         <ConfirmationDialog
           title="Create Invoice?"
-          description="Are you sure you want to create this invoice? You can add an additional charge and choose to notify the customer."
+          description="Are you sure you want to create this invoice? You can add an additional charge, notes, and choose to notify the customer."
           confirmText={generateInvoice.isPending ? 'Creating...' : 'Create Invoice'}
           cancelText="Cancel"
           variant="default"
@@ -455,6 +481,16 @@ export default function CreateInvoicePage() {
                 value={additionalCharge}
                 onChange={e => setAdditionalCharge(e.target.value)}
                 placeholder="0.00"
+                className="max-w-xs h-8 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Notes (optional)</label>
+              <Input
+                type="text"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Add notes to this invoice..."
                 className="max-w-xs h-8 text-sm"
               />
             </div>
