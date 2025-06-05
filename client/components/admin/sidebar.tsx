@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/hooks/useAuth"
+import { useCompanyAssets } from "@/hooks/useCompanyAssets"
 
 interface NavItem {
   title: string
@@ -117,7 +118,6 @@ const navItems: NavItem[] = [
     adminL2Only: true,
     submenu: [
       { title: "General", href: "/admin/settings" },
-      { title: "Branding", href: "/admin/settings/branding" },
       { title: "Fee Management", href: "/admin/settings/fees" },
     ],
   },
@@ -131,14 +131,36 @@ const navItems: NavItem[] = [
 export function AdminSidebarDesktop() {
   const pathname = usePathname()
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
-  const isAdminL2 = true
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
+  const isAdminL2 = user?.role === "admin_l2"
+  const { getAssetByType } = useCompanyAssets()
+  const companyBanner = getAssetByType("banner")
+  const companyLogo = getAssetByType("logo")
   const toggleSubmenu = (title: string) => setOpenSubmenu(openSubmenu === title ? null : title)
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const isSubmenuActive = (item: NavItem) => item.submenu?.some((subItem) => isActive(subItem.href)) || false
   const filteredNavItems = navItems.filter(item => !item.adminL2Only || isAdminL2)
   return (
     <div className="hidden h-full w-64 flex-col border-r bg-background lg:flex">
+      <div className="flex h-16 items-center border-b px-4">
+        <Link href="/admin" className="flex items-center gap-2">
+          {companyBanner?.imageData ? (
+            <img 
+              src={companyBanner.imageData} 
+              alt="Company Banner" 
+              className="h-16 w-full object-cover" 
+            />
+          ) : companyLogo?.imageData ? (
+            <img 
+              src={companyLogo.imageData} 
+              alt="Company Logo" 
+              className="h-8 max-w-[160px] object-contain" 
+            />
+          ) : (
+            <span className="text-xl font-bold">SparrowX Admin</span>
+          )}
+        </Link>
+      </div>
       <ScrollArea className="flex-1 py-4">
         <nav className="grid gap-1 px-2">
           {filteredNavItems.map((item) => (
@@ -223,8 +245,11 @@ export function AdminSidebarMobile() {
   const pathname = usePathname()
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const isAdminL2 = true
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
+  const isAdminL2 = user?.role === "admin_l2"
+  const { getAssetByType } = useCompanyAssets()
+  const companyBanner = getAssetByType("banner")
+  const companyLogo = getAssetByType("logo")
   const toggleSubmenu = (title: string) => setOpenSubmenu(openSubmenu === title ? null : title)
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const isSubmenuActive = (item: NavItem) => item.submenu?.some((subItem) => isActive(subItem.href)) || false
@@ -241,7 +266,21 @@ export function AdminSidebarMobile() {
         <SheetContent side="left" className="w-64 p-0 [&>button]:hidden">
           <div className="flex h-16 items-center border-b px-4">
             <Link href="/admin" className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
-              <span className="text-xl font-bold">SparrowX Admin</span>
+              {companyBanner?.imageData ? (
+                <img 
+                  src={companyBanner.imageData} 
+                  alt="Company Banner" 
+                  className="h-16 w-full object-cover" 
+                />
+              ) : companyLogo?.imageData ? (
+                <img 
+                  src={companyLogo.imageData} 
+                  alt="Company Logo" 
+                  className="h-8 max-w-[160px] object-contain" 
+                />
+              ) : (
+                <span className="text-xl font-bold">SparrowX Admin</span>
+              )}
             </Link>
             <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setSidebarOpen(false)}>
               <X className="h-5 w-5" />
@@ -325,7 +364,21 @@ export function AdminSidebarMobile() {
       </Sheet>
       <div className="ml-2 flex-1 text-center sm:text-left">
         <Link href="/admin" className="inline-flex items-center">
-          <span className="text-xl font-bold">SparrowX Admin</span>
+          {companyBanner?.imageData ? (
+            <img 
+              src={companyBanner.imageData} 
+              alt="Company Banner" 
+              className="h-16 w-full object-cover" 
+            />
+          ) : companyLogo?.imageData ? (
+            <img 
+              src={companyLogo.imageData} 
+              alt="Company Logo" 
+              className="h-8 max-w-[160px] object-contain" 
+            />
+          ) : (
+            <span className="text-xl font-bold">SparrowX Admin</span>
+          )}
         </Link>
       </div>
     </div>

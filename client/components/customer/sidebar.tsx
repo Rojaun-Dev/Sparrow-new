@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
+import { useCompanyAssets } from "@/hooks/useCompanyAssets"
 
 interface NavItem {
   title: string
@@ -73,6 +74,9 @@ const navItems: NavItem[] = [
 export function CustomerSidebar({ open, setOpen }: { open: boolean, setOpen: (open: boolean) => void }) {
   const pathname = usePathname()
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
+  const { getAssetByType } = useCompanyAssets()
+  const companyBanner = getAssetByType("banner")
+  const companyLogo = getAssetByType("logo")
 
   const toggleSubmenu = (title: string) => {
     setOpenSubmenu(openSubmenu === title ? null : title)
@@ -89,6 +93,25 @@ export function CustomerSidebar({ open, setOpen }: { open: boolean, setOpen: (op
   // Desktop sidebar
   const Sidebar = () => (
     <div className="hidden h-full w-64 flex-col border-r bg-background lg:flex">
+      <div className="flex h-16 items-center border-b px-4">
+        <Link href="/customer" className="flex items-center gap-2">
+          {companyBanner?.imageData ? (
+            <img 
+              src={companyBanner.imageData} 
+              alt="Company Banner" 
+              className="h-16 w-full object-cover" 
+            />
+          ) : companyLogo?.imageData ? (
+            <img 
+              src={companyLogo.imageData} 
+              alt="Company Logo" 
+              className="h-8 max-w-[160px] object-contain" 
+            />
+          ) : (
+            <span className="text-xl font-bold">SparrowX</span>
+          )}
+        </Link>
+      </div>
       <ScrollArea className="flex-1 py-4">
         <nav className="grid gap-1 px-2">
           {navItems.map((item) => (
@@ -174,7 +197,21 @@ export function CustomerSidebar({ open, setOpen }: { open: boolean, setOpen: (op
       <SheetContent side="left" className="w-64 p-0 [&>button]:hidden">
         <div className="flex h-16 items-center border-b px-4">
           <Link href="/customer" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <span className="text-xl font-bold">SparrowX</span>
+            {companyBanner?.imageData ? (
+              <img 
+                src={companyBanner.imageData} 
+                alt="Company Banner" 
+                className="h-16 w-full object-cover" 
+              />
+            ) : companyLogo?.imageData ? (
+              <img 
+                src={companyLogo.imageData} 
+                alt="Company Logo" 
+                className="h-8 max-w-[160px] object-contain" 
+              />
+            ) : (
+              <span className="text-xl font-bold">SparrowX</span>
+            )}
           </Link>
           <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setOpen(false)}>
             <X className="h-5 w-5" />
