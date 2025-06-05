@@ -61,6 +61,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { PasswordChangeSchema } from "@/lib/validations/auth"
 import { Badge } from "@/components/ui/badge"
 import { NotificationPreferences } from "@/lib/api/types"
+import { useAuth } from "@/hooks/useAuth"
 
 // Custom type for category updates
 type CategoryUpdates = {
@@ -118,6 +119,7 @@ export default function ProfilePage() {
   const { data: notificationPrefs, isLoading: loadingPrefs } = useNotificationPreferences()
   const { mutate: updateNotificationPrefs, isPending: savingPrefs } = useUpdateNotificationPreferences()
   const { toast } = useToast()
+  const { logout } = useAuth()
   
   const [formData, setFormData] = useState({
     firstName: "",
@@ -756,7 +758,11 @@ export default function ProfilePage() {
         <CardContent className="pb-2 space-y-3">
           <div className="grid gap-3">
             <PickupLocationModal />
-            <Button variant="outline" className="justify-start text-red-500">
+            <Button 
+              variant="outline" 
+              className="justify-start text-red-500"
+              onClick={logout}
+            >
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </Button>

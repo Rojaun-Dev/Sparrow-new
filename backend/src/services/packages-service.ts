@@ -30,6 +30,7 @@ export const createPackageSchema = z.object({
   notes: z.string().optional(),
   // Pre-alert ID for linking a package to an existing pre-alert
   preAlertId: z.string().uuid().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 // Validation schema for package update
@@ -254,6 +255,11 @@ export class PackagesService {
       }
     }
     
+    // Set default tags to ['general'] if not provided or empty
+    if (!validatedData.tags || !Array.isArray(validatedData.tags) || validatedData.tags.length === 0) {
+      validatedData.tags = ['general'];
+    }
+    
     // Create the package
     const newPackage = await this.packagesRepository.create(
       // Remove preAlertId as it's not part of the package schema
@@ -384,6 +390,13 @@ export class PackagesService {
     // Now TypeScript knows preAlert is not null, but we'll make a local copy to be sure
     const preAlertData = preAlert;
     
+    // Set default tags to ['general'] if not provided or empty
+    let tags = (data.tags && Array.isArray(data.tags) && data.tags.length > 0)
+      ? data.tags
+      : (preAlertData.tags && Array.isArray(preAlertData.tags) && preAlertData.tags.length > 0)
+        ? preAlertData.tags
+        : ['general'];
+    
     // Create a new package using pre-alert data and additional data
     const newPackage = await this.packagesRepository.create({
       userId: preAlertData.userId,
@@ -398,6 +411,7 @@ export class PackagesService {
       receivedDate: new Date().toISOString(),
       photos: data.photos || [],
       notes: data.notes || `Created from pre-alert ${preAlertData.trackingNumber}`,
+      tags,
     }, companyId);
     
     // Update pre-alert status if package was created successfully
@@ -610,5 +624,12 @@ export class PackagesService {
     delete repoFilters.limit;
     // You may want to add more fields to filter as needed
     return this.packagesRepository.findAllForExport(companyId, repoFilters);
+  }
+
+  /**
+   * Get unbilled packages for a user (not already on an invoice)
+   */
+  async getUnbilledPackagesByUser(userId: string, companyId: string) {
+    return this.packagesRepository.findUnbilledByUser(userId, companyId);
   }
 } 

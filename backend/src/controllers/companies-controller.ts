@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { CompaniesService } from '../services/companies-service';
+import { AuthRequest } from '../middleware/auth';
 
 const companiesService = new CompaniesService();
 
@@ -8,11 +9,11 @@ const companiesService = new CompaniesService();
  */
 export const getAllCompanies = async (req: Request, res: Response) => {
   try {
-    // Parse pagination params as numbers
-    const query = { ...req.query };
-    const page = query.page ? parseInt(query.page as string, 10) : undefined;
-    const limit = query.limit ? parseInt(query.limit as string, 10) : undefined;
-    const companies = await companiesService.getAllCompanies({ ...query, page, limit });
+    // Parse pagination params as numbers without mutating req.query
+    const query: any = { ...req.query };
+    if (typeof req.query.page === 'string') query.page = parseInt(req.query.page, 10);
+    if (typeof req.query.limit === 'string') query.limit = parseInt(req.query.limit, 10);
+    const companies = await companiesService.getAllCompanies(query);
     return res.status(200).json({
       success: true,
       data: companies
@@ -30,9 +31,25 @@ export const getAllCompanies = async (req: Request, res: Response) => {
 /**
  * Get company by ID
  */
-export const getCompanyById = async (req: Request, res: Response) => {
+export const getCompanyById = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
+    // Special case: if id is 'me', use the authenticated user's companyId
+    if (id === 'me') {
+      if (!req.companyId) {
+        return res.status(400).json({
+          success: false,
+          message: 'No company ID provided for current user',
+        });
+      }
+      id = req.companyId;
+    }
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'No company ID provided',
+      });
+    }
     const company = await companiesService.getCompanyById(id);
     return res.status(200).json({
       success: true,

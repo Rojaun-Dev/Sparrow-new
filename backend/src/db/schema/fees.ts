@@ -8,7 +8,7 @@ export const feeTypeEnum = pgEnum('fee_type', [
   'shipping', 
   'handling',
   'customs', 
-  'other'
+  'other',
 ]);
 
 // Define the calculation method enum
@@ -18,7 +18,9 @@ export const calculationMethodEnum = pgEnum('calculation_method', [
   'per_weight',
   'per_item',
   'dimensional',
-  'tiered'
+  'tiered',
+  'threshold',
+  'timed',
 ]);
 
 export const fees = pgTable('fees', {

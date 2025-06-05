@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { usePackage, useUpdatePackageStatus } from "@/hooks/usePackages"
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -21,6 +21,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Pencil } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { useGenerateInvoice } from '@/hooks/useInvoices'
 
 const PACKAGE_STATUS_OPTIONS: PackageStatus[] = [
   "pre_alert",
@@ -58,6 +59,9 @@ export default function AdminPackageDetailPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [tagInput, setTagInput] = useState("");
   const tagsArray = form?.tags ? form.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
+  const router = useRouter();
+  const [showQuickInvoice, setShowQuickInvoice] = useState(false);
+  const generateInvoice = useGenerateInvoice();
 
   if (!packageData) {
     return null;
@@ -423,6 +427,7 @@ export default function AdminPackageDetailPage() {
                             variant="outline" 
                             size="sm"
                             className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+          onClick={() => setShowQuickInvoice(true)}
                           >
                             Quick Invoice
                           </Button>
@@ -437,6 +442,7 @@ export default function AdminPackageDetailPage() {
                             variant="outline" 
                             size="sm"
                             className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                            onClick={() => router.push(`/admin/invoices/create?customerId=${packageData.userId}`)}
                           >
                             Create Invoice
                           </Button>
@@ -505,6 +511,43 @@ export default function AdminPackageDetailPage() {
           )}
         </div>
       </div>
+      {/* Quick Invoice Dialog */}
+      <Dialog open={showQuickInvoice} onOpenChange={setShowQuickInvoice}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Invoice for this Package?</DialogTitle>
+          </DialogHeader>
+          <div>
+            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
+            {generateInvoice.isError && (
+              <div className="text-red-600 mt-2 text-sm">{generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                generateInvoice.mutate(
+                  { userId: packageData.userId, packageIds: [packageData.id] } as any,
+                  {
+                    onSuccess: (invoice: any) => {
+                      setShowQuickInvoice(false);
+                      if (invoice && invoice.id) {
+                        router.push(`/admin/invoices/${invoice.id}`);
+                      }
+                    },
+                  }
+                );
+              }}
+              disabled={generateInvoice.isPending}
+            >
+              {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
+            </Button>
+            <Button variant="outline" onClick={() => setShowQuickInvoice(false)} disabled={generateInvoice.isPending}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

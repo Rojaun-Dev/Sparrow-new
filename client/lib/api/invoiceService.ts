@@ -23,14 +23,15 @@ class InvoiceService {
    */
   async getInvoices(params?: InvoiceFilterParams): Promise<PaginatedResponse<Invoice>> {
     const companyId = params?.companyId || await this.getCompanyId();
-    return apiClient.get<PaginatedResponse<Invoice>>(`${this.baseUrl}/${companyId}/invoices`, { 
-      params: {
-        status: params?.status,
-        sortBy: params?.sortBy,
-        sortOrder: params?.sortOrder,
-        limit: params?.limit,
-        offset: params?.offset
-      }
+    // Map 'search' to 'invoiceNumber' for backend compatibility
+    const query: any = {
+      ...params,
+      invoiceNumber: params?.search || undefined,
+    };
+    delete query.search;
+    // Use /invoices/search endpoint for filtering
+    return apiClient.get<PaginatedResponse<Invoice>>(`${this.baseUrl}/${companyId}/invoices/search`, { 
+      params: query
     });
   }
 
@@ -146,6 +147,34 @@ class InvoiceService {
   async exportInvoicesCsv(params?: any, companyId?: string): Promise<Blob> {
     const id = companyId || await this.getCompanyId();
     return apiClient.downloadFile(`${this.baseUrl}/${id}/invoices/export-csv`, params);
+  }
+
+  async previewInvoice(data: any, companyId?: string): Promise<any> {
+    const cid = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cid}/billing/invoices/preview`, data);
+  }
+
+  /**
+   * Generate an invoice for selected packages. Supports additionalCharge and sendNotification fields.
+   */
+  async generateInvoice(data: any, companyId?: string): Promise<any> {
+    const cid = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cid}/billing/invoices/generate`, data);
+  }
+
+  async autoBill(companyId?: string): Promise<any> {
+    const cid = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cid}/invoices/auto-bill`);
+  }
+
+  /**
+   * Delete an invoice by ID, with optional notification flag
+   */
+  async deleteInvoice(id: string, options?: { notify?: boolean; companyId?: string }): Promise<void> {
+    const cId = options?.companyId || await this.getCompanyId();
+    const params: any = {};
+    if (options?.notify !== undefined) params.notify = options.notify;
+    await apiClient.delete(`${this.baseUrl}/${cId}/invoices/${id}`, { params });
   }
 }
 

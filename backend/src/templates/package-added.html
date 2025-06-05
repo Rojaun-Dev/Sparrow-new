@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Package Added</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background-color: #2563eb;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .content {
+      padding: 20px;
+      background-color: #f9fafb;
+    }
+    .button {
+      display: inline-block;
+      background-color: #2563eb;
+      color: white;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    .package-details {
+      background-color: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>New Package Added</h1>
+    </div>
+    <div class="content">
+      <p>Hello {{firstName}},</p>
+      
+      <p>A new package has been added to your account. Here are the details:</p>
+      
+      <div class="package-details">
+        <p><strong>Tracking Number:</strong> {{trackingNumber}}</p>
+        <p><strong>Status:</strong> {{status}}</p>
+        <p><strong>Description:</strong> {{description}}</p>
+        <p><strong>Weight:</strong> {{weight}} kg</p>
+        <p><strong>Date Added:</strong> {{dateAdded}}</p>
+      </div>
+      
+      <p>You can track your package and manage your deliveries through your customer dashboard.</p>
+      
+      <p style="text-align: center;">
+        <a href="{{packageUrl}}" class="button">View Package Details</a>
+      </p>
+      
+      <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+      
+      <p>Best regards,<br>The {{companyName}} Team</p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} {{companyName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html> 

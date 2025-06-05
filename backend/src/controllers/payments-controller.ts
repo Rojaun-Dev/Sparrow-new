@@ -3,16 +3,43 @@ import { PaymentsService } from '../services/payments-service';
 import { z } from 'zod';
 import { format as csvFormat } from 'fast-csv';
 import { PassThrough } from 'stream';
+import { ApiResponse } from '../utils/response';
+import { EmailService } from '../services/email-service';
+import { UsersService } from '../services/users-service';
+import { CompaniesService } from '../services/companies-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
 }
 
+// Define validation schema for payment creation
+const createPaymentSchema = z.object({
+  invoiceId: z.string().uuid(),
+  userId: z.string().uuid(),
+  amount: z.number().positive(),
+  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check']),
+  transactionId: z.string().optional(),
+  paymentDate: z.date().optional(),
+  notes: z.string().optional(),
+});
+
+// Define validation schema for batch payment creation
+const batchPaymentSchema = z.object({
+  payments: z.array(createPaymentSchema),
+  sendNotification: z.boolean().optional(),
+});
+
 export class PaymentsController {
   private paymentsService: PaymentsService;
+  private emailService: EmailService;
+  private usersService: UsersService;
+  private companiesService: CompaniesService;
 
   constructor() {
     this.paymentsService = new PaymentsService();
+    this.emailService = new EmailService();
+    this.usersService = new UsersService();
+    this.companiesService = new CompaniesService();
   }
 
   /**
@@ -21,11 +48,26 @@ export class PaymentsController {
   getAllPayments = async (req: AuthRequest, res: Response) => {
     try {
       const companyId = req.companyId as string;
-      const payments = await this.paymentsService.getAll(companyId);
-      return res.json(payments);
+      
+      // Parse search params for filtering
+      const searchParams: Record<string, any> = {
+        ...req.query,
+      };
+      
+      // Convert pagination parameters
+      if (searchParams.page) {
+        searchParams.page = Number(searchParams.page);
+      }
+      if (searchParams.limit) {
+        searchParams.pageSize = Number(searchParams.limit);
+      }
+      
+      // Use searchPayments for consistent pagination and filtering
+      const payments = await this.paymentsService.searchPayments(companyId, searchParams);
+      return ApiResponse.success(res, payments);
     } catch (error: any) {
       console.error('Error fetching payments:', error);
-      return res.status(500).json({ error: 'Failed to retrieve payments' });
+      return ApiResponse.serverError(res, 'Failed to retrieve payments');
     }
   };
 
@@ -38,10 +80,13 @@ export class PaymentsController {
       const companyId = req.companyId as string;
       
       const payment = await this.paymentsService.getById(id, companyId);
-      return res.json(payment);
+      return ApiResponse.success(res, payment);
     } catch (error: any) {
       console.error('Error fetching payment:', error);
-      return res.status(404).json({ error: 'Payment not found' });
+      if (error.message === 'Entity not found') {
+        return ApiResponse.notFound(res, 'Payment not found');
+      }
+      return ApiResponse.serverError(res, 'Failed to retrieve payment');
     }
   };
 
@@ -51,15 +96,108 @@ export class PaymentsController {
   createPayment = async (req: AuthRequest, res: Response) => {
     try {
       const companyId = req.companyId as string;
-      const payment = await this.paymentsService.createPayment(req.body, companyId);
-      return res.status(201).json(payment);
+      const { sendNotification = false, ...paymentData } = req.body;
+      
+      // Validate payment data
+      try {
+        createPaymentSchema.parse(paymentData);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return ApiResponse.validationError(res, error);
+        }
+        throw error;
+      }
+      
+      // Create the payment
+      const payment = await this.paymentsService.createPayment(paymentData, companyId);
+      
+      // If payment status is completed, update the invoice
+      if (payment && payment.status === 'completed') {
+        await this.paymentsService.completePayment(payment.id, companyId);
+      }
+      
+      // Send notification if requested
+      if (sendNotification && payment && payment.userId) {
+        try {
+          const user = await this.usersService.getUserById(payment.userId, companyId);
+          const company = await this.companiesService.getCompanyById(companyId);
+          
+          if (user && 
+              user.email && 
+              user.notificationPreferences?.email && 
+              user.notificationPreferences?.paymentConfirmations?.email) {
+            
+            // Send payment confirmation email
+            // (You'll need to create this method in EmailService)
+            // await this.emailService.sendPaymentConfirmationEmail(...);
+          }
+        } catch (emailError) {
+          console.error('Failed to send payment notification:', emailError);
+        }
+      }
+      
+      return ApiResponse.success(res, payment, 'Payment processed successfully', 201);
     } catch (error: any) {
       console.error('Error creating payment:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid payment data', details: error.errors });
-      } else {
-        return res.status(500).json({ error: 'Failed to create payment', message: error.message });
+      return ApiResponse.serverError(res, error.message || 'Failed to create payment');
+    }
+  };
+
+  /**
+   * Process payments for multiple invoices at once
+   */
+  processBatchPayment = async (req: AuthRequest, res: Response) => {
+    try {
+      const companyId = req.companyId as string;
+      const { sendNotification = false, payments } = req.body;
+      
+      // Validate payment data
+      try {
+        batchPaymentSchema.parse({ payments, sendNotification });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return ApiResponse.validationError(res, error);
+        }
+        throw error;
       }
+      
+      // Process payments for each payment object
+      const results = [];
+      const errors = [];
+      
+      for (const paymentData of payments) {
+        try {
+          const payment = await this.paymentsService.createPayment(paymentData, companyId);
+          if (payment && payment.status === 'completed') {
+            await this.paymentsService.completePayment(payment.id, companyId);
+          }
+          results.push(payment);
+        } catch (error: any) {
+          errors.push({
+            invoiceId: paymentData.invoiceId,
+            error: error.message || 'Unknown error'
+          });
+        }
+      }
+      
+      // Send notification if requested and any payments were successful
+      if (sendNotification && results.length > 0) {
+        try {
+          // You may want to send notifications here
+        } catch (emailError) {
+          console.error('Failed to send batch payment notification:', emailError);
+        }
+      }
+      
+      return ApiResponse.success(res, {
+        results,
+        errors,
+        totalProcessed: results.length,
+        totalErrors: errors.length
+      }, 'Batch payment processing completed', 201);
+    } catch (error: any) {
+      console.error('Error processing batch payment:', error);
+      return ApiResponse.serverError(res, error.message || 'Failed to process batch payment');
     }
   };
 
@@ -72,15 +210,15 @@ export class PaymentsController {
       const companyId = req.companyId as string;
       
       const payment = await this.paymentsService.updatePayment(id, req.body, companyId);
-      return res.json(payment);
+      return ApiResponse.success(res, payment, 'Payment updated successfully');
     } catch (error: any) {
       console.error('Error updating payment:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid payment data', details: error.errors });
+        return ApiResponse.validationError(res, error);
       } else if (error.message === 'Entity not found') {
-        return res.status(404).json({ error: 'Payment not found' });
+        return ApiResponse.notFound(res, 'Payment not found');
       } else {
-        return res.status(500).json({ error: 'Failed to update payment', message: error.message });
+        return ApiResponse.serverError(res, error.message || 'Failed to update payment');
       }
     }
   };
@@ -94,15 +232,15 @@ export class PaymentsController {
       const companyId = req.companyId as string;
       
       const refundedPayment = await this.paymentsService.refundPayment(id, companyId);
-      return res.json(refundedPayment);
+      return ApiResponse.success(res, refundedPayment, 'Payment refunded successfully');
     } catch (error: any) {
       console.error('Error processing refund:', error);
       if (error.message === 'Entity not found') {
-        return res.status(404).json({ error: 'Payment not found' });
+        return ApiResponse.notFound(res, 'Payment not found');
       } else if (error.message === 'Only completed payments can be refunded') {
-        return res.status(400).json({ error: error.message });
+        return ApiResponse.badRequest(res, error.message);
       } else {
-        return res.status(500).json({ error: 'Failed to process refund', message: error.message });
+        return ApiResponse.serverError(res, error.message || 'Failed to process refund');
       }
     }
   };
@@ -116,13 +254,13 @@ export class PaymentsController {
       const companyId = req.companyId as string;
       
       const payments = await this.paymentsService.getPaymentsByInvoice(invoiceId, companyId);
-      return res.json(payments);
+      return ApiResponse.success(res, payments);
     } catch (error: any) {
       console.error('Error fetching payments for invoice:', error);
       if (error.message === 'Entity not found') {
-        return res.status(404).json({ error: 'Invoice not found' });
+        return ApiResponse.notFound(res, 'Invoice not found');
       } else {
-        return res.status(500).json({ error: 'Failed to retrieve payments', message: error.message });
+        return ApiResponse.serverError(res, error.message || 'Failed to retrieve payments');
       }
     }
   };
@@ -159,10 +297,10 @@ export class PaymentsController {
       }
       // Use the search method with filters
       const filteredPayments = await this.paymentsService.searchPayments(companyId, searchParams);
-      return res.json(filteredPayments);
+      return ApiResponse.success(res, filteredPayments);
     } catch (error: any) {
       console.error('Error fetching payments for user:', error);
-      return res.status(500).json({ error: 'Failed to retrieve payments', message: error.message });
+      return ApiResponse.serverError(res, error.message || 'Failed to retrieve payments');
     }
   };
 
@@ -176,17 +314,17 @@ export class PaymentsController {
       
       // Validate the status parameter
       if (!['pending', 'completed', 'failed', 'refunded'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status parameter' });
+        return ApiResponse.badRequest(res, 'Invalid status parameter');
       }
       
       const payments = await this.paymentsService.getPaymentsByStatus(
         status as 'pending' | 'completed' | 'failed' | 'refunded', 
         companyId
       );
-      return res.json(payments);
+      return ApiResponse.success(res, payments);
     } catch (error: any) {
       console.error('Error fetching payments by status:', error);
-      return res.status(500).json({ error: 'Failed to retrieve payments', message: error.message });
+      return ApiResponse.serverError(res, error.message || 'Failed to retrieve payments');
     }
   };
 
@@ -200,21 +338,21 @@ export class PaymentsController {
       
       // Validate date parameters
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'Both startDate and endDate are required' });
+        return ApiResponse.badRequest(res, 'Both startDate and endDate are required');
       }
       
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
       
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return res.status(400).json({ error: 'Invalid date format' });
+        return ApiResponse.badRequest(res, 'Invalid date format');
       }
       
       const totalAmount = await this.paymentsService.getTotalPaymentsInPeriod(companyId, start, end);
-      return res.json({ totalAmount });
+      return ApiResponse.success(res, { totalAmount });
     } catch (error: any) {
       console.error('Error calculating total payments:', error);
-      return res.status(500).json({ error: 'Failed to calculate total payments', message: error.message });
+      return ApiResponse.serverError(res, error.message || 'Failed to calculate total payments');
     }
   };
 

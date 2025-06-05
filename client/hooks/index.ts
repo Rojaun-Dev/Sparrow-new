@@ -13,4 +13,6 @@ export * from './use-mobile';
 export * from './use-media-query';
 export * from './useCompanyInvitation';
 export * from './useCompanyStatistics';
-export * from './useFees'; 
+export * from './useFees';
+export * from './useCompanySettings';
+export * from './useCompanyAssets'; 

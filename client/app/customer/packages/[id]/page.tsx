@@ -55,7 +55,7 @@ import {
 import { usePackage, usePackageTimeline } from "@/hooks/usePackages"
 import { useInvoiceByPackageId } from "@/hooks/useInvoices"
 import { useUser } from "@/hooks/useUsers"
-import { useCompany } from "@/hooks/useCompanies"
+import { useMyCompany } from "@/hooks/useCompanies"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // Customer Name Display Component
@@ -82,7 +82,7 @@ function CustomerNameDisplay({ userId }: { userId: string }) {
 
 // Company Name Display Component
 function CompanyNameDisplay({ companyId }: { companyId: string }) {
-  const { data: company, isLoading } = useCompany(companyId);
+  const { data: company, isLoading } = useMyCompany();
   
   if (isLoading) {
     return <Skeleton className="h-5 w-40" />;

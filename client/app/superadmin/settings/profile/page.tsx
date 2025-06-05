@@ -197,35 +197,24 @@ export default function SuperadminProfilePage() {
   // Handler for notification preferences
   const handleNotificationChange = (type: string, channel: string, value: boolean) => {
     if (!notificationPrefs) return
-
     // Create a deep copy of the notification preferences
     const updatedPrefs = JSON.parse(JSON.stringify(notificationPrefs)) as NotificationPreferences
-    
     if (type === 'general') {
       // Update general preference
       (updatedPrefs as any)[channel] = value
     } else {
       // Update specific category preference
       const categoryKey = `${type}Updates` as keyof NotificationPreferences
-      
       // Make sure the category exists
       if (!updatedPrefs[categoryKey]) {
-        const newCategoryUpdate = {
-          email: type === 'package' || type === 'billing',
-          sms: false,
-          push: false
-        }
-        // Use type assertion to bypass type checking for the specific update
-        (updatedPrefs as any)[categoryKey] = newCategoryUpdate
+        (updatedPrefs as any)[categoryKey] = { email: false, sms: false, push: false };
       }
-      
       // Update the specific channel in the category
       const category = (updatedPrefs as any)[categoryKey]
       if (category) {
         category[channel] = value
       }
     }
-    
     updateNotificationPrefs(updatedPrefs, {
       onSuccess: () => {
         toast({
@@ -274,8 +263,7 @@ export default function SuperadminProfilePage() {
             {user?.role}
           </Badge>
           <Avatar className="h-10 w-10">
-            <AvatarImage src={user?.avatar} alt={`${user?.firstName} ${user?.lastName}`} />
-            <AvatarFallback>{user?.firstName[0]}{user?.lastName[0]}</AvatarFallback>
+            <AvatarFallback>{user?.firstName?.[0]}{user?.lastName?.[0]}</AvatarFallback>
           </Avatar>
         </div>
       </div>
@@ -284,7 +272,6 @@ export default function SuperadminProfilePage() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="personal">Personal Info</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="access">Access Control</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
         </TabsList>
 
@@ -347,11 +334,7 @@ export default function SuperadminProfilePage() {
                   id="trn" 
                   value={formData.trn}
                   onChange={handleChange}
-                  disabled={true}
                 />
-                <p className="text-xs text-muted-foreground">
-                  To update your TRN, please contact support.
-                </p>
               </div>
 
             </CardContent>
@@ -500,45 +483,6 @@ export default function SuperadminProfilePage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="access" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Access Control Settings</CardTitle>
-              <CardDescription>
-                Manage your system access levels and permissions
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="rounded-md border p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="font-medium">Current Access Level</h3>
-                    <p className="text-sm text-muted-foreground">Your current system access level</p>
-                  </div>
-                  <Badge className="bg-blue-50 text-blue-700 border-blue-200">
-                    {user?.accessLevel}
-                  </Badge>
-                </div>
-
-                <div className="text-sm text-muted-foreground">
-                  <p className="mb-2">As a Super Administrator, you have:</p>
-                  <ul className="list-disc ml-5 space-y-1">
-                    <li>Ability to create and manage tenant companies</li>
-                    <li>Access to system-wide metrics and logs</li>
-                    <li>Permission to configure global settings</li>
-                    <li>Ability to deativate or delete any tenant company</li>
-                    <li>Ability deactivate or delete any user account</li>
-                  </ul>
-                </div>
-              </div>
-
-
-
-
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="preferences" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
@@ -574,37 +518,16 @@ export default function SuperadminProfilePage() {
                       checked={notificationPrefs?.sms ?? false}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Bell className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="general-push">Push Notifications</Label>
-                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
-                    </div>
-                    <Switch 
-                      id="general-push" 
-                      disabled 
-                      checked={notificationPrefs?.push ?? false}
-                    />
+                  <div className="flex items-center space-x-2">
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="general-push">Push Notifications</Label>
+                    <Badge variant="outline" className="text-xs">Coming Soon</Badge>
                   </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">System Updates</h3>
-                <div className="grid gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="system-email">Email Notifications</Label>
-                    </div>
-                    <Switch 
-                      id="system-email" 
-                      checked={notificationPrefs?.systemUpdates?.email ?? true}
-                      onCheckedChange={(checked) => handleNotificationChange('system', 'email', checked)}
-                    />
-                  </div>
+                  <Switch 
+                    id="general-push" 
+                    disabled 
+                    checked={notificationPrefs?.push ?? false}
+                  />
                 </div>
               </div>
             </CardContent>

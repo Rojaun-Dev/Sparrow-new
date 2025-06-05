@@ -249,6 +249,14 @@ class PackageService {
       { preAlertId, sendNotification }
     );
   }
+
+  /**
+   * Get unbilled packages for a user (not already on an invoice)
+   */
+  async getUnbilledPackagesByUser(userId: string, companyId?: string): Promise<Package[]> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.get<Package[]>(`${this.baseUrl}/${cId}/packages/users/${userId}/unbilled-packages`);
+  }
 }
 
 // Create and export a single instance of the service

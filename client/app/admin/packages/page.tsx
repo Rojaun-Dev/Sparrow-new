@@ -52,6 +52,8 @@ import { useUsers } from '@/hooks/useUsers';
 import type { Package, PackageStatus, PaginatedResponse } from '@/lib/api/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { useGenerateInvoice, useInvoiceByPackageId } from '@/hooks/useInvoices';
+import { useRouter } from 'next/navigation';
 
 // Status maps
 const STATUS_LABELS: Record<string, string> = {
@@ -70,6 +72,61 @@ const STATUS_VARIANTS: Record<string, string> = {
   ready_for_pickup: "success",
   delivered: "success",
   returned: "destructive"
+}
+
+function QuickInvoiceDialog({ open, onOpenChange, packageId, userId }: { open: boolean, onOpenChange: (open: boolean) => void, packageId: string | null, userId: string | null }) {
+  const { data: relatedInvoice, isLoading: isLoadingRelatedInvoice } = useInvoiceByPackageId(packageId || '');
+  const generateInvoice = useGenerateInvoice();
+  const router = useRouter();
+  if (!packageId || !userId) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Generate Invoice for this Package?</DialogTitle>
+        </DialogHeader>
+        <div>
+          {isLoadingRelatedInvoice ? (
+            <p>Checking for existing invoice...</p>
+          ) : relatedInvoice ? (
+            <div className="text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2 mb-2">
+              This package already has an invoice. You cannot generate another invoice for it.
+            </div>
+          ) : (
+            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
+          )}
+          {generateInvoice.isError && (
+            <div className="text-red-600 mt-2 text-sm">
+              {generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => {
+              generateInvoice.mutate(
+                { userId, packageIds: [packageId] },
+                {
+                  onSuccess: (invoice: any) => {
+                    onOpenChange(false);
+                    if (invoice && invoice.id) {
+                      router.push(`/admin/invoices/${invoice.id}`);
+                    }
+                  },
+                }
+              );
+            }}
+            disabled={generateInvoice.isPending || !!relatedInvoice || isLoadingRelatedInvoice}
+          >
+            {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={generateInvoice.isPending}>
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function PackagesPage() {
@@ -122,6 +179,9 @@ export default function PackagesPage() {
   const [sendNotificationOnReady, setSendNotificationOnReady] = useState(true);
   const [markReadyDialogOpen, setMarkReadyDialogOpen] = useState(false);
   const [packageToMarkReady, setPackageToMarkReady] = useState<string | null>(null);
+  const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
+  const [quickInvoiceUserId, setQuickInvoiceUserId] = useState<string | null>(null);
+  const [showQuickInvoiceDialog, setShowQuickInvoiceDialog] = useState(false);
 
   const openDeleteDialog = (packageId: string) => {
     setPackageToDelete(packageId)
@@ -298,11 +358,15 @@ export default function PackagesPage() {
                                     </Link>
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/admin/invoices/create?packageId=${pkg.id}`}>
-                                      <CircleDollarSign className="mr-2 h-4 w-4" />
-                                      Create Invoice
-                                    </Link>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setQuickInvoicePackageId(pkg.id);
+                                      setQuickInvoiceUserId(pkg.userId);
+                                      setShowQuickInvoiceDialog(true);
+                                    }}
+                                  >
+                                    <CircleDollarSign className="mr-2 h-4 w-4" />
+                                    Quick Invoice
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
@@ -444,6 +508,13 @@ export default function PackagesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <QuickInvoiceDialog
+        open={showQuickInvoiceDialog}
+        onOpenChange={setShowQuickInvoiceDialog}
+        packageId={quickInvoicePackageId}
+        userId={quickInvoiceUserId}
+      />
     </>
   )
 } 

@@ -18,7 +18,10 @@ export const checkJwt = (
   // Get the auth header
   const authHeader = req.headers.authorization;
   
+  console.log('Auth header:', authHeader);
+  
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('Invalid auth header:', authHeader);
     return res.status(401).json({
       success: false,
       message: 'Authorization header missing or invalid',
@@ -27,6 +30,7 @@ export const checkJwt = (
   
   // Extract token
   const token = authHeader.split(' ')[1];
+  console.log('Token received:', token.substring(0, 10) + '...');
   
   try {
     // Verify token
@@ -38,6 +42,12 @@ export const checkJwt = (
       'https://sparrowx.com/company_id': string;
     };
     
+    console.log('Token decoded successfully:', {
+      userId: decoded.userId,
+      companyId: decoded.companyId,
+      role: decoded.role
+    });
+    
     // Set user info on request
     req.userId = decoded.userId;
     req.companyId = decoded.companyId;
@@ -46,6 +56,7 @@ export const checkJwt = (
     next();
     return;
   } catch (error) {
+    console.error('Token verification failed:', error);
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token',

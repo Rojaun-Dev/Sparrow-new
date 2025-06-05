@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useInvoice } from "@/hooks/useInvoices"
 import { usePackagesByInvoiceId } from "@/hooks/usePackages"
 import { useUser } from "@/hooks/useUsers"
-import { useCompany } from "@/hooks/useCompanies"
+import { useMyCompany } from "@/hooks/useCompanies"
 import InvoicePDFRenderer from "@/components/invoices/InvoicePDFRenderer"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -52,7 +52,7 @@ function CustomerNameDisplay({ userId }: { userId: string }) {
 
 // Company Name Display Component
 function CompanyNameDisplay({ companyId }: { companyId: string }) {
-  const { data: company, isLoading } = useCompany(companyId);
+  const { data: company, isLoading } = useMyCompany();
   
   if (isLoading) {
     return <Skeleton className="h-5 w-40" />;
@@ -75,11 +75,16 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   // Fetch related packages
   const { data: relatedPackages, isLoading: isLoadingPackages } = usePackagesByInvoiceId(resolvedParams.id);
   
+  // Deduplicate relatedPackages by id
+  const uniquePackages = Array.isArray(relatedPackages)
+    ? relatedPackages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
+    : [];
+  
   // Fetch user data
   const { data: user } = useUser(invoice?.userId);
   
   // Fetch company data
-  const { data: company } = useCompany(invoice?.companyId);
+  const { data: company } = useMyCompany();
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -268,7 +273,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
                   </div>
-                ) : relatedPackages && relatedPackages.length > 0 ? (
+                ) : uniquePackages && uniquePackages.length > 0 ? (
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
@@ -280,7 +285,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {relatedPackages.map((pkg) => (
+                        {uniquePackages.map((pkg) => (
                             <TableRow key={pkg.id}>
                               <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
                             <TableCell>{pkg.description || "No description"}</TableCell>
@@ -447,12 +452,13 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             </CardContent>
             {invoice.status !== "paid" && (
               <CardFooter className="border-t px-6 pt-4">
-                <Button className="w-full" asChild>
-                  <Link href={`/customer/invoices/${invoice.id}/pay`}>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Pay Now
-                  </Link>
+                <Button className="w-full" disabled variant="outline">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Pay Now (Coming Soon)
                 </Button>
+                <div className="text-xs text-muted-foreground text-center mt-2">
+                  Online payments are not yet available. Please pay in person or contact support.
+                </div>
               </CardFooter>
             )}
           </Card>

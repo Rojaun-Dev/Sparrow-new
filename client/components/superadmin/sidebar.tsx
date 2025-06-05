@@ -110,6 +110,11 @@ export function SuperAdminSidebar({ open, setOpen }: { open: boolean, setOpen: (
   // Desktop sidebar
   const Sidebar = () => (
     <div className="hidden h-full w-64 flex-col border-r bg-background lg:flex">
+      <div className="flex h-16 items-center border-b px-4">
+        <Link href="/superadmin" className="flex items-center gap-2">
+          <span className="text-xl font-bold text-primary">SparrowX Admin</span>
+        </Link>
+      </div>
       <ScrollArea className="flex-1 py-4">
         <nav className="grid gap-1 px-2">
           {navItems.map((item) => (
@@ -196,7 +201,7 @@ export function SuperAdminSidebar({ open, setOpen }: { open: boolean, setOpen: (
       <SheetContent side="left" className="w-64 p-0 [&>button]:hidden">
         <div className="flex h-16 items-center border-b px-4">
           <Link href="/superadmin" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <span className="text-xl font-bold">SparrowX</span>
+            <span className="text-xl font-bold text-primary">SparrowX Admin</span>
           </Link>
           <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setOpen(false)}>
             <X className="h-5 w-5" />

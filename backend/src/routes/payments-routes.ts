@@ -22,6 +22,13 @@ router.post(
   paymentsController.createPayment
 );
 
+// Process batch payments for multiple invoices
+router.post(
+  '/batch',
+  /*checkRole(['admin_l1', 'admin_l2']),*/
+  paymentsController.processBatchPayment
+);
+
 // Get payment by ID
 router.get(
   '/:id',

@@ -3,6 +3,9 @@ import { PackagesService, createPackageSchema, updatePackageSchema } from '../se
 import { ApiResponse } from '../utils/response';
 import { format as csvFormat } from 'fast-csv';
 import { PassThrough } from 'stream';
+import { UsersService } from '../services/users-service';
+import { EmailService } from '../services/email-service';
+import { CompaniesService } from '../services/companies-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -10,9 +13,15 @@ interface AuthRequest extends Request {
 
 export class PackagesController {
   private service: PackagesService;
+  private usersService: UsersService;
+  private emailService: EmailService;
+  private companiesService: CompaniesService;
 
   constructor() {
     this.service = new PackagesService();
+    this.usersService = new UsersService();
+    this.emailService = new EmailService();
+    this.companiesService = new CompaniesService();
   }
 
   /**
@@ -115,15 +124,54 @@ export class PackagesController {
   createPackage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
+      const { sendNotification = false, ...packageData } = req.body;
       
       // Validate request body
       try {
-        createPackageSchema.parse(req.body);
+        createPackageSchema.parse(packageData);
       } catch (error) {
         return ApiResponse.validationError(res, error);
       }
 
-      const pkg = await this.service.createPackage(req.body, companyId);
+      const pkg = await this.service.createPackage(packageData, companyId);
+
+      // Send notification if requested
+      if (sendNotification && pkg && pkg.userId) {
+        try {
+          // Get the user to get their email and notification preferences
+          const user = await this.usersService.getUserById(pkg.userId, companyId);
+
+          // Only send if the user has email notifications enabled
+          if (user && 
+              user.email && 
+              user.notificationPreferences?.email && 
+              user.notificationPreferences?.packageUpdates?.email) {
+            
+            // Get company name
+            const company = await this.companiesService.getCompanyById(companyId);
+            const companyName = company ? company.name : 'Cautious Robot';
+            
+            // Format data for the email
+            await this.emailService.sendPackageAddedEmail(
+              user.email,
+              user.firstName,
+              {
+                trackingNumber: pkg.trackingNumber || '',
+                status: pkg.status || '',
+                description: pkg.description || '',
+                weight: pkg.weight || 'N/A',
+                dateAdded: new Date(pkg.createdAt).toLocaleDateString(),
+                companyName,
+                packageId: pkg.id
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send package notification:', emailError);
+          // Don't fail the request if email sending fails
+        }
+      }
+
       return ApiResponse.success(res, pkg, 'Package created successfully', 201);
     } catch (error) {
       next(error);
@@ -317,15 +365,72 @@ export class PackagesController {
     try {
       const companyId = req.companyId as string;
       const { packageId } = req.params;
-      const { preAlertId } = req.body;
+      const { preAlertId, sendNotification = false } = req.body;
+      
       if (!preAlertId) {
         return ApiResponse.validationError(res, { message: 'preAlertId is required' });
       }
+      
       const result = await this.service.matchPreAlertToPackage(preAlertId, packageId, companyId);
+      
+      // Send notification if requested
+      if (sendNotification && result.package && result.preAlert) {
+        try {
+          // Get the user to get their email and notification preferences
+          const user = await this.usersService.getUserById(result.package.userId, companyId);
+          
+          // Only send if the user has email notifications enabled
+          if (user && 
+              user.email && 
+              user.notificationPreferences?.email && 
+              user.notificationPreferences?.packageUpdates?.email) {
+            
+            // Get company name
+            const company = await this.companiesService.getCompanyById(companyId);
+            const companyName = company ? company.name : 'Cautious Robot';
+            
+            // Format data for the email
+            await this.emailService.sendPreAlertMatchedEmail(
+              user.email,
+              user.firstName,
+              {
+                preAlertTrackingNumber: result.preAlert.trackingNumber,
+                packageTrackingNumber: result.package.trackingNumber,
+                courier: result.preAlert.courier || '',
+                description: result.package.description || result.preAlert.description || '',
+                status: result.package.status,
+                receivedDate: result.package.receivedDate ? 
+                  new Date(result.package.receivedDate).toLocaleDateString() : 
+                  new Date().toLocaleDateString(),
+                companyName,
+                packageId: result.package.id
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send pre-alert match notification:', emailError);
+          // Don't fail the request if email sending fails
+        }
+      }
+      
       return ApiResponse.success(res, result, 'Pre-alert matched to package');
     } catch (error) {
       next(error);
       return undefined;
+    }
+  };
+
+  /**
+   * Get unbilled packages for a user (not already on an invoice)
+   */
+  getUnbilledPackagesByUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const companyId = req.companyId as string;
+      const packages = await this.service.getUnbilledPackagesByUser(userId, companyId);
+      return res.json({ success: true, data: packages });
+    } catch (error) {
+      next(error);
     }
   };
 } 

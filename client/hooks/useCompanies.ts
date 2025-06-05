@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { companyService } from '@/lib/api/companyService';
 import { Company } from '@/lib/api/types';
+import { getMyCompany, getMyAdminCompany } from '@/lib/api/companyService';
+import type { UseQueryOptions } from '@tanstack/react-query';
 
 // Key factory for company queries
 const companyKeys = {
@@ -26,5 +28,21 @@ export function useCurrentCompany() {
     queryKey: companyKeys.current(),
     queryFn: () => companyService.getCurrentCompany(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useMyCompany(options?: Partial<UseQueryOptions<any>>) {
+  return useQuery({
+    queryKey: ['myCompany'],
+    queryFn: getMyCompany,
+    ...(options || {})
+  });
+}
+
+export function useMyAdminCompany(options?: Partial<UseQueryOptions<any>>) {
+  return useQuery({
+    queryKey: ['myAdminCompany'],
+    queryFn: getMyAdminCompany,
+    ...(options || {})
   });
 } 

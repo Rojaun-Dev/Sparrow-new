@@ -126,4 +126,13 @@ export function usePackagesByInvoiceId(invoiceId: string) {
     queryFn: () => packageService.getPackagesByInvoiceId(invoiceId),
     enabled: !!invoiceId, // Only run the query if we have an invoice ID
   });
+}
+
+// Hook for fetching unbilled packages for a user
+export function useUnbilledPackagesByUser(userId: string, companyId?: string) {
+  return useQuery({
+    queryKey: ["unbilled-packages", userId, companyId],
+    queryFn: () => packageService.getUnbilledPackagesByUser(userId, companyId),
+    enabled: !!userId && !!companyId,
+  });
 } 

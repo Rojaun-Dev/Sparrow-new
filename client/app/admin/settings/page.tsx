@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { CheckIcon, UploadCloud, Trash2 } from "lucide-react"
+import { CheckIcon, UploadCloud, Trash2, User } from "lucide-react"
 import { 
   Select,
   SelectContent,
@@ -16,94 +16,270 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-// Mock company data
-const COMPANY_DATA = {
-  id: "comp-1234",
-  name: "FastShip Jamaica",
-  subdomain: "fastship",
-  email: "support@fastship.jm",
-  phone: "+1 (876) 555-7890",
-  address: "123 Shipping Lane, Kingston, Jamaica",
-  website: "https://fastship.jm",
-  locations: ["Kingston Main Office", "Montego Bay Branch"],
-  bankInfo: "National Commercial Bank, Acc #: 12345678",
-  logo: "/placeholder-logo.png",
-  banner: "/placeholder-banner.png",
-  favicon: "/placeholder-favicon.ico",
-}
+import Link from "next/link"
+import { useCompanySettings } from "@/hooks/useCompanySettings"
+import { useCompanyAssets } from "@/hooks/useCompanyAssets"
+import { useAuth } from "@/hooks/useAuth"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function CompanySettingsPage() {
-  const [company, setCompany] = useState(COMPANY_DATA)
+  const { user } = useAuth();
+  const isAdminL2 = user?.role === "admin_l2";
+  const { company, isLoading, updateCompany, updateLocations } = useCompanySettings();
+  const { assets, getAssetByType, uploadAsset, deleteAsset } = useCompanyAssets();
+  
+  const [companyData, setCompanyData] = useState({
+    id: "",
+    name: "",
+    subdomain: "",
+    email: "",
+    phone: "",
+    address: "",
+    website: "",
+    locations: [] as string[],
+    bankInfo: "",
+  });
+  
   const [activeTab, setActiveTab] = useState("general")
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<{
+    logo: File | null;
+    favicon: File | null;
+    banner: File | null;
+  }>({
+    logo: null,
+    favicon: null,
+    banner: null,
+  });
+  const [colors, setColors] = useState({
+    primaryColor: "#3b82f6",
+    secondaryColor: "#10b981",
+  });
+  
+  // Load company data when available
+  useEffect(() => {
+    if (company) {
+      setCompanyData(prev => {
+        // Only update if values are different to prevent unnecessary re-renders
+        if (
+          prev.name === company.name &&
+          prev.subdomain === company.subdomain &&
+          prev.email === company.email &&
+          prev.phone === company.phone &&
+          prev.address === company.address &&
+          prev.website === company.website &&
+          prev.bankInfo === company.bankInfo &&
+          JSON.stringify(prev.locations) === JSON.stringify(company.locations || [])
+        ) {
+          return prev;
+        }
+        
+        return {
+          id: company.id || "",
+          name: company.name || "",
+          subdomain: company.subdomain || "",
+          email: company.email || "",
+          phone: company.phone || "",
+          address: company.address || "",
+          website: company.website || "",
+          locations: company.locations || [],
+          bankInfo: company.bankInfo || "",
+        };
+      });
+    }
+  }, [company]);
+  
+  // Separate useEffect for colors to prevent unnecessary re-renders
+  useEffect(() => {
+    const themeAsset = getAssetByType("logo");
+    if (themeAsset?.metadata) {
+      setColors(prev => {
+        if (
+          prev.primaryColor === (themeAsset.metadata.primaryColor || "#3b82f6") &&
+          prev.secondaryColor === (themeAsset.metadata.secondaryColor || "#10b981")
+        ) {
+          return prev;
+        }
+        
+        return {
+          primaryColor: themeAsset.metadata.primaryColor || "#3b82f6",
+          secondaryColor: themeAsset.metadata.secondaryColor || "#10b981",
+        };
+      });
+    }
+  }, [getAssetByType]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setCompany(prev => ({ ...prev, [name]: value }))
+    setCompanyData(prev => ({ ...prev, [name]: value }))
   }
   
   const handleSelectChange = (name: string, value: string) => {
-    setCompany(prev => ({ ...prev, [name]: value }))
+    setCompanyData(prev => ({ ...prev, [name]: value }))
   }
 
   const handleLocationChange = (index: number, value: string) => {
-    const updatedLocations = [...company.locations]
+    const updatedLocations = [...companyData.locations]
     updatedLocations[index] = value
-    setCompany(prev => ({ ...prev, locations: updatedLocations }))
+    setCompanyData(prev => ({ ...prev, locations: updatedLocations }))
   }
 
   const addLocation = () => {
-    setCompany(prev => ({ ...prev, locations: [...prev.locations, ""] }))
+    setCompanyData(prev => ({ ...prev, locations: [...prev.locations, ""] }))
   }
 
   const removeLocation = (index: number) => {
-    const updatedLocations = [...company.locations]
+    const updatedLocations = [...companyData.locations]
     updatedLocations.splice(index, 1)
-    setCompany(prev => ({ ...prev, locations: updatedLocations }))
+    setCompanyData(prev => ({ ...prev, locations: updatedLocations }))
   }
 
   const handleSave = async () => {
-    setIsSaving(true)
+    if (!isAdminL2) {
+      alert("Only admin_l2 can make changes to company settings");
+      return;
+    }
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    setIsSaving(true);
     
-    // In a real app, this would call an API to save the company settings
-    console.log("Saving company settings:", company)
-    
-    setSaveSuccess(true)
-    setIsSaving(false)
-    
-    // Reset success message after 3 seconds
-    setTimeout(() => {
-      setSaveSuccess(false)
-    }, 3000)
+    try {
+      // Update company general information
+      if (activeTab === "general") {
+        await updateCompany.mutateAsync({
+          name: companyData.name,
+          subdomain: companyData.subdomain,
+          email: companyData.email,
+          phone: companyData.phone,
+          address: companyData.address,
+          website: companyData.website,
+          bankInfo: companyData.bankInfo,
+        });
+      }
+      
+      // Update company locations
+      if (activeTab === "locations") {
+        await updateLocations.mutateAsync(companyData.locations);
+      }
+      
+      // Update company branding
+      if (activeTab === "branding") {
+        // Update logo if selected
+        if (selectedFiles.logo) {
+          await uploadAsset.mutateAsync({
+            type: "logo",
+            file: selectedFiles.logo,
+            metadata: colors // Store colors with the logo asset
+          });
+        } else if (!getAssetByType("logo") && colors) {
+          // If no logo exists yet but we have colors, create an asset with just metadata
+          await uploadAsset.mutateAsync({
+            type: "logo",
+            file: null,
+            metadata: colors
+          });
+        }
+        
+        // Update favicon if selected
+        if (selectedFiles.favicon) {
+          await uploadAsset.mutateAsync({
+            type: "favicon",
+            file: selectedFiles.favicon
+          });
+        }
+        
+        // Update banner if selected
+        if (selectedFiles.banner) {
+          await uploadAsset.mutateAsync({
+            type: "banner",
+            file: selectedFiles.banner
+          });
+        }
+        
+        // Reset selected files after upload
+        setSelectedFiles({
+          logo: null,
+          favicon: null,
+          banner: null,
+        });
+      }
+      
+      setSaveSuccess(true);
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Error saving company settings:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const handleFileChange = (type: 'logo' | 'favicon' | 'banner', e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFiles(prev => ({
+        ...prev,
+        [type]: e.target.files![0]
+      }));
+    }
+  };
+
+  const handleColorChange = (colorType: 'primaryColor' | 'secondaryColor', value: string) => {
+    setColors(prev => ({
+      ...prev,
+      [colorType]: value
+    }));
+  };
+
+  if (isLoading) {
+    return <div className="py-8">Loading company settings...</div>;
   }
 
   return (
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Company Settings</h1>
-        <Button onClick={handleSave} disabled={isSaving}>
+        <Button onClick={handleSave} disabled={isSaving || !isAdminL2}>
           {isSaving ? "Saving..." : "Save Changes"}
           {saveSuccess && <CheckIcon className="ml-2 h-4 w-4" />}
         </Button>
       </div>
+      {/* Profile Card */}
+      <div className="mb-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center">
+              <User className="mr-2 h-5 w-5 text-muted-foreground" />
+              Profile
+            </CardTitle>
+            <CardDescription>
+              Manage your personal information, security settings, and preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/admin/settings/profile">
+                Manage Profile
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="locations">Locations</TabsTrigger>
-          <TabsTrigger value="shipping-rates">Shipping Rates</TabsTrigger>
+          <TabsTrigger value="api">API</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="sm:flex-row sm:items-center">
               <CardTitle>Company Information</CardTitle>
               <CardDescription>
                 Manage your company's basic information
@@ -116,20 +292,24 @@ export default function CompanySettingsPage() {
                   <Input 
                     id="name" 
                     name="name" 
-                    value={company.name} 
+                    value={companyData.name} 
                     onChange={handleInputChange} 
+                    disabled={!isAdminL2}
+                    className="w-full"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="subdomain">Subdomain</Label>
-                  <div className="flex">
+                  <div className="flex flex-col sm:flex-row">
                     <Input 
                       id="subdomain" 
                       name="subdomain" 
-                      value={company.subdomain} 
+                      value={companyData.subdomain} 
                       onChange={handleInputChange} 
+                      disabled={!isAdminL2}
+                      className="w-full"
                     />
-                    <span className="flex items-center px-3 text-muted-foreground whitespace-nowrap">
+                    <span className="flex items-center px-3 text-muted-foreground whitespace-nowrap mt-2 sm:mt-0">
                       .sparrowx.com
                     </span>
                   </div>
@@ -143,8 +323,10 @@ export default function CompanySettingsPage() {
                     id="email" 
                     name="email" 
                     type="email" 
-                    value={company.email} 
+                    value={companyData.email} 
                     onChange={handleInputChange} 
+                    disabled={!isAdminL2}
+                    className="w-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -153,8 +335,10 @@ export default function CompanySettingsPage() {
                     id="phone" 
                     name="phone" 
                     type="tel" 
-                    value={company.phone} 
+                    value={companyData.phone} 
                     onChange={handleInputChange} 
+                    disabled={!isAdminL2}
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -164,8 +348,10 @@ export default function CompanySettingsPage() {
                 <Textarea 
                   id="address" 
                   name="address" 
-                  value={company.address} 
+                  value={companyData.address} 
                   onChange={handleInputChange} 
+                  disabled={!isAdminL2}
+                  className="w-full min-h-[100px]"
                 />
               </div>
               
@@ -175,8 +361,10 @@ export default function CompanySettingsPage() {
                   id="website" 
                   name="website" 
                   type="url" 
-                  value={company.website} 
+                  value={companyData.website} 
                   onChange={handleInputChange} 
+                  disabled={!isAdminL2}
+                  className="w-full"
                 />
               </div>
               
@@ -185,8 +373,10 @@ export default function CompanySettingsPage() {
                 <Textarea 
                   id="bankInfo" 
                   name="bankInfo" 
-                  value={company.bankInfo} 
+                  value={companyData.bankInfo} 
                   onChange={handleInputChange} 
+                  disabled={!isAdminL2}
+                  className="w-full min-h-[100px]"
                 />
                 <p className="text-xs text-muted-foreground">
                   This information will appear on invoices and is used for payment processing.
@@ -205,18 +395,41 @@ export default function CompanySettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Company Logo</Label>
                   <div className="border rounded-md p-4 text-center">
                     <div className="mb-3 flex justify-center">
-                      <img src={company.logo} alt="Company Logo" className="h-16 object-contain" />
+                      {getAssetByType("logo")?.imageData ? (
+                        <img 
+                          src={getAssetByType("logo")?.imageData} 
+                          alt="Company Logo" 
+                          className="h-16 object-contain" 
+                        />
+                      ) : (
+                        <div className="h-16 w-full flex items-center justify-center bg-gray-100 text-gray-400">
+                          No logo
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Button variant="outline" className="w-full gap-1">
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-1" 
+                        disabled={!isAdminL2}
+                        onClick={() => document.getElementById('logoUpload')?.click()}
+                      >
                         <UploadCloud className="h-4 w-4" />
-                        Upload Logo
+                        {selectedFiles.logo ? selectedFiles.logo.name.substring(0, 15) + '...' : "Upload Logo"}
                       </Button>
+                      <input
+                        id="logoUpload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleFileChange('logo', e)}
+                        disabled={!isAdminL2}
+                      />
                       <p className="text-xs text-muted-foreground">
                         Recommended size: 200x60px
                       </p>
@@ -228,13 +441,36 @@ export default function CompanySettingsPage() {
                   <Label>Favicon</Label>
                   <div className="border rounded-md p-4 text-center">
                     <div className="mb-3 flex justify-center">
-                      <img src={company.favicon} alt="Favicon" className="h-16 w-16 object-contain" />
+                      {getAssetByType("favicon")?.imageData ? (
+                        <img 
+                          src={getAssetByType("favicon")?.imageData} 
+                          alt="Favicon" 
+                          className="h-16 w-16 object-contain" 
+                        />
+                      ) : (
+                        <div className="h-16 w-16 flex items-center justify-center bg-gray-100 text-gray-400 mx-auto">
+                          No favicon
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Button variant="outline" className="w-full gap-1">
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-1" 
+                        disabled={!isAdminL2}
+                        onClick={() => document.getElementById('faviconUpload')?.click()}
+                      >
                         <UploadCloud className="h-4 w-4" />
-                        Upload Favicon
+                        {selectedFiles.favicon ? selectedFiles.favicon.name.substring(0, 15) + '...' : "Upload Favicon"}
                       </Button>
+                      <input
+                        id="faviconUpload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleFileChange('favicon', e)}
+                        disabled={!isAdminL2}
+                      />
                       <p className="text-xs text-muted-foreground">
                         Required size: 32x32px
                       </p>
@@ -246,13 +482,36 @@ export default function CompanySettingsPage() {
                   <Label>Banner Image</Label>
                   <div className="border rounded-md p-4 text-center">
                     <div className="mb-3 flex justify-center">
-                      <img src={company.banner} alt="Banner" className="h-16 w-full object-cover" />
+                      {getAssetByType("banner")?.imageData ? (
+                        <img 
+                          src={getAssetByType("banner")?.imageData} 
+                          alt="Banner" 
+                          className="h-16 w-full object-cover" 
+                        />
+                      ) : (
+                        <div className="h-16 w-full flex items-center justify-center bg-gray-100 text-gray-400">
+                          No banner
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Button variant="outline" className="w-full gap-1">
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-1" 
+                        disabled={!isAdminL2}
+                        onClick={() => document.getElementById('bannerUpload')?.click()}
+                      >
                         <UploadCloud className="h-4 w-4" />
-                        Upload Banner
+                        {selectedFiles.banner ? selectedFiles.banner.name.substring(0, 15) + '...' : "Upload Banner"}
                       </Button>
+                      <input
+                        id="bannerUpload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleFileChange('banner', e)}
+                        disabled={!isAdminL2}
+                      />
                       <p className="text-xs text-muted-foreground">
                         Recommended size: 1200x300px
                       </p>
@@ -263,20 +522,75 @@ export default function CompanySettingsPage() {
               
               <Separator />
               
+              {/* Tooltips for unavailable color feature */}
               <div className="space-y-4">
                 <div>
                   <Label>Primary Color</Label>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Input type="color" className="w-16 h-10" value="#3b82f6" />
-                    <Input value="#3b82f6" className="w-32" />
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input 
+                          type="color" 
+                          className="w-16 h-10" 
+                          value={colors.primaryColor} 
+                          onChange={(e) => handleColorChange('primaryColor', e.target.value)}
+                          disabled
+                          style={{ cursor: "not-allowed" }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span>This feature is not available yet.</span>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input 
+                          value={colors.primaryColor} 
+                          className="w-32"
+                          onChange={(e) => handleColorChange('primaryColor', e.target.value)}
+                          disabled
+                          style={{ cursor: "not-allowed" }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span>This feature is not available yet.</span>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
                 
                 <div>
                   <Label>Secondary Color</Label>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Input type="color" className="w-16 h-10" value="#10b981" />
-                    <Input value="#10b981" className="w-32" />
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input 
+                          type="color" 
+                          className="w-16 h-10" 
+                          value={colors.secondaryColor}
+                          onChange={(e) => handleColorChange('secondaryColor', e.target.value)}
+                          disabled
+                          style={{ cursor: "not-allowed" }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span>This feature is not available yet.</span>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input 
+                          value={colors.secondaryColor} 
+                          className="w-32"
+                          onChange={(e) => handleColorChange('secondaryColor', e.target.value)}
+                          disabled
+                          style={{ cursor: "not-allowed" }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span>This feature is not available yet.</span>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
@@ -293,44 +607,56 @@ export default function CompanySettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {company.locations.map((location, index) => (
-                <div key={index} className="flex items-center gap-2">
+              {companyData.locations.map((location, index) => (
+                <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <Input
                     value={location}
                     onChange={(e) => handleLocationChange(index, e.target.value)}
                     placeholder="Location name and address"
+                    disabled={!isAdminL2}
+                    className="flex-1"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => removeLocation(index)}
-                    disabled={company.locations.length <= 1}
+                    disabled={companyData.locations.length <= 1 || !isAdminL2}
+                    className="mt-2 sm:mt-0"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
               
-              <Button variant="outline" onClick={addLocation} className="mt-2">
+              <Button variant="outline" onClick={addLocation} className="mt-4" disabled={!isAdminL2}>
                 Add Location
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
         
-        <TabsContent value="shipping-rates" className="space-y-4">
+        <TabsContent value="api" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Shipping Rate Configuration</CardTitle>
+              <CardTitle>API Configuration</CardTitle>
               <CardDescription>
-                Configure shipping rates based on weight and destination
+                Manage client API, portal instances, and iframe integrations
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  Shipping rate configuration will be implemented in the next phase.
-                </p>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-muted-foreground">
+                        API configuration will be implemented in the next phase.
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>This feature is coming soon!</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </CardContent>
           </Card>
@@ -346,9 +672,18 @@ export default function CompanySettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  Payment configuration will be implemented in the next phase.
-                </p>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-muted-foreground">
+                        Payment configuration will be implemented in the next phase.
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>This feature is coming soon!</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </CardContent>
           </Card>

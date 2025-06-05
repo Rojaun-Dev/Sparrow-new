@@ -14,13 +14,18 @@ export class InvoicesController {
   }
 
   /**
-   * Get all invoices for a company
+   * Get all invoices for a company (paginated)
    */
   getAllInvoices = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-      const invoices = await this.service.getAllInvoices(companyId);
-      return ApiResponse.success(res, invoices);
+      // Parse pagination and sorting params
+      const page = req.query.page ? Number(req.query.page) : 1;
+      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : (req.query.limit ? Number(req.query.limit) : 10);
+      const sortBy = req.query.sortBy ? String(req.query.sortBy) : 'createdAt';
+      const sortOrder = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
+      const result = await this.service.getAllInvoices(companyId, { page, pageSize, sortBy, sortOrder });
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;

@@ -12,6 +12,16 @@ const invoiceKeys = {
   outstanding: () => [...invoiceKeys.all, 'outstanding'] as const,
 };
 
+// Type for invoice generation payload
+export type GenerateInvoicePayload = {
+  userId: string;
+  packageIds: string[];
+  notes?: string;
+  dueDate?: Date;
+  additionalCharge?: number;
+  sendNotification?: boolean;
+};
+
 // Hook for fetching invoices list with filters
 export function useInvoices(filters: InvoiceFilterParams = {}) {
   return useQuery({
@@ -102,4 +112,22 @@ export function useInvoiceByPackageId(packageId: string) {
     queryFn: () => invoiceService.getInvoiceByPackageId(packageId),
     enabled: !!packageId, // Only run the query if we have a package ID
   });
-} 
+}
+
+export function usePreviewInvoice() {
+  return useMutation({
+    mutationFn: (data: GenerateInvoicePayload) => invoiceService.previewInvoice(data),
+  });
+}
+
+export function useGenerateInvoice() {
+  return useMutation({
+    mutationFn: (data: GenerateInvoicePayload) => invoiceService.generateInvoice(data),
+  });
+}
+
+export function useAutoBill() {
+  return useMutation({
+    mutationFn: () => invoiceService.autoBill(),
+  });
+}

@@ -16,6 +16,8 @@ export const generateInvoiceSchema = z.object({
   packageIds: z.array(z.string().uuid()).min(1),
   notes: z.string().optional(),
   dueDate: z.coerce.date().optional(),
+  additionalCharge: z.number().optional(),
+  sendNotification: z.boolean().optional(),
 });
 
 export class BillingService {
@@ -71,18 +73,27 @@ export class BillingService {
   private feeApplies(fee: any, packageData: any): boolean {
     // Get the metadata and applies to fields
     const metadata = fee.metadata || {};
-    
+    const appliesTo = Array.isArray(fee.appliesTo) ? fee.appliesTo : [];
+    const packageTags = Array.isArray(packageData.tags) ? packageData.tags : [];
+
+    // If fee has no appliesTo tags, apply to all packages
+    if (appliesTo.length === 0) {
+      // continue to other checks
+    } else {
+      // Fee only applies if at least one of the package's tags is in appliesTo
+      if (!packageTags.some((tag: string) => appliesTo.includes(tag))) {
+        return false;
+      }
+    }
+
     // Check tag conditions if they exist
     if (metadata.tagConditions) {
       const requiredTags = metadata.tagConditions.requiredTags || [];
       const excludedTags = metadata.tagConditions.excludedTags || [];
-      const packageTags = packageData.tags || [];
-      
       // If package doesn't have all required tags, fee doesn't apply
       if (requiredTags.length > 0 && !requiredTags.every((tag: string) => packageTags.includes(tag))) {
         return false;
       }
-      
       // If package has any excluded tags, fee doesn't apply
       if (excludedTags.length > 0 && excludedTags.some((tag: string) => packageTags.includes(tag))) {
         return false;
@@ -163,133 +174,141 @@ export class BillingService {
   /**
    * Calculate total fees for a package
    */
-  async calculatePackageFees(packageId: string, companyId: string) {
+  async calculatePackageFees(packageId: string, companyId: string, fixedFeesApplied: Set<string> = new Set()) {
     // Get package details
     const packageData = await this.packagesRepository.findById(packageId, companyId);
-    
     if (!packageData) {
       throw new AppError('Package not found', 404);
     }
-    
     // Get company settings for tax and other calculations
     const settings = await this.companySettingsRepository.findByCompanyId(companyId);
-    
     if (!settings) {
       throw new AppError('Company settings not found', 400);
     }
-    
     // Initialize fee totals
-    const result = {
+    const result: { [key: string]: any; shipping: number; handling: number; customs: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
       shipping: 0,
       handling: 0,
       customs: 0,
-      taxes: 0,
       other: 0,
+      taxes: 0,
       subtotal: 0,
       total: 0,
-      lineItems: [] as any[]
+      lineItems: [] as any[],
     };
-    
-    // Get applicable shipping fees
-    const shippingFees = await this.getApplicableFees(packageData, companyId, 'shipping');
-    for (const fee of shippingFees) {
-      const amount = this.feesService.calculateFeeAmount(fee, 0, packageData);
-      const finalAmount = this.applyLimits(amount, fee.metadata);
-      result.shipping += finalAmount;
-      
-      // Add to line items
+    // 1. Calculate all base (non-percentage) fees and collect percentage-based fees for later
+    const percentageFeesByType: Record<string, any[]> = { shipping: [], handling: [], customs: [], other: [], subtotal: [], taxes: [] };
+    for (const type of ['shipping', 'handling', 'customs', 'service', 'other']) {
+      const fees = await this.getApplicableFees(packageData, companyId, type);
+      for (const fee of fees) {
+        // Deduplicate fixed fees (apply only once per invoice)
+        if (fee.calculationMethod === 'fixed') {
+          if (fixedFeesApplied.has(fee.id)) continue;
+          fixedFeesApplied.add(fee.id);
+        }
+        if (fee.calculationMethod === 'percentage') {
+          const baseAttr = (fee.metadata && fee.metadata.baseAttribute) || 'subtotal';
+          if (!percentageFeesByType[baseAttr]) percentageFeesByType[baseAttr] = [];
+          percentageFeesByType[baseAttr].push(fee);
+          continue;
+        }
+        let baseAmount = 0;
+        if (type === 'customs') {
+          baseAmount = parseFloat(packageData.declaredValue || '0');
+        }
+        // Always parse fee.amount as number
+        const amount = Number(this.feesService.calculateFeeAmount(fee, baseAmount, packageData));
+        const finalAmount = Number(this.applyLimits(amount, fee.metadata));
+        // Map 'service' to 'other' for DB enum
+        const itemType = type === 'service' ? 'other' : type;
+        result[itemType] += finalAmount;
+        result.lineItems.push({
+          packageId: packageData.id,
+          description: fee.name,
+          quantity: 1,
+          unitPrice: finalAmount,
+          lineTotal: finalAmount,
+          type: itemType as any,
+        });
+      }
+    }
+    // 2. Calculate subtotal (before tax/percentage fees)
+    result.subtotal = Number(result.shipping) + Number(result.handling) + Number(result.customs) + Number(result.other);
+    // 3. Build context for percentage-based fees
+    const context: { [key: string]: any; shipping: number; handling: number; customs: number; other: number; subtotal: number; declaredValue: number } = {
+      shipping: result.shipping,
+      handling: result.handling,
+      customs: result.customs,
+      other: result.other,
+      subtotal: result.subtotal,
+      declaredValue: parseFloat(packageData.declaredValue || '0'),
+    };
+    // 4. Calculate all percentage-based fees (except taxes)
+    for (const baseAttr of Object.keys(percentageFeesByType)) {
+      if (baseAttr === 'taxes' || baseAttr === 'subtotal') continue; // taxes handled separately, subtotal handled after others
+      for (const fee of percentageFeesByType[baseAttr]) {
+        // Use context for base
+        let base = 0;
+        if (baseAttr === 'customs' || baseAttr === 'declaredValue') {
+          base = context.declaredValue;
+        } else {
+          base = context[baseAttr] ?? 0;
+        }
+        if (!base) continue; // skip if base is 0
+        const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
+        const finalAmount = Number(this.applyLimits(amount, fee.metadata));
+        result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
+        result.lineItems.push({
+          packageId: packageData.id,
+          description: fee.name,
+          quantity: 1,
+          unitPrice: finalAmount,
+          lineTotal: finalAmount,
+          type: fee.feeType,
+        });
+      }
+    }
+    // 5. Calculate percentage-of-subtotal fees (if any)
+    for (const fee of percentageFeesByType['subtotal'] || []) {
+      if (!context.subtotal) continue;
+      const amount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context));
+      const finalAmount = Number(this.applyLimits(amount, fee.metadata));
+      result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
       result.lineItems.push({
         packageId: packageData.id,
         description: fee.name,
         quantity: 1,
         unitPrice: finalAmount,
         lineTotal: finalAmount,
-        type: 'shipping' as any
+        type: fee.feeType,
       });
     }
-    
-    // Get applicable handling fees
-    const handlingFees = await this.getApplicableFees(packageData, companyId, 'handling');
-    for (const fee of handlingFees) {
-      const amount = this.feesService.calculateFeeAmount(fee, 0, packageData);
-      const finalAmount = this.applyLimits(amount, fee.metadata);
-      result.handling += finalAmount;
-      
-      // Add to line items
-      result.lineItems.push({
-        packageId: packageData.id,
-        description: fee.name,
-        quantity: 1,
-        unitPrice: finalAmount,
-        lineTotal: finalAmount,
-        type: 'handling' as any
-      });
-    }
-    
-    // Get applicable customs fees
-    const customsFees = await this.getApplicableFees(packageData, companyId, 'customs');
-    for (const fee of customsFees) {
-      // Customs fees often use declared value as the base amount
-      const declaredValue = parseFloat(packageData.declaredValue || '0');
-      const amount = this.feesService.calculateFeeAmount(fee, declaredValue, packageData);
-      const finalAmount = this.applyLimits(amount, fee.metadata);
-      result.customs += finalAmount;
-      
-      // Add to line items
-      result.lineItems.push({
-        packageId: packageData.id,
-        description: fee.name,
-        quantity: 1,
-        unitPrice: finalAmount,
-        lineTotal: finalAmount,
-        type: 'customs' as any
-      });
-    }
-    
-    // Get applicable "other" fees
-    const otherFees = await this.getApplicableFees(packageData, companyId, 'other');
-    for (const fee of otherFees) {
-      const amount = this.feesService.calculateFeeAmount(fee, 0, packageData);
-      const finalAmount = this.applyLimits(amount, fee.metadata);
-      result.other += finalAmount;
-      
-      // Add to line items
-      result.lineItems.push({
-        packageId: packageData.id,
-        description: fee.name,
-        quantity: 1,
-        unitPrice: finalAmount,
-        lineTotal: finalAmount,
-        type: 'other' as any
-      });
-    }
-    
-    // Calculate subtotal (before tax)
-    result.subtotal = result.shipping + result.handling + result.customs + result.other;
-    
-    // Apply tax if applicable
+    // 6. Calculate tax fees (percentage-of-subtotal or other base)
     const taxFees = await this.getApplicableFees(packageData, companyId, 'tax');
-    // Build a context object for percentage-based fees
-    const context = { shipping: result.shipping, handling: result.handling, customs: result.customs, other: result.other, subtotal: result.subtotal };
     for (const fee of taxFees) {
-      // Tax is typically calculated on the subtotal
-      const amount = this.feesService.calculateFeeAmount(fee, result.subtotal, packageData, context);
-      const finalAmount = this.applyLimits(amount, fee.metadata);
+      let base = context.subtotal;
+      if (fee.calculationMethod === 'percentage' && fee.metadata && fee.metadata.baseAttribute) {
+        if (fee.metadata.baseAttribute === 'customs' || fee.metadata.baseAttribute === 'declaredValue') {
+          base = context.declaredValue;
+        } else {
+          base = context[fee.metadata.baseAttribute] ?? context.subtotal;
+        }
+      }
+      if (!base) continue;
+      const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
+      const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result.taxes += finalAmount;
-      // Add to line items
       result.lineItems.push({
         packageId: packageData.id,
         description: fee.name,
         quantity: 1,
         unitPrice: finalAmount,
         lineTotal: finalAmount,
-        type: 'tax' as any
+        type: 'tax' as any,
       });
     }
-    
-    // Calculate total
-    result.total = result.subtotal + result.taxes;
-    
+    // 7. Calculate total
+    result.total = Number(result.subtotal) + Number(result.taxes);
     return {
       ...result,
       context,
@@ -339,13 +358,21 @@ export class BillingService {
       // Initialize totals
       let subtotal = 0;
       let taxAmount = 0;
+      // Initialize fee breakdown
+      const feeBreakdown: Record<string, number> = {
+        shipping: 0,
+        handling: 0,
+        customs: 0,
+        other: 0,
+        taxes: 0,
+      };
       
       // Create invoice record
       const invoiceData = {
         userId: validatedData.userId,
         companyId,
         invoiceNumber,
-        status: 'draft' as typeof invoiceStatusEnum.enumValues[number],
+        status: 'issued' as typeof invoiceStatusEnum.enumValues[number],
         issueDate: new Date(),
         dueDate,
         subtotal: '0',
@@ -362,9 +389,15 @@ export class BillingService {
       }
       
       // Calculate fees for each package and add line items
+      const fixedFeesApplied = new Set<string>();
       for (const packageId of validatedData.packageIds) {
-        const packageFees = await this.calculatePackageFees(packageId, companyId);
-        
+        const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
+        // Aggregate fee breakdown
+        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+        feeBreakdown.handling += Number(packageFees.handling) || 0;
+        feeBreakdown.customs += Number(packageFees.customs) || 0;
+        feeBreakdown.other += Number(packageFees.other) || 0;
+        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
         // Add all line items to invoice
         for (const item of packageFees.lineItems) {
           const lineItemData = {
@@ -372,26 +405,44 @@ export class BillingService {
             companyId,
             ...item,
           };
-          
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          
           // Add to totals (except tax)
           if (item.type !== 'tax') {
-            subtotal += parseFloat(item.lineTotal.toString());
+            subtotal += Number(item.lineTotal);
           } else {
-            taxAmount += parseFloat(item.lineTotal.toString());
+            taxAmount += Number(item.lineTotal);
           }
         }
+      }
+      
+      // Add additional charge if provided
+      if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
+        const addCharge = {
+          invoiceId: invoice.id,
+          companyId,
+          // Do not set packageId at all if not present
+          // packageId: null,
+          description: 'Additional Charge',
+          quantity: 1,
+          unitPrice: validatedData.additionalCharge,
+          lineTotal: validatedData.additionalCharge,
+          type: 'other',
+        };
+        await this.invoiceItemsRepository.create(addCharge, companyId);
+        subtotal += validatedData.additionalCharge;
+        feeBreakdown.other += validatedData.additionalCharge;
       }
       
       // Calculate total
       const totalAmount = subtotal + taxAmount;
       
-      // Update invoice with final totals
+      // Update invoice with final totals and fee breakdown
       await this.invoicesRepository.update(invoice.id, {
         subtotal: subtotal.toString(),
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),
+        feeBreakdown: feeBreakdown,
+        notes: validatedData.notes || '',
       }, companyId);
       
       // Get the updated invoice
@@ -470,30 +521,48 @@ export class BillingService {
       let subtotal = 0;
       let taxAmount = 0;
       const lineItems: any[] = [];
+      // Initialize fee breakdown
+      const feeBreakdown: Record<string, number> = {
+        shipping: 0,
+        handling: 0,
+        customs: 0,
+        other: 0,
+        taxes: 0,
+      };
       
       // Calculate fees for each package
+      const fixedFeesApplied = new Set<string>();
       for (const packageId of validatedData.packageIds) {
-        const packageFees = await this.calculatePackageFees(packageId, companyId);
-        
+        const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
+        // Aggregate fee breakdown (parse as numbers)
+        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+        feeBreakdown.handling += Number(packageFees.handling) || 0;
+        feeBreakdown.customs += Number(packageFees.customs) || 0;
+        feeBreakdown.other += Number(packageFees.other) || 0;
+        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
         // Track line items
         lineItems.push(...packageFees.lineItems);
-        
-        // Add to totals
-        subtotal += packageFees.subtotal;
-        taxAmount += packageFees.taxes;
+        // Add to totals (parse as numbers)
+        subtotal += Number(packageFees.subtotal) || 0;
+        taxAmount += Number(packageFees.taxes) || 0;
       }
-      
       // Calculate total
       const totalAmount = subtotal + taxAmount;
-      
-      // Return the preview data
+      // Return the preview data, including fee breakdown (all numbers)
       return {
         userId: validatedData.userId,
         packageIds: validatedData.packageIds,
-        subtotal,
-        taxAmount,
-        totalAmount,
+        subtotal: Number(subtotal) || 0,
+        taxAmount: Number(taxAmount) || 0,
+        totalAmount: Number(totalAmount) || 0,
         lineItems,
+        feeBreakdown: {
+          shipping: Number(feeBreakdown.shipping) || 0,
+          handling: Number(feeBreakdown.handling) || 0,
+          customs: Number(feeBreakdown.customs) || 0,
+          other: Number(feeBreakdown.other) || 0,
+          taxes: Number(feeBreakdown.taxes) || 0,
+        },
       };
     } catch (error) {
       logger.error({ err: error }, 'Error previewing invoice');

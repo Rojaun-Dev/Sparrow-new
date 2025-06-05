@@ -35,7 +35,13 @@ export class ApiClient {
         // Get token from localStorage 
         const token = this.getToken();
         if (token) {
+          // Ensure headers object exists
+          config.headers = config.headers || {};
+          // Set Authorization header with Bearer token
           config.headers.Authorization = `Bearer ${token}`;
+          console.log('Adding token to request:', token.substring(0, 10) + '...');
+        } else {
+          console.warn('No token found for request');
         }
 
         // Add company ID to every request for multi-tenant isolation

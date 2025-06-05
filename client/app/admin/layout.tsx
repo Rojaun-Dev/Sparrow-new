@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "../globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AdminHeader } from "@/components/admin/header"
 import { AdminSidebarDesktop, AdminSidebarMobile } from "@/components/admin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 
@@ -28,7 +27,6 @@ export default function AdminLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <div className="flex min-h-screen flex-col">
-            <AdminHeader />
             <AdminSidebarMobile />
             <div className="flex flex-1">
               <AdminSidebarDesktop />

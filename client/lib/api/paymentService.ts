@@ -26,10 +26,14 @@ class PaymentService {
     return apiClient.get<PaginatedResponse<Payment>>(`${this.baseUrl}/${companyId}/payments`, { 
       params: {
         status: params?.status,
+        search: params?.search,
+        method: params?.method,
+        dateFrom: params?.dateFrom,
+        dateTo: params?.dateTo,
         sortBy: params?.sortBy,
         sortOrder: params?.sortOrder,
-        limit: params?.limit,
-        offset: params?.offset
+        page: params?.page,
+        limit: params?.limit
       }
     });
   }
@@ -119,14 +123,77 @@ class PaymentService {
   }
 
   /**
-   * Process a new payment
+   * Process a new payment for a single invoice
    */
-  async processPayment(invoiceId: string, paymentData: Partial<Payment>, companyId?: string): Promise<Payment> {
+  async processPayment(invoiceId: string, paymentData: Partial<Payment>, sendNotification: boolean = true, companyId?: string): Promise<Payment> {
     const cId = companyId || await this.getCompanyId();
     return apiClient.post<Payment>(`${this.baseUrl}/${cId}/payments`, {
       ...paymentData,
-      invoiceId
+      invoiceId,
+      sendNotification
     });
+  }
+  
+  /**
+   * Process batch payments for multiple invoices
+   */
+  async processBatchPayment(
+    payments: any[],
+    companyId?: string
+  ): Promise<any> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.post<any>(`${this.baseUrl}/${cId}/payments/batch`, {
+      payments,
+      sendNotification: true
+    });
+  }
+  
+  /**
+   * Pay all outstanding invoices for a user
+   */
+  async payAllInvoices(
+    userId: string,
+    paymentMethod: string,
+    notes?: string,
+    companyId?: string
+  ): Promise<any> {
+    const cId = companyId || await this.getCompanyId();
+    
+    // First, get all outstanding invoices for this user
+    const url = `${this.baseUrl}/${cId}/invoices/user/${userId}`;
+    const response = await apiClient.get<PaginatedResponse<any>>(url, {
+      params: {
+        status: 'unpaid,overdue'
+      }
+    });
+    
+    // Check if we have invoices to pay
+    let invoices: any[] = [];
+    const data: any = response.data;
+    if (Array.isArray(data)) {
+      invoices = data;
+    } else if (data && Array.isArray(data.data)) {
+      invoices = data.data;
+    }
+    if (!invoices.length) {
+      return { message: 'No outstanding invoices found', results: [] };
+    }
+    
+    // Build payment objects for each invoice
+    const payments = invoices.map((invoice: any) => ({
+      invoiceId: invoice.id,
+      userId,
+      amount: typeof invoice.totalAmount === 'string' ? parseFloat(invoice.totalAmount) : invoice.totalAmount,
+      paymentMethod,
+      notes,
+      status: 'completed'
+    }));
+    
+    // Process batch payment
+    return this.processBatchPayment(
+      payments,
+      cId
+    );
   }
 
   /**

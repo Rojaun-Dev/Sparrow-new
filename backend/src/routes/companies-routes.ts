@@ -10,11 +10,14 @@ import {
 import { CompanyInvitationsController } from '../controllers/company-invitations-controller';
 import { PreAlertsController } from '../controllers/pre-alerts-controller';
 import { checkJwt, checkRole } from '../middleware/auth';
+import { CompanyAssetsController } from '../controllers/company-assets-controller';
+import { Request, Response, NextFunction } from 'express';
 // import { checkJwt, checkRole } from '../middleware/auth';
 
 const router = express.Router();
 const companyInvitationsController = new CompanyInvitationsController();
 const preAlertsController = new PreAlertsController();
+const companyAssetsController = new CompanyAssetsController();
 
 // Apply JWT authentication to all routes
 // router.use(checkJwt); NOTE: enable this and checkRole when we have login and auth implemented fully
@@ -58,5 +61,37 @@ router.post(
 
 // Get pre-alerts by package ID
 router.get('/:companyId/packages/:packageId/prealerts', (req, res, next) => preAlertsController.getPreAlertsByPackageId(req as any, res, next));
+
+// Get current company for authenticated customer
+router.get('/me', /*checkRole(['customer']),*/ (req, res) => {
+  const companyId = req.companyId;
+  if (!companyId) {
+    return res.status(401).json({ success: false, message: 'No companyId in request' });
+  }
+  return getCompanyById({ ...req, params: { id: companyId } }, res);
+});
+
+// Get current company for authenticated admin
+router.get('/admin/me', /*checkRole(['admin_l1', 'admin_l2']),*/ (req, res) => {
+  const companyId = req.companyId;
+  if (!companyId) {
+    return res.status(401).json({ success: false, message: 'No companyId in request' });
+  }
+  return getCompanyById({ ...req, params: { id: companyId } }, res);
+});
+
+// Middleware to set req.companyId from params for asset routes
+function setCompanyIdFromParams(req: Request, res: Response, next: NextFunction) {
+  if ((req.params as any).companyId) {
+    (req as any).companyId = req.params.companyId;
+  }
+  next();
+}
+
+// Company assets (branding) endpoints
+router.get('/:companyId/assets', setCompanyIdFromParams, checkJwt, (req: Request, res: Response, next: NextFunction) => companyAssetsController.listAssets(req as any, res, next));
+router.post('/:companyId/assets', setCompanyIdFromParams, checkJwt, checkRole('admin_l2'), (req: Request, res: Response, next: NextFunction) => companyAssetsController.createAsset(req as any, res, next));
+router.put('/:companyId/assets/:id', setCompanyIdFromParams, checkJwt, checkRole('admin_l2'), (req: Request, res: Response, next: NextFunction) => companyAssetsController.updateAsset(req as any, res, next));
+router.delete('/:companyId/assets/:id', setCompanyIdFromParams, checkJwt, checkRole('admin_l2'), (req: Request, res: Response, next: NextFunction) => companyAssetsController.deleteAsset(req as any, res, next));
 
 export default router; 
