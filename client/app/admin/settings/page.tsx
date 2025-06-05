@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { CheckIcon, UploadCloud, Trash2 } from "lucide-react"
+import { CheckIcon, UploadCloud, Trash2, User } from "lucide-react"
 import { 
   Select,
   SelectContent,
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import Link from "next/link"
 
 // Mock company data
 const COMPANY_DATA = {
@@ -90,6 +91,27 @@ export default function CompanySettingsPage() {
           {isSaving ? "Saving..." : "Save Changes"}
           {saveSuccess && <CheckIcon className="ml-2 h-4 w-4" />}
         </Button>
+      </div>
+      {/* Profile Card */}
+      <div className="mb-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center">
+              <User className="mr-2 h-5 w-5 text-muted-foreground" />
+              Profile
+            </CardTitle>
+            <CardDescription>
+              Manage your personal information, security settings, and preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/admin/settings/profile">
+                Manage Profile
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

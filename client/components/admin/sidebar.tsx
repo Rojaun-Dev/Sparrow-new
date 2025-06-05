@@ -17,7 +17,9 @@ import {
   FileText, 
   Bell, 
   CreditCard,
-  Home
+  Home,
+  User,
+  LogOut
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -26,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/hooks/useAuth"
 
 interface NavItem {
   title: string
@@ -118,12 +121,18 @@ const navItems: NavItem[] = [
       { title: "Fee Management", href: "/admin/settings/fees" },
     ],
   },
+  {
+    title: "Profile",
+    href: "/admin/settings/profile",
+    icon: User,
+  },
 ]
 
 export function AdminSidebarDesktop() {
   const pathname = usePathname()
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const isAdminL2 = true
+  const { logout } = useAuth()
   const toggleSubmenu = (title: string) => setOpenSubmenu(openSubmenu === title ? null : title)
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const isSubmenuActive = (item: NavItem) => item.submenu?.some((subItem) => isActive(subItem.href)) || false
@@ -201,6 +210,11 @@ export function AdminSidebarDesktop() {
           ))}
         </nav>
       </ScrollArea>
+      <div className="p-4 border-t flex flex-col gap-2">
+        <Button variant="destructive" onClick={logout} className="w-full">
+          <LogOut className="mr-2 h-4 w-4" /> Sign Out
+        </Button>
+      </div>
     </div>
   )
 }
@@ -210,6 +224,7 @@ export function AdminSidebarMobile() {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const isAdminL2 = true
+  const { logout } = useAuth()
   const toggleSubmenu = (title: string) => setOpenSubmenu(openSubmenu === title ? null : title)
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const isSubmenuActive = (item: NavItem) => item.submenu?.some((subItem) => isActive(subItem.href)) || false

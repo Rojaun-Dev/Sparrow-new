@@ -2,7 +2,6 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { CustomerHeader } from "@/components/customer/header"
 import { CustomerSidebar } from "@/components/customer/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 import { useState } from "react"
@@ -18,7 +17,6 @@ export default function CustomerLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   return (
     <div className="flex min-h-screen flex-col">
-      <CustomerHeader onDrawerOpen={() => setSidebarOpen(true)} />
       <div className="flex flex-1">
         <CustomerSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">

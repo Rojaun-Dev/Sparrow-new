@@ -5,7 +5,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "../globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { SuperAdminHeader } from "@/components/superadmin/header"
 import { SuperAdminSidebar } from "@/components/superadmin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 import { useState } from "react"
@@ -21,7 +20,6 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   
   return (
     <div className="flex min-h-screen flex-col">
-      <SuperAdminHeader onDrawerOpen={() => setSidebarOpen(true)} />
       <div className="flex flex-1">
         <SuperAdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">
