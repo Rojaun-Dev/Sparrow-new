@@ -74,10 +74,43 @@ export function useProcessPayment() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ invoiceId, paymentData }: { invoiceId: string; paymentData: Partial<Payment> }) => 
-      paymentService.processPayment(invoiceId, paymentData),
+    mutationFn: ({ invoiceId, paymentData, sendNotification }: { invoiceId: string; paymentData: Partial<Payment>; sendNotification?: boolean }) => 
+      paymentService.processPayment(invoiceId, paymentData, sendNotification),
     onSuccess: (payment: Payment) => {
       // Update the invoice lists (since an invoice was paid)
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      
+      // Invalidate payments lists
+      queryClient.invalidateQueries({ queryKey: paymentKeys.lists() });
+    },
+  });
+}
+
+// Hook for processing batch payments
+export function useProcessBatchPayment() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (payments: any[]) => paymentService.processBatchPayment(payments),
+    onSuccess: () => {
+      // Update the invoice lists (since invoices were paid)
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      
+      // Invalidate payments lists
+      queryClient.invalidateQueries({ queryKey: paymentKeys.lists() });
+    },
+  });
+}
+
+// Hook for paying all outstanding invoices for a user
+export function usePayAllInvoices() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ userId, paymentMethod, notes }: { userId: string; paymentMethod: string; notes?: string }) => 
+      paymentService.payAllInvoices(userId, paymentMethod, notes),
+    onSuccess: () => {
+      // Update the invoice lists (since invoices were paid)
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       
       // Invalidate payments lists

@@ -56,7 +56,7 @@ export class InvoicesService {
       ...item,
       unitPrice: Number(item.unitPrice),
       lineTotal: Number(item.lineTotal),
-    }));
+    })) as any[];
     return { ...invoice, items };
   }
 
@@ -131,20 +131,25 @@ export class InvoicesService {
       throw AppError.notFound('Invoice not found');
     }
     
-    // Don't allow updates to finalized invoices
-    if (invoice.status !== 'draft') {
-      throw AppError.badRequest('Cannot update invoices that are not in draft status');
-    }
-    
-    // If changing user, verify the new user exists
-    if (validatedData.userId && validatedData.userId !== invoice.userId) {
-      const user = await this.usersRepository.findById(validatedData.userId, companyId);
-      if (!user) {
-        throw AppError.notFound('User not found');
+    // Allow full updates only for draft invoices
+    if (invoice.status === 'draft') {
+      // If changing user, verify the new user exists
+      if (validatedData.userId && validatedData.userId !== invoice.userId) {
+        const user = await this.usersRepository.findById(validatedData.userId, companyId);
+        if (!user) {
+          throw AppError.notFound('User not found');
+        }
       }
+      return this.invoicesRepository.update(id, validatedData, companyId);
     }
-    
-    return this.invoicesRepository.update(id, validatedData, companyId);
+
+    // For issued or overdue invoices, only allow status update to 'paid'
+    if ((invoice.status === 'issued' || invoice.status === 'overdue') && validatedData.status === 'paid') {
+      return this.invoicesRepository.update(id, { status: 'paid' }, companyId);
+    }
+
+    // Otherwise, do not allow updates
+    throw AppError.badRequest('Cannot update invoices unless they are in draft status (except marking issued/overdue invoices as paid)');
   }
 
   /**

@@ -28,6 +28,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AddPackageModal } from "@/components/packages/AddPackageModal";
 import { useGenerateInvoice } from '@/hooks/useInvoices';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { usePayAllInvoices } from '@/hooks/usePayments';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -129,6 +139,12 @@ export default function AdminCustomerViewPage() {
   const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
   const generateInvoice = useGenerateInvoice();
 
+  // Add state for Pay All Invoices modal
+  const [payAllInvoicesOpen, setPayAllInvoicesOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("credit_card");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const payAllInvoicesMutation = usePayAllInvoices();
+
   // Handlers for action buttons
   const handleAddPackage = useCallback(() => {
     setAddPackageOpen(true);
@@ -139,10 +155,8 @@ export default function AdminCustomerViewPage() {
     // router.refresh(); // Uncomment when API call is implemented
   }, [toast]);
   const handleMakePayment = useCallback(() => {
-    // TODO: Open make payment modal or redirect
-    toast({ title: 'Make Payment', description: 'Open make payment modal/form (not implemented).' });
-    // router.refresh(); // Uncomment when API call is implemented
-  }, [toast]);
+    setPayAllInvoicesOpen(true);
+  }, []);
   const handleGenerateInvoice = useCallback(() => {
     router.push(`/admin/invoices/create?customerId=${userId}`);
   }, [router, userId]);
@@ -266,6 +280,55 @@ export default function AdminCustomerViewPage() {
   const handleQuickInvoice = (packageId: string) => {
     setQuickInvoicePackageId(packageId);
     setQuickInvoiceOpen(true);
+  };
+
+  // Handle paying all invoices
+  const handlePayAllInvoices = () => {
+    if (!userId) return;
+    
+    payAllInvoicesMutation.mutate(
+      {
+        userId,
+        paymentMethod,
+        notes: paymentNotes
+      },
+      {
+        onSuccess: (result) => {
+          // Check result structure
+          if (result.results && result.results.length > 0) {
+            toast({
+              title: "Payments processed",
+              description: `Successfully processed ${result.results.length} invoice payments.`,
+              variant: "default"
+            });
+          } else {
+            toast({
+              title: "No payments processed",
+              description: result.message || "No outstanding invoices found or all payments failed.",
+              variant: "default"
+            });
+          }
+          
+          // Close the modal
+          setPayAllInvoicesOpen(false);
+          
+          // Reset form
+          setPaymentMethod("credit_card");
+          setPaymentNotes("");
+          
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+        },
+        onError: (error: any) => {
+          toast({
+            title: "Payment processing failed",
+            description: error.message || "Failed to process payments for outstanding invoices.",
+            variant: "destructive"
+          });
+        }
+      }
+    );
   };
 
   // Loading/error states
@@ -729,6 +792,51 @@ export default function AdminCustomerViewPage() {
             </Button>
             <Button variant="outline" onClick={() => setQuickInvoiceOpen(false)} disabled={generateInvoice.isPending}>
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay All Invoices Dialog */}
+      <Dialog open={payAllInvoicesOpen} onOpenChange={setPayAllInvoicesOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Pay All Outstanding Invoices</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="paymentMethod">Payment Method</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger id="paymentMethod">
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="check">Check</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="paymentNotes">Notes (Optional)</Label>
+              <Textarea
+                id="paymentNotes"
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                placeholder="Add payment notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayAllInvoicesOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handlePayAllInvoices} 
+              disabled={payAllInvoicesMutation.isPending}
+            >
+              {payAllInvoicesMutation.isPending ? "Processing..." : "Pay All Invoices"}
             </Button>
           </DialogFooter>
         </DialogContent>

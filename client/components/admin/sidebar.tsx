@@ -86,7 +86,7 @@ const navItems: NavItem[] = [
     submenu: [
       { title: "All Invoices", href: "/admin/invoices" },
       { title: "Create Invoice", href: "/admin/invoices/create" },
-      { title: "Payment Historry", href: "/admin/payments", comingSoon: true },
+      { title: "Payment Historry", href: "/admin/payments" },
     ],
   },
   {

@@ -452,12 +452,13 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             </CardContent>
             {invoice.status !== "paid" && (
               <CardFooter className="border-t px-6 pt-4">
-                <Button className="w-full" asChild>
-                  <Link href={`/customer/invoices/${invoice.id}/pay`}>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Pay Now
-                  </Link>
+                <Button className="w-full" disabled variant="outline">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Pay Now (Coming Soon)
                 </Button>
+                <div className="text-xs text-muted-foreground text-center mt-2">
+                  Online payments are not yet available. Please pay in person or contact support.
+                </div>
               </CardFooter>
             )}
           </Card>
