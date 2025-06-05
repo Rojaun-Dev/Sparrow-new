@@ -4,42 +4,20 @@ import { z } from 'zod';
 import { format as csvFormat } from 'fast-csv';
 import { PassThrough } from 'stream';
 import { ApiResponse } from '../utils/response';
-import { EmailService } from '../services/email-service';
 import { UsersService } from '../services/users-service';
-import { CompaniesService } from '../services/companies-service';
+import { createPaymentSchema, batchPaymentSchema } from '../validation/payment-schemas';
 
 interface AuthRequest extends Request {
   companyId?: string;
 }
 
-// Define validation schema for payment creation
-const createPaymentSchema = z.object({
-  invoiceId: z.string().uuid(),
-  userId: z.string().uuid(),
-  amount: z.number().positive(),
-  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check']),
-  transactionId: z.string().optional(),
-  paymentDate: z.date().optional(),
-  notes: z.string().optional(),
-});
-
-// Define validation schema for batch payment creation
-const batchPaymentSchema = z.object({
-  payments: z.array(createPaymentSchema),
-  sendNotification: z.boolean().optional(),
-});
-
 export class PaymentsController {
   private paymentsService: PaymentsService;
-  private emailService: EmailService;
   private usersService: UsersService;
-  private companiesService: CompaniesService;
 
   constructor() {
     this.paymentsService = new PaymentsService();
-    this.emailService = new EmailService();
     this.usersService = new UsersService();
-    this.companiesService = new CompaniesService();
   }
 
   /**
@@ -120,7 +98,6 @@ export class PaymentsController {
       if (sendNotification && payment && payment.userId) {
         try {
           const user = await this.usersService.getUserById(payment.userId, companyId);
-          const company = await this.companiesService.getCompanyById(companyId);
           
           if (user && 
               user.email && 

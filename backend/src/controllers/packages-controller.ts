@@ -431,6 +431,7 @@ export class PackagesController {
       return res.json({ success: true, data: packages });
     } catch (error) {
       next(error);
+      return undefined;
     }
   };
 } 

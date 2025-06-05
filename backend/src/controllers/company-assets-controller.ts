@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { CompanyAssetsService, createAssetSchema } from '../services/company-assets-service';
+import { CompanyAssetsService } from '../services/company-assets-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
@@ -28,6 +28,7 @@ export class CompanyAssetsController {
     } catch (error) {
       console.error('Error listing assets:', error);
       next(error);
+      return undefined;
     }
   };
 
@@ -49,6 +50,7 @@ export class CompanyAssetsController {
         return res.status(400).json({ success: false, message: 'Validation error', details: (error as any).errors });
       }
       next(error);
+      return undefined;
     }
   };
 
@@ -72,6 +74,7 @@ export class CompanyAssetsController {
         return res.status(400).json({ success: false, message: 'Validation error', details: (error as any).errors });
       }
       next(error);
+      return undefined;
     }
   };
 
@@ -91,6 +94,7 @@ export class CompanyAssetsController {
     } catch (error) {
       console.error('Error deleting asset:', error);
       next(error);
+      return undefined;
     }
   };
 } 

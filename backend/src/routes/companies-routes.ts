@@ -63,25 +63,25 @@ router.post(
 router.get('/:companyId/packages/:packageId/prealerts', (req, res, next) => preAlertsController.getPreAlertsByPackageId(req as any, res, next));
 
 // Get current company for authenticated customer
-router.get('/me', /*checkRole(['customer']),*/ (req, res) => {
+router.get('/me', /*checkRole(['customer']),*/ (req: any, res) => {
   const companyId = req.companyId;
   if (!companyId) {
     return res.status(401).json({ success: false, message: 'No companyId in request' });
   }
-  return getCompanyById({ ...req, params: { id: companyId } }, res);
+  return getCompanyById({ ...req, params: { id: companyId } } as any, res);
 });
 
 // Get current company for authenticated admin
-router.get('/admin/me', /*checkRole(['admin_l1', 'admin_l2']),*/ (req, res) => {
+router.get('/admin/me', /*checkRole(['admin_l1', 'admin_l2']),*/ (req: any, res) => {
   const companyId = req.companyId;
   if (!companyId) {
     return res.status(401).json({ success: false, message: 'No companyId in request' });
   }
-  return getCompanyById({ ...req, params: { id: companyId } }, res);
+  return getCompanyById({ ...req, params: { id: companyId } } as any, res);
 });
 
 // Middleware to set req.companyId from params for asset routes
-function setCompanyIdFromParams(req: Request, res: Response, next: NextFunction) {
+function setCompanyIdFromParams(req: Request, _: Response, next: NextFunction) {
   if ((req.params as any).companyId) {
     (req as any).companyId = req.params.companyId;
   }

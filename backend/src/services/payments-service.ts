@@ -44,10 +44,13 @@ export class PaymentsService extends BaseService<typeof payments> {
     const validatedData = createPaymentSchema.parse(data);
     
     // Check if the invoice exists and belongs to the given company
-    const invoice = await this.invoicesService.getInvoiceById(validatedData.invoiceId, companyId);
+    const invoiceData = await this.invoicesService.getInvoiceById(validatedData.invoiceId, companyId);
+    
+    // The invoice object may include both invoice properties and items
+    const invoice = invoiceData as any;
     
     // Verify that the invoice is in a valid state for payment
-    if (invoice.status !== 'issued' && invoice.status !== 'overdue') {
+    if (!invoice || invoice.status !== 'issued' && invoice.status !== 'overdue') {
       throw new Error('Cannot process payment for an invoice that is not issued or overdue');
     }
     
@@ -97,17 +100,18 @@ export class PaymentsService extends BaseService<typeof payments> {
     }, companyId);
     
     // Get the invoice
-    const invoice = await this.invoicesService.getInvoiceById(payment.invoiceId, companyId);
+    const invoiceData = await this.invoicesService.getInvoiceById(payment.invoiceId, companyId);
+    const invoice = invoiceData as any;
     
     // Calculate total paid for this invoice
-    const allPayments = await this.paymentsRepository.findByInvoiceId(invoice.id, companyId);
+    const allPayments = await this.paymentsRepository.findByInvoiceId(payment.invoiceId, companyId);
     const completedPayments = allPayments.filter(p => p.status === 'completed');
     const totalPaid = completedPayments.reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
     
     // Check if invoice is fully paid
-    if (totalPaid >= parseFloat(invoice.totalAmount.toString())) {
+    if (invoice && totalPaid >= parseFloat(invoice.totalAmount?.toString() || '0')) {
       // Update invoice status to paid
-      await this.invoicesService.updateInvoice(invoice.id, {
+      await this.invoicesService.updateInvoice(payment.invoiceId, {
         status: 'paid',
       }, companyId);
     }
