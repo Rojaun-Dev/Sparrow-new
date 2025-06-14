@@ -1,8 +1,8 @@
 "use client"
 
-import { use } from "react"
+import { use, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, CreditCard, Download, ExternalLink, FileText, Printer } from "lucide-react"
+import { ArrowLeft, AlertCircle, CreditCard, Download, ExternalLink, FileText, Printer } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { 
@@ -22,6 +22,9 @@ import { useUser } from "@/hooks/useUsers"
 import { useMyCompany } from "@/hooks/useCompanies"
 import InvoicePDFRenderer from "@/components/invoices/InvoicePDFRenderer"
 import { Skeleton } from "@/components/ui/skeleton"
+import { usePayWiPay } from "@/hooks/usePayWiPay"
+import { useCompanySettings } from "@/hooks/useCompanySettings"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -63,6 +66,74 @@ function CompanyNameDisplay({ companyId }: { companyId: string }) {
   }
   
   return <p className="text-base">{company.name}</p>;
+}
+
+// PayNowButton component
+function PayNowButton({ invoice }: { invoice: any }) {
+  const { initiate, isLoading, error } = usePayWiPay();
+  const { company } = useCompanySettings();
+  const [showError, setShowError] = useState(false);
+  
+  // Check if WiPay is enabled in company settings
+  const isWiPayEnabled = company?.paymentSettings?.wipay?.enabled;
+  
+  const handlePayment = async () => {
+    if (!isWiPayEnabled) {
+      setShowError(true);
+      return;
+    }
+    
+    try {
+      await initiate({
+        invoiceId: invoice.id,
+        origin: 'SparrowX-Customer-Portal'
+      });
+    } catch (err) {
+      console.error("Payment initiation error:", err);
+      setShowError(true);
+    }
+  };
+  
+  if (!isWiPayEnabled) {
+    return (
+      <div className="space-y-3 w-full">
+        <Button className="w-full" variant="outline" disabled>
+          <CreditCard className="mr-2 h-4 w-4" />
+          Online Payment Not Available
+        </Button>
+        <div className="text-xs text-muted-foreground text-center">
+          Online payments are not enabled. Please pay in person or contact support.
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-3 w-full">
+      {showError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error || "There was a problem initiating the payment. Please try again or contact support."}
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      <Button 
+        className="w-full" 
+        onClick={handlePayment} 
+        disabled={isLoading}
+      >
+        <CreditCard className="mr-2 h-4 w-4" />
+        {isLoading ? "Processing..." : "Pay Now"}
+      </Button>
+      
+      <div className="text-xs text-muted-foreground text-center">
+        Secure payment processing provided by WiPay
+      </div>
+    </div>
+  );
 }
 
 export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -452,13 +523,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             </CardContent>
             {invoice.status !== "paid" && (
               <CardFooter className="border-t px-6 pt-4">
-                <Button className="w-full" disabled variant="outline">
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Pay Now (Coming Soon)
-                </Button>
-                <div className="text-xs text-muted-foreground text-center mt-2">
-                  Online payments are not yet available. Please pay in person or contact support.
-                </div>
+                <PayNowButton invoice={invoice} />
               </CardFooter>
             )}
           </Card>

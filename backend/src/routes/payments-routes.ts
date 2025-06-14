@@ -29,6 +29,19 @@ router.post(
   paymentsController.processBatchPayment
 );
 
+// Create WiPay payment request
+router.post(
+  '/wipay/request',
+  /*checkRole(['admin_l1', 'admin_l2', 'customer']),*/
+  paymentsController.createWiPayRequest
+);
+
+// Handle WiPay callback
+router.post(
+  '/wipay/callback',
+  paymentsController.handleWiPayCallback
+);
+
 // Get payment by ID
 router.get(
   '/:id',

@@ -6,12 +6,9 @@ export const companySettings = pgTable('company_settings', {
   companyId: uuid('company_id').notNull().references(() => companies.id, {
     onDelete: 'cascade',
   }).unique(), // One settings record per company
-  shippingRates: jsonb('shipping_rates').default({}),
-  handlingFees: jsonb('handling_fees').default({}),
-  customsFees: jsonb('customs_fees').default({}),
-  taxRates: jsonb('tax_rates').default({}),
   notificationSettings: jsonb('notification_settings').default({}),
   themeSettings: jsonb('theme_settings').default({}),
+  paymentSettings: jsonb('payment_settings').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }); 

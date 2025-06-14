@@ -90,8 +90,7 @@ export class SuperAdminCompanyService {
    * Update a company
    */
   async updateCompany(id: string, data: Partial<CompanyData>): Promise<CompanyData> {
-    const url = `/superadmin/companies/${id}`;
-    return this.apiClient.put<CompanyData>(url, data);
+    return this.apiClient.put<CompanyData>(`/admin/companies/${id}`, data);
   }
 
   /**

@@ -3,13 +3,15 @@ import { PaymentsRepository } from '../repositories/payments-repository';
 import { payments } from '../db/schema/payments';
 import { InvoicesService } from './invoices-service';
 import { z } from 'zod';
+import { CompanySettingsService } from './company-settings-service';
+import axios from 'axios';
 
 // Define validation schema for payment creation
 const createPaymentSchema = z.object({
   invoiceId: z.string().uuid(),
   userId: z.string().uuid(),
   amount: z.number().positive(),
-  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check']),
+  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check', 'online']),
   transactionId: z.string().optional(),
   paymentDate: z.date().optional(),
   notes: z.string().optional(),
@@ -18,22 +20,31 @@ const createPaymentSchema = z.object({
 // Define validation schema for payment update
 const updatePaymentSchema = z.object({
   amount: z.number().positive().optional(),
-  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check']).optional(),
+  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check', 'online']).optional(),
   status: z.enum(['pending', 'completed', 'failed', 'refunded']).optional(),
   transactionId: z.string().optional(),
   paymentDate: z.date().optional(),
   notes: z.string().optional(),
 });
 
+// Define validation schema for WiPay request
+const wiPayRequestSchema = z.object({
+  invoiceId: z.string().uuid(),
+  responseUrl: z.string().url(),
+  origin: z.string(),
+});
+
 export class PaymentsService extends BaseService<typeof payments> {
   private invoicesService: InvoicesService;
   private paymentsRepository: PaymentsRepository;
+  private companySettingsService: CompanySettingsService;
 
   constructor() {
     const repository = new PaymentsRepository();
     super(repository);
     this.paymentsRepository = repository;
     this.invoicesService = new InvoicesService();
+    this.companySettingsService = new CompanySettingsService();
   }
 
   /**
@@ -185,6 +196,148 @@ export class PaymentsService extends BaseService<typeof payments> {
     }
   ) {
     return this.paymentsRepository.search(companyId, searchParams);
+  }
+
+  /**
+   * Creates a payment request to WiPay
+   */
+  async createWiPayRequest(data: any, companyId: string) {
+    // Validate data
+    const validatedData = wiPayRequestSchema.parse(data);
+    
+    // Get WiPay settings
+    const paymentSettings = await this.companySettingsService.getPaymentSettings(companyId);
+    
+    if (!paymentSettings.wipay || !paymentSettings.wipay.enabled) {
+      throw new Error('WiPay is not enabled for this company');
+    }
+    
+    if (!paymentSettings.wipay.accountNumber) {
+      throw new Error('WiPay account number is not configured');
+    }
+    
+    // Get invoice details
+    const invoice = await this.invoicesService.getInvoiceById(validatedData.invoiceId, companyId);
+    
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+    
+    if (invoice.status !== 'issued' && invoice.status !== 'overdue') {
+      throw new Error('Cannot process payment for an invoice that is not issued or overdue');
+    }
+    
+    // Create temporary payment record in pending state
+    const payment = await this.paymentsRepository.create({
+      invoiceId: validatedData.invoiceId,
+      userId: invoice.userId,
+      amount: invoice.totalAmount,
+      paymentMethod: 'online',
+      status: 'pending',
+      paymentDate: new Date(),
+      notes: 'WiPay payment initiated',
+    }, companyId);
+    
+    // Prepare WiPay request
+    const wiPayParams = {
+      account_number: paymentSettings.wipay.accountNumber,
+      avs: 0, // Address Verification Service disabled
+      country_code: paymentSettings.wipay.countryCode || 'TT',
+      currency: paymentSettings.wipay.currency || 'TTD',
+      environment: paymentSettings.wipay.environment || 'sandbox',
+      fee_structure: paymentSettings.wipay.feeStructure || 'customer_pay',
+      method: 'credit_card',
+      order_id: `inv_${validatedData.invoiceId}_pay_${payment.id}`,
+      origin: validatedData.origin,
+      response_url: validatedData.responseUrl,
+      total: invoice.totalAmount.toFixed(2),
+    };
+    
+    try {
+      // Determine API URL based on country_code
+      const countryCode = paymentSettings.wipay.countryCode?.toLowerCase() || 'tt';
+      const apiUrl = `https://${countryCode}.wipayfinancial.com/plugins/payments/request`;
+      
+      // Make request to WiPay
+      const response = await axios.post(apiUrl, wiPayParams, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      
+      // Update payment record with transaction details
+      await this.update(payment.id, {
+        transactionId: response.data.transaction_id || null,
+        notes: `WiPay payment initiated. Transaction ID: ${response.data.transaction_id || 'Not provided'}`,
+      }, companyId);
+      
+      return {
+        paymentId: payment.id,
+        redirectUrl: response.data.url,
+        transactionId: response.data.transaction_id,
+      };
+    } catch (error) {
+      console.error('WiPay payment request failed:', error);
+      
+      // Update payment record to failed state
+      await this.update(payment.id, {
+        status: 'failed',
+        notes: `WiPay payment request failed: ${error.message || 'Unknown error'}`,
+      }, companyId);
+      
+      throw new Error(`WiPay payment request failed: ${error.message || 'Unknown error'}`);
+    }
+  }
+  
+  /**
+   * Handle WiPay callback after payment is processed
+   */
+  async handleWiPayCallback(callbackData: any, companyId: string) {
+    // Extract order_id from callback data which contains invoice and payment IDs
+    const orderId = callbackData.order_id;
+    
+    if (!orderId || !orderId.includes('_pay_')) {
+      throw new Error('Invalid order ID format in callback');
+    }
+    
+    // Extract payment ID from order_id
+    const paymentId = orderId.split('_pay_')[1];
+    
+    if (!paymentId) {
+      throw new Error('Could not extract payment ID from order ID');
+    }
+    
+    // Get the payment
+    const payment = await this.getById(paymentId, companyId);
+    
+    if (!payment) {
+      throw new Error('Payment not found');
+    }
+    
+    // Process based on status
+    if (callbackData.status === 'success' || callbackData.status === 'completed') {
+      // Update payment to completed status
+      await this.completePayment(paymentId, companyId);
+      
+      return {
+        success: true,
+        payment: await this.getById(paymentId, companyId),
+        message: 'Payment completed successfully',
+      };
+    } else {
+      // Update payment to failed status
+      await this.update(paymentId, {
+        status: 'failed',
+        notes: `WiPay payment failed. Status: ${callbackData.status}, Message: ${callbackData.message || 'No message provided'}`,
+      }, companyId);
+      
+      return {
+        success: false,
+        payment: await this.getById(paymentId, companyId),
+        message: callbackData.message || 'Payment processing failed',
+      };
+    }
   }
 
   async exportPaymentsCsv(companyId: string, filters: any = {}) {

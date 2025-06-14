@@ -21,6 +21,10 @@ import { useCompanySettings } from "@/hooks/useCompanySettings"
 import { useCompanyAssets } from "@/hooks/useCompanyAssets"
 import { useAuth } from "@/hooks/useAuth"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { apiClient } from "@/lib/api/apiClient"
 
 export default function CompanySettingsPage() {
   const { user } = useAuth();
@@ -38,6 +42,7 @@ export default function CompanySettingsPage() {
     website: "",
     locations: [] as string[],
     bankInfo: "",
+    paymentSettings: {} as any,
   });
   
   const [activeTab, setActiveTab] = useState("general")
@@ -70,7 +75,8 @@ export default function CompanySettingsPage() {
           prev.address === company.address &&
           prev.website === company.website &&
           prev.bankInfo === company.bankInfo &&
-          JSON.stringify(prev.locations) === JSON.stringify(company.locations || [])
+          JSON.stringify(prev.locations) === JSON.stringify(company.locations || []) &&
+          JSON.stringify(prev.paymentSettings) === JSON.stringify(company.paymentSettings || {})
         ) {
           return prev;
         }
@@ -85,6 +91,7 @@ export default function CompanySettingsPage() {
           website: company.website || "",
           locations: company.locations || [],
           bankInfo: company.bankInfo || "",
+          paymentSettings: company.paymentSettings || {},
         };
       });
     }
@@ -109,6 +116,24 @@ export default function CompanySettingsPage() {
       });
     }
   }, [getAssetByType]);
+  
+  useEffect(() => {
+    async function fetchCompanySettings() {
+      try {
+        const settings: any = await apiClient.get('/company-settings');
+        if (settings?.paymentSettings) {
+          setCompanyData(prev => ({
+            ...prev,
+            paymentSettings: settings.paymentSettings
+          }));
+        }
+      } catch (err) {
+        // Optionally handle error
+        console.error('Failed to load company settings:', err);
+      }
+    }
+    fetchCompanySettings();
+  }, []);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -202,6 +227,12 @@ export default function CompanySettingsPage() {
           favicon: null,
           banner: null,
         });
+      }
+      
+      // Update payment settings
+      if (activeTab === "payment") {
+        const response = await apiClient.put(`/company-settings/payment`, companyData.paymentSettings);
+        console.log("Payment settings updated:", response);
       }
       
       setSaveSuccess(true);
@@ -670,20 +701,220 @@ export default function CompanySettingsPage() {
                 Configure payment methods and processing options
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <p className="text-muted-foreground">
-                        Payment configuration will be implemented in the next phase.
+            <CardContent className="space-y-6">
+              {/* WiPay Integration */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">WiPay Integration</h3>
+                  <Switch 
+                    checked={companyData.paymentSettings?.wipay?.enabled || false}
+                    onCheckedChange={(checked) => {
+                      setCompanyData(prev => ({
+                        ...prev,
+                        paymentSettings: {
+                          ...prev.paymentSettings || {},
+                          wipay: {
+                            ...(prev.paymentSettings?.wipay || {}),
+                            enabled: checked
+                          }
+                        }
+                      }));
+                    }}
+                    disabled={!isAdminL2}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Enable WiPay payment gateway to accept online payments from your customers
+                </p>
+                
+                <Separator />
+                
+                {companyData.paymentSettings?.wipay?.enabled && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="accountNumber">Account Number</Label>
+                        <Input 
+                          id="accountNumber"
+                          value={companyData.paymentSettings?.wipay?.accountNumber || ''}
+                          onChange={(e) => {
+                            setCompanyData(prev => ({
+                              ...prev,
+                              paymentSettings: {
+                                ...prev.paymentSettings || {},
+                                wipay: {
+                                  ...(prev.paymentSettings?.wipay || {}),
+                                  accountNumber: e.target.value
+                                }
+                              }
+                            }));
+                          }}
+                          disabled={!isAdminL2}
+                          placeholder="Your WiPay account number"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="apiKey">API Key</Label>
+                        <Input 
+                          id="apiKey"
+                          type="password"
+                          value={companyData.paymentSettings?.wipay?.apiKey || ''}
+                          onChange={(e) => {
+                            setCompanyData(prev => ({
+                              ...prev,
+                              paymentSettings: {
+                                ...prev.paymentSettings || {},
+                                wipay: {
+                                  ...(prev.paymentSettings?.wipay || {}),
+                                  apiKey: e.target.value
+                                }
+                              }
+                            }));
+                          }}
+                          disabled={!isAdminL2}
+                          placeholder="Your WiPay API key"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="countryCode">Country Code</Label>
+                        <Select 
+                          value={companyData.paymentSettings?.wipay?.countryCode || 'TT'}
+                          onValueChange={(value) => {
+                            setCompanyData(prev => ({
+                              ...prev,
+                              paymentSettings: {
+                                ...prev.paymentSettings || {},
+                                wipay: {
+                                  ...(prev.paymentSettings?.wipay || {}),
+                                  countryCode: value
+                                }
+                              }
+                            }));
+                          }}
+                          disabled={!isAdminL2}
+                        >
+                          <SelectTrigger id="countryCode">
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TT">Trinidad and Tobago (TT)</SelectItem>
+                            <SelectItem value="BB">Barbados (BB)</SelectItem>
+                            <SelectItem value="JM">Jamaica (JM)</SelectItem>
+                            <SelectItem value="GY">Guyana (GY)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="currency">Currency</Label>
+                        <Select 
+                          value={companyData.paymentSettings?.wipay?.currency || 'TTD'}
+                          onValueChange={(value) => {
+                            setCompanyData(prev => ({
+                              ...prev,
+                              paymentSettings: {
+                                ...prev.paymentSettings || {},
+                                wipay: {
+                                  ...(prev.paymentSettings?.wipay || {}),
+                                  currency: value
+                                }
+                              }
+                            }));
+                          }}
+                          disabled={!isAdminL2}
+                        >
+                          <SelectTrigger id="currency">
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TTD">Trinidad and Tobago Dollar (TTD)</SelectItem>
+                            <SelectItem value="USD">US Dollar (USD)</SelectItem>
+                            <SelectItem value="JMD">Jamaican Dollar (JMD)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="environment">Environment</Label>
+                        <Select 
+                          value={companyData.paymentSettings?.wipay?.environment || 'sandbox'}
+                          onValueChange={(value) => {
+                            setCompanyData(prev => ({
+                              ...prev,
+                              paymentSettings: {
+                                ...prev.paymentSettings || {},
+                                wipay: {
+                                  ...(prev.paymentSettings?.wipay || {}),
+                                  environment: value as 'sandbox' | 'live'
+                                }
+                              }
+                            }));
+                          }}
+                          disabled={!isAdminL2}
+                        >
+                          <SelectTrigger id="environment">
+                            <SelectValue placeholder="Select environment" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                            <SelectItem value="live">Live (Production)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="feeStructure">Fee Structure</Label>
+                        <Select 
+                          value={companyData.paymentSettings?.wipay?.feeStructure || 'customer_pay'}
+                          onValueChange={(value) => {
+                            setCompanyData(prev => ({
+                              ...prev,
+                              paymentSettings: {
+                                ...prev.paymentSettings || {},
+                                wipay: {
+                                  ...(prev.paymentSettings?.wipay || {}),
+                                  feeStructure: value as 'customer_pay' | 'merchant_absorb' | 'split'
+                                }
+                              }
+                            }));
+                          }}
+                          disabled={!isAdminL2}
+                        >
+                          <SelectTrigger id="feeStructure">
+                            <SelectValue placeholder="Select fee structure" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="customer_pay">Customer Pays Fees</SelectItem>
+                            <SelectItem value="merchant_absorb">Merchant Absorbs Fees</SelectItem>
+                            <SelectItem value="split">Split Fees</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Important</AlertTitle>
+                      <AlertDescription>
+                        Make sure your WiPay account is properly set up and verified before enabling online payments.
+                      </AlertDescription>
+                    </Alert>
+                    
+                    <div className="bg-muted p-4 rounded-md">
+                      <h4 className="font-medium mb-2">Fee Structure Information</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Choose how payment processing fees are handled:
                       </p>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>This feature is coming soon!</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                      <ul className="text-sm space-y-1 text-muted-foreground">
+                        <li><strong>Customer Pays Fees:</strong> Processing fees are added to the customer's total.</li>
+                        <li><strong>Merchant Absorbs Fees:</strong> Your business covers all processing fees.</li>
+                        <li><strong>Split Fees:</strong> Processing fees are shared between customer and merchant.</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -54,94 +54,6 @@ export class CompanySettingsController {
   };
 
   /**
-   * Update shipping rates
-   */
-  updateShippingRates = async (req: AuthRequest, res: Response): Promise<Response | void> => {
-    try {
-      const companyId = req.companyId;
-      if (!companyId) {
-        return res.status(400).json({ error: 'Company ID is required' });
-      }
-      
-      const settings = await this.companySettingsService.updateShippingRates(req.body, companyId);
-      return res.json(settings);
-    } catch (error) {
-      console.error('Error updating shipping rates:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid shipping rates data', details: error.errors });
-      } else {
-        return res.status(500).json({ error: 'Failed to update shipping rates' });
-      }
-    }
-  };
-
-  /**
-   * Update handling fees
-   */
-  updateHandlingFees = async (req: AuthRequest, res: Response): Promise<Response | void> => {
-    try {
-      const companyId = req.companyId;
-      if (!companyId) {
-        return res.status(400).json({ error: 'Company ID is required' });
-      }
-      
-      const settings = await this.companySettingsService.updateHandlingFees(req.body, companyId);
-      return res.json(settings);
-    } catch (error) {
-      console.error('Error updating handling fees:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid handling fees data', details: error.errors });
-      } else {
-        return res.status(500).json({ error: 'Failed to update handling fees' });
-      }
-    }
-  };
-
-  /**
-   * Update customs fees
-   */
-  updateCustomsFees = async (req: AuthRequest, res: Response): Promise<Response | void> => {
-    try {
-      const companyId = req.companyId;
-      if (!companyId) {
-        return res.status(400).json({ error: 'Company ID is required' });
-      }
-      
-      const settings = await this.companySettingsService.updateCustomsFees(req.body, companyId);
-      return res.json(settings);
-    } catch (error) {
-      console.error('Error updating customs fees:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid customs fees data', details: error.errors });
-      } else {
-        return res.status(500).json({ error: 'Failed to update customs fees' });
-      }
-    }
-  };
-
-  /**
-   * Update tax rates
-   */
-  updateTaxRates = async (req: AuthRequest, res: Response): Promise<Response | void> => {
-    try {
-      const companyId = req.companyId;
-      if (!companyId) {
-        return res.status(400).json({ error: 'Company ID is required' });
-      }
-      
-      const settings = await this.companySettingsService.updateTaxRates(req.body, companyId);
-      return res.json(settings);
-    } catch (error) {
-      console.error('Error updating tax rates:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid tax rates data', details: error.errors });
-      } else {
-        return res.status(500).json({ error: 'Failed to update tax rates' });
-      }
-    }
-  };
-
-  /**
    * Update notification settings
    */
   updateNotificationSettings = async (req: AuthRequest, res: Response): Promise<Response | void> => {
@@ -186,33 +98,42 @@ export class CompanySettingsController {
   };
 
   /**
-   * Calculate shipping cost
+   * Get payment settings
    */
-  calculateShippingCost = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+  getPaymentSettings = async (req: AuthRequest, res: Response): Promise<Response | void> => {
     try {
       const companyId = req.companyId;
       if (!companyId) {
         return res.status(400).json({ error: 'Company ID is required' });
       }
       
-      const { weight, expressShipping, location } = req.body;
-      
-      if (typeof weight !== 'number' || weight <= 0) {
-        return res.status(400).json({ error: 'Valid weight must be provided' });
+      const paymentSettings = await this.companySettingsService.getPaymentSettings(companyId);
+      return res.json(paymentSettings);
+    } catch (error) {
+      console.error('Error fetching payment settings:', error);
+      return res.status(500).json({ error: 'Failed to retrieve payment settings' });
+    }
+  };
+
+  /**
+   * Update payment settings
+   */
+  updatePaymentSettings = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+    try {
+      const companyId = req.companyId;
+      if (!companyId) {
+        return res.status(400).json({ error: 'Company ID is required' });
       }
       
-      const cost = await this.companySettingsService.calculateShippingCost(
-        companyId,
-        weight,
-        expressShipping,
-        location
-      );
-      
-      return res.json({ cost });
+      const settings = await this.companySettingsService.updatePaymentSettings(req.body, companyId);
+      return res.json(settings);
     } catch (error) {
-      console.error('Error calculating shipping cost:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return res.status(500).json({ error: 'Failed to calculate shipping cost', message: errorMessage });
+      console.error('Error updating payment settings:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid payment settings data', details: error.errors });
+      } else {
+        return res.status(500).json({ error: 'Failed to update payment settings' });
+      }
     }
   };
 

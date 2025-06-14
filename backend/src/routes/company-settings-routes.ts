@@ -29,32 +29,18 @@ router.put(
   companySettingsController.updateCompanySettings
 );
 
-// Update shipping rates
-router.put(
-  '/shipping-rates',
-  /*checkRole(['admin_l2']),*/
-  companySettingsController.updateShippingRates
+// Get payment settings
+router.get(
+  '/payment',
+  /*checkRole(['admin_l1', 'admin_l2']),*/
+  companySettingsController.getPaymentSettings
 );
 
-// Update handling fees
+// Update payment settings
 router.put(
-  '/handling-fees',
+  '/payment',
   /*checkRole(['admin_l2']),*/
-  companySettingsController.updateHandlingFees
-);
-
-// Update customs fees
-router.put(
-  '/customs-fees',
-  /*checkRole(['admin_l2']),*/
-  companySettingsController.updateCustomsFees
-);
-
-// Update tax rates
-router.put(
-  '/tax-rates',
-  /*checkRole(['admin_l2']),*/
-  companySettingsController.updateTaxRates
+  companySettingsController.updatePaymentSettings
 );
 
 // Update notification settings
@@ -69,13 +55,6 @@ router.put(
   '/theme',
   /*checkRole(['admin_l2']),*/
   companySettingsController.updateThemeSettings
-);
-
-// Calculate shipping cost
-router.post(
-  '/calculate-shipping',
-  /*checkRole(['admin_l1', 'admin_l2', 'customer']),*/
-  companySettingsController.calculateShippingCost
 );
 
 export default router; 

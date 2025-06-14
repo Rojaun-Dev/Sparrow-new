@@ -15,6 +15,14 @@ export function useCompanySettings() {
     mutationFn: async (data: any) => {
       const companyId = companyQuery.data?.id;
       if (!companyId) throw new Error("Company ID not found");
+      
+      // Check if we're updating payment settings
+      if (data.paymentSettings) {
+        // Use the dedicated payment settings endpoint
+        return apiClient.put(`/company-settings/payment`, data.paymentSettings);
+      }
+      
+      // Otherwise use the regular company update endpoint
       return apiClient.put(`/companies/${companyId}`, data);
     },
     onSuccess: () => {

@@ -38,86 +38,6 @@ export class CompanySettingsRepository extends BaseRepository<typeof companySett
   }
 
   /**
-   * Update shipping rates for a company
-   */
-  async updateShippingRates(companyId: string, shippingRates: any) {
-    const settings = await this.findByCompanyId(companyId);
-    
-    if (!settings) {
-      // Create new settings with shipping rates
-      return this.create({
-        shippingRates,
-      }, companyId);
-    }
-    
-    // Update existing settings
-    return this.update(settings.id, {
-      shippingRates,
-      updatedAt: new Date(),
-    }, companyId);
-  }
-
-  /**
-   * Update handling fees for a company
-   */
-  async updateHandlingFees(companyId: string, handlingFees: any) {
-    const settings = await this.findByCompanyId(companyId);
-    
-    if (!settings) {
-      // Create new settings with handling fees
-      return this.create({
-        handlingFees,
-      }, companyId);
-    }
-    
-    // Update existing settings
-    return this.update(settings.id, {
-      handlingFees,
-      updatedAt: new Date(),
-    }, companyId);
-  }
-
-  /**
-   * Update customs fees for a company
-   */
-  async updateCustomsFees(companyId: string, customsFees: any) {
-    const settings = await this.findByCompanyId(companyId);
-    
-    if (!settings) {
-      // Create new settings with customs fees
-      return this.create({
-        customsFees,
-      }, companyId);
-    }
-    
-    // Update existing settings
-    return this.update(settings.id, {
-      customsFees,
-      updatedAt: new Date(),
-    }, companyId);
-  }
-
-  /**
-   * Update tax rates for a company
-   */
-  async updateTaxRates(companyId: string, taxRates: any) {
-    const settings = await this.findByCompanyId(companyId);
-    
-    if (!settings) {
-      // Create new settings with tax rates
-      return this.create({
-        taxRates,
-      }, companyId);
-    }
-    
-    // Update existing settings
-    return this.update(settings.id, {
-      taxRates,
-      updatedAt: new Date(),
-    }, companyId);
-  }
-
-  /**
    * Update notification settings for a company
    */
   async updateNotificationSettings(companyId: string, notificationSettings: any) {
@@ -153,6 +73,26 @@ export class CompanySettingsRepository extends BaseRepository<typeof companySett
     // Update existing settings
     return this.update(settings.id, {
       themeSettings,
+      updatedAt: new Date(),
+    }, companyId);
+  }
+
+  /**
+   * Update payment settings for a company
+   */
+  async updatePaymentSettings(companyId: string, paymentSettings: any) {
+    const settings = await this.findByCompanyId(companyId);
+    
+    if (!settings) {
+      // Create new settings with payment settings
+      return this.create({
+        paymentSettings,
+      }, companyId);
+    }
+    
+    // Update existing settings
+    return this.update(settings.id, {
+      paymentSettings,
       updatedAt: new Date(),
     }, companyId);
   }

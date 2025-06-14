@@ -333,6 +333,58 @@ export class PaymentsController {
     }
   };
 
+  /**
+   * Create WiPay payment request
+   */
+  createWiPayRequest = async (req: AuthRequest, res: Response) => {
+    try {
+      const companyId = req.companyId as string;
+      const { invoiceId, responseUrl, origin } = req.body;
+      
+      // Validate required fields
+      if (!invoiceId || !responseUrl || !origin) {
+        return ApiResponse.badRequest(res, 'Missing required fields: invoiceId, responseUrl, or origin');
+      }
+      
+      const paymentRequest = await this.paymentsService.createWiPayRequest({
+        invoiceId,
+        responseUrl,
+        origin
+      }, companyId);
+      
+      return ApiResponse.success(res, paymentRequest, 'WiPay payment request created');
+    } catch (error: any) {
+      console.error('Error creating WiPay payment request:', error);
+      if (error instanceof z.ZodError) {
+        return ApiResponse.validationError(res, error);
+      } else {
+        return ApiResponse.serverError(res, error.message || 'Failed to create WiPay payment request');
+      }
+    }
+  };
+
+  /**
+   * Handle WiPay callback
+   */
+  handleWiPayCallback = async (req: AuthRequest, res: Response) => {
+    try {
+      const companyId = req.companyId as string;
+      const callbackData = req.body;
+      
+      // Process callback data
+      const result = await this.paymentsService.handleWiPayCallback(callbackData, companyId);
+      
+      if (result.success) {
+        return ApiResponse.success(res, result.payment, result.message);
+      } else {
+        return ApiResponse.badRequest(res, result.message);
+      }
+    } catch (error: any) {
+      console.error('Error processing WiPay callback:', error);
+      return ApiResponse.serverError(res, error.message || 'Failed to process WiPay callback');
+    }
+  };
+
   exportPaymentsCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
