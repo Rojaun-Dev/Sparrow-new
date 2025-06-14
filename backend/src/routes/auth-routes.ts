@@ -75,4 +75,11 @@ router.get('/me/notifications', checkJwt, controller.getNotificationPreferences.
  */
 router.put('/me/notifications', checkJwt, controller.updateNotificationPreferences.bind(controller));
 
+/**
+ * @route   POST /api/auth/register
+ * @desc    Create new customer account (backward compatibility)
+ * @access  Public
+ */
+router.post('/register', controller.signup.bind(controller));
+
 export default router; 

@@ -54,35 +54,41 @@ export default function LoginPage() {
 
   // Check for company ID in the URL (from iframe redirect)
   useEffect(() => {
-    const companySlug = searchParams.get('company')
-    if (companySlug) {
-      // Fetch company information using the ID
+    const slugParam = searchParams.get('company');
+    let detectedSlug: string | null | undefined = slugParam;
+    if (!detectedSlug) {
+      // Fallback to subdomain detection
+      const hostname = window.location.hostname;
+      const hostParts = hostname.split('.');
+      if (hostParts.length >= 3 && hostParts[0] !== 'www') {
+        detectedSlug = hostParts[0];
+      }
+    }
+    // Final fallback: stored slug from previous visit (e.g., after logout)
+    if (!detectedSlug) {
+      detectedSlug = localStorage.getItem('companySlug') || undefined;
+    }
+    if (detectedSlug) {
+      // Persist slug for future visits
+      localStorage.setItem('companySlug', detectedSlug);
+      // Fetch company information using the slug
       const fetchCompanyInfo = async () => {
         try {
-          const response = await fetch(`/api/company/by-subdomain/${companySlug}`)
+          const response = await fetch(`/api/company/by-subdomain/${detectedSlug}`);
           if (response.ok) {
-            const companyData: CompanyData = await response.json()
-            console.log('Fetched company data:', companyData)
-            
-            // Always use any data available, with fallbacks
-            setCompanyName(companyData.name || 'SparrowX')
-            setCompanyLogo(companyData.logo || null)
-            setCompanyBanner(companyData.banner || null)
-            
-            // Log what we're setting for debugging
-            console.log('Setting company display data:', {
-              name: companyData.name || 'SparrowX',
-              logo: companyData.logo ? 'Found' : 'Not found',
-              banner: companyData.banner ? 'Found' : 'Not found'
-            })
+            const companyData: CompanyData = await response.json();
+            console.log('Fetched company data:', companyData);
+            setCompanyName(companyData.name || 'SparrowX');
+            setCompanyLogo(companyData.logo || null);
+            setCompanyBanner(companyData.banner || null);
           }
         } catch (err) {
-          console.error("Error fetching company info:", err)
+          console.error('Error fetching company info:', err);
         }
-      }
-      fetchCompanyInfo()
+      };
+      fetchCompanyInfo();
     }
-  }, [searchParams])
+  }, [searchParams]);
 
   // Get route based on user role
   const getRouteFromRole = (role: string): string => {
@@ -134,8 +140,14 @@ export default function LoginPage() {
       }, 1000);
       
     } catch (error: any) {
-      console.error("Login error:", error)
-      setFormError(error?.message || 'An unexpected error occurred. Please try again.')
+      console.error("Login error:", error);
+      const errMsg = error?.message || 'Invalid email or password';
+      setFormError(errMsg);
+      toast({
+        title: 'Login failed',
+        description: errMsg,
+        variant: 'destructive'
+      });
     } finally {
       setIsSubmitting(false)
     }

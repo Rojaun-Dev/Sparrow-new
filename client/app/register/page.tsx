@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
+import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
 import { cn } from "@/lib/utils"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 // Import the registration schema
 import { registrationSchema, type RegistrationFormValues } from "@/lib/validations/auth"
@@ -35,42 +37,46 @@ export default function RegisterPage() {
   const [companyName, setCompanyName] = useState<string | null>(null)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [companyBanner, setCompanyBanner] = useState<string | null>(null)
+  const [formData, setFormData] = useState<RegistrationFormValues | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { register, error, clearError } = useAuth()
+  const { toast } = useToast()
 
   // Check for company ID in the URL (from iframe redirect)
   useEffect(() => {
-    const slug = searchParams.get('company')
-    if (slug) {
-      // Fetch company information using the ID
+    const slugParam = searchParams.get('company');
+    let detectedSlug: string | null | undefined = slugParam;
+    if (!detectedSlug) {
+      const hostname = window.location.hostname;
+      const hostParts = hostname.split('.');
+      if (hostParts.length >= 3 && hostParts[0] !== 'www') {
+        detectedSlug = hostParts[0];
+      }
+    }
+    if (!detectedSlug) {
+      detectedSlug = localStorage.getItem('companySlug') || undefined;
+    }
+    if (detectedSlug) {
+      localStorage.setItem('companySlug', detectedSlug);
       const fetchCompanyInfo = async () => {
         try {
-          const response = await fetch(`/api/company/by-subdomain/${slug}`)
+          const response = await fetch(`/api/company/by-subdomain/${detectedSlug}`);
           if (response.ok) {
-            const companyData: CompanyData = await response.json()
-            console.log('Fetched company data:', companyData)
-            
-            // Always use any data available, with fallbacks
-            setCompanyName(companyData.name || 'SparrowX')
-            setCompanyLogo(companyData.logo || null)
-            setCompanyBanner(companyData.banner || null)
-            setCompanyId(companyData.id)
-            
-            // Log what we're setting for debugging
-            console.log('Setting company display data:', {
-              name: companyData.name || 'SparrowX',
-              logo: companyData.logo ? 'Found' : 'Not found',
-              banner: companyData.banner ? 'Found' : 'Not found'
-            })
+            const companyData: CompanyData = await response.json();
+            console.log('Fetched company data:', companyData);
+            setCompanyName(companyData.name || 'SparrowX');
+            setCompanyLogo(companyData.logo || null);
+            setCompanyBanner(companyData.banner || null);
+            setCompanyId(companyData.id);
           }
         } catch (err) {
-          console.error("Error fetching company info:", err)
+          console.error('Error fetching company info:', err);
         }
-      }
-      fetchCompanyInfo()
+      };
+      fetchCompanyInfo();
     }
-  }, [searchParams])
+  }, [searchParams]);
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<RegistrationFormValues>({
@@ -87,33 +93,46 @@ export default function RegisterPage() {
     mode: "onChange", // Enable validation as fields change
   })
 
-  // Form submission handler
-  const onSubmit = async (data: RegistrationFormValues) => {
-    setIsSubmitting(true)
+  // Form pre-submission handler - stores form data and shows confirmation modal
+  const handleFormSubmit = (data: RegistrationFormValues) => {
+    setFormData(data);
+  }
+
+  // Actual form submission handler after confirmation
+  const onSubmit = async () => {
+    if (!formData) return;
+    
+    setIsSubmitting(true);
     
     try {
       // Include companyId in registration data if available
       const registrationData = {
-        ...data,
+        ...formData,
         companyId: companyId || undefined
       }
       
       const result = await register(registrationData)
       if (result.success) {
-        // Redirect to login page with success message
-        router.push('/login?registered=true')
+        toast({
+          title: 'Registration successful',
+          description: 'You can now sign in with your credentials.',
+          variant: 'default'
+        });
+        router.push('/?company='+ (searchParams.get('company') || ''));
       } else {
-        form.setError("root", { 
-          type: "manual",
-          message: result.message || "Registration failed" 
-        })
+        const msg = result.message || 'Registration failed';
+        toast({
+          title: 'Registration failed',
+          description: msg,
+          variant: 'destructive'
+        });
+        form.setError('root', { type: 'manual', message: msg });
       }
-    } catch (error) {
-      console.error("Registration error:", error)
-      form.setError("root", { 
-        type: "manual",
-        message: "An unexpected error occurred" 
-      })
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      const msg = error?.message || 'An unexpected error occurred';
+      toast({ title: 'Registration error', description: msg, variant: 'destructive' });
+      form.setError('root', { type: 'manual', message: msg });
     } finally {
       setIsSubmitting(false)
     }
@@ -184,7 +203,7 @@ export default function RegisterPage() {
           </div>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
               {/* Name Fields - Side by Side */}
               <div className="grid grid-cols-2 gap-4">
                 {/* First Name Field */}
@@ -522,18 +541,44 @@ export default function RegisterPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <span className="animate-pulse">Creating account...</span>
-                  </>
-                ) : (
-                  <>
-                    Create Account
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
+              {/* Registration button with confirmation dialog */}
+              <ConfirmationDialog
+                title="Confirm Registration"
+                description="Please confirm your registration details before creating your account."
+                confirmText="Create Account"
+                cancelText="Go Back"
+                variant="default"
+                onConfirm={onSubmit}
+                trigger={
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <span className="animate-pulse">Creating account...</span>
+                      </>
+                    ) : (
+                      <>
+                        Create Account
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                }
+              >
+                {formData && (
+                  <div className="py-4 space-y-2 text-sm">
+                    <div className="grid grid-cols-2 gap-2">
+                      <p className="font-medium">Name:</p>
+                      <p>{formData.firstName} {formData.lastName}</p>
+                      
+                      <p className="font-medium">Email:</p>
+                      <p>{formData.email}</p>
+                      
+                      <p className="font-medium">TRN:</p>
+                      <p>{formData.trn}</p>
+                    </div>
+                  </div>
                 )}
-              </Button>
+              </ConfirmationDialog>
 
               {/* Show form errors */}
               {form.formState.errors.root && (

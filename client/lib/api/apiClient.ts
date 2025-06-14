@@ -96,13 +96,16 @@ export class ApiClient {
       const isProduction = process.env.NODE_ENV === 'production';
       
       // Use longer expiration for "remember me" option
-      const expirationDays = rememberMe ? 30 : 7; // 30 days if rememberMe, otherwise 7 days
-      
-      Cookies.set('token', token, { 
+      const expirationDays = rememberMe ? 30 : 7;
+
+      // For iframe / cross-site scenarios we must use SameSite=None and Secure.
+      // Require HTTPS in all environments; if running on http://localhost the cookie
+      // will be ignored, but the client still has the token in localStorage.
+      Cookies.set('token', token, {
         expires: expirationDays,
         path: '/',
-        secure: isProduction,
-        sameSite: 'lax'
+        secure: true,
+        sameSite: 'none'
       });
     }
   }
@@ -118,17 +121,16 @@ export class ApiClient {
       
       // Also remove from cookies - important to use same path/domain options as when setting
       // Otherwise cookie deletion might not work if paths don't match
-      const isProduction = process.env.NODE_ENV === 'production';
       Cookies.remove('token', {
         path: '/',
-        secure: isProduction,
-        sameSite: 'lax'
+        secure: true,
+        sameSite: 'none'
       });
       
       Cookies.remove('refreshToken', {
         path: '/',
-        secure: isProduction,
-        sameSite: 'lax'
+        secure: true,
+        sameSite: 'none'
       });
       
       // Double-check cookies were removed - an additional safety check

@@ -52,7 +52,7 @@ class AuthService {
    */
   async signup(userData: SignupData): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post<AuthResponse>(`${this.baseUrl}/register`, userData);
+      const response = await apiClient.post<AuthResponse>(`${this.baseUrl}/signup`, userData);
       
       if (response.accessToken) {
         // Pass false for rememberMe since it's not specified during signup

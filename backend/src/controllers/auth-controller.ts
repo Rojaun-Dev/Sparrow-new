@@ -76,29 +76,41 @@ export class AuthController {
    */
   async signup(req: Request, res: Response, next: NextFunction) {
     try {
-      const { companyId } = req.params;
-      const { password, ...userData } = req.body;
+      // Support both /auth/signup (companyId in body) and /companies/:companyId/auth/signup
+      let { companyId } = req.params as { companyId?: string };
+      if (!companyId) {
+        companyId = req.body.companyId as string | undefined;
+      }
+
+      if (!companyId) {
+        return ApiResponse.badRequest(res, 'Company ID is required');
+      }
+
+      const { password, companyId: _discard, ...userData } = req.body;
 
       if (!password) {
         return ApiResponse.badRequest(res, 'Password is required');
       }
 
-      // Validate user data
+      // Hash password first
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Combine userData with hashed password for validation
+      const userCreationData = {
+        ...userData,
+        passwordHash,
+        role: 'customer' as const
+      };
+
+      // Validate combined data
       try {
-        createUserSchema.parse(userData);
+        createUserSchema.parse(userCreationData);
       } catch (error) {
         return ApiResponse.validationError(res, error);
       }
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
-
       // Create user with company isolation
-      const user = await this.usersService.createUser({
-        ...userData,
-        passwordHash,
-        role: 'customer', // Force role to be 'customer' for signup
-      }, companyId);
+      const user = await this.usersService.createUser(userCreationData, companyId);
 
       if (!user) {
         return ApiResponse.serverError(res, 'Failed to create user');

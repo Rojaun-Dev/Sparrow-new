@@ -156,10 +156,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Token in localStorage after logout:', localStorage.getItem('token'));
         
         // Force a page reload to clear any memory cache or React state
-        // This is important to force middleware to re-evaluate auth state
-        // and prevent "phantom" authenticated states in the app
+        const storedSlug = localStorage.getItem('companySlug');
+        const redirectUrl = storedSlug ? `/?company=${storedSlug}` : '/';
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = redirectUrl;
         }, 100);
       }
       
@@ -181,8 +181,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryClient.clear();
         
         // Force a page reload to clear any memory cache
+        const storedSlug2 = localStorage.getItem('companySlug');
+        const redirectUrl2 = storedSlug2 ? `/?company=${storedSlug2}` : '/';
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = redirectUrl2;
         }, 100);
       }
     } finally {
