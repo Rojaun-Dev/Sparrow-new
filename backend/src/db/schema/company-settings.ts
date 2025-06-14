@@ -9,6 +9,7 @@ export const companySettings = pgTable('company_settings', {
   notificationSettings: jsonb('notification_settings').default({}),
   themeSettings: jsonb('theme_settings').default({}),
   paymentSettings: jsonb('payment_settings').default({}),
+  integrationSettings: jsonb('integration_settings').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }); 

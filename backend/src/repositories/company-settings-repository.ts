@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { BaseRepository } from './base-repository';
 import { companySettings } from '../db/schema/company-settings';
 
@@ -95,5 +95,41 @@ export class CompanySettingsRepository extends BaseRepository<typeof companySett
       paymentSettings,
       updatedAt: new Date(),
     }, companyId);
+  }
+
+  /**
+   * Update integration settings for a company
+   */
+  async updateIntegrationSettings(companyId: string, integrationSettings: any) {
+    const settings = await this.findByCompanyId(companyId);
+    
+    if (!settings) {
+      // Create new settings with integration settings
+      return this.create({
+        integrationSettings,
+      }, companyId);
+    }
+    
+    // Update existing settings
+    return this.update(settings.id, {
+      integrationSettings,
+      updatedAt: new Date(),
+    }, companyId);
+  }
+
+  /**
+   * Find settings by API key
+   */
+  async findByApiKey(apiKey: string) {
+    // Need to JSON stringify the API key to match how it's stored in the JSON field
+    const result = await this.db
+      .select()
+      .from(companySettings)
+      .where(
+        sql`integration_settings->>'apiKey' = ${apiKey}`
+      )
+      .limit(1);
+    
+    return result.length > 0 ? result[0] : null;
   }
 } 

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { CheckIcon, UploadCloud, Trash2, User } from "lucide-react"
+import { CheckIcon, UploadCloud, Trash2, User, CopyIcon } from "lucide-react"
 import { 
   Select,
   SelectContent,
@@ -25,12 +25,17 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import { apiClient } from "@/lib/api/apiClient"
+import { toast } from "@/components/ui/use-toast"
+import { useApiKey } from "@/hooks/useApiKey"
+import { Spinner } from "@/components/ui/spinner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function CompanySettingsPage() {
   const { user } = useAuth();
   const isAdminL2 = user?.role === "admin_l2";
   const { company, isLoading, updateCompany, updateLocations } = useCompanySettings();
   const { assets, getAssetByType, uploadAsset, deleteAsset } = useCompanyAssets();
+  const { generateApiKey, isGenerating, apiKey } = useApiKey();
   
   const [companyData, setCompanyData] = useState({
     id: "",
@@ -43,6 +48,18 @@ export default function CompanySettingsPage() {
     locations: [] as string[],
     bankInfo: "",
     paymentSettings: {} as any,
+    integrationSettings: {
+      apiKey: "",
+      allowedOrigins: [] as string[],
+      redirectIntegration: {
+        enabled: false,
+        allowedDomains: [] as string[],
+      },
+      iframeIntegration: {
+        enabled: false,
+        allowedDomains: [] as string[],
+      },
+    },
   });
   
   const [activeTab, setActiveTab] = useState("general")
@@ -61,6 +78,11 @@ export default function CompanySettingsPage() {
     primaryColor: "#3b82f6",
     secondaryColor: "#10b981",
   });
+  
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
+  const [iframeCodeCopied, setIframeCodeCopied] = useState(false);
+  const [domainInputValue, setDomainInputValue] = useState('');
+  const [originInputValue, setOriginInputValue] = useState('');
   
   // Load company data when available
   useEffect(() => {
@@ -92,6 +114,18 @@ export default function CompanySettingsPage() {
           locations: company.locations || [],
           bankInfo: company.bankInfo || "",
           paymentSettings: company.paymentSettings || {},
+          integrationSettings: {
+            apiKey: "",
+            allowedOrigins: [],
+            redirectIntegration: {
+              enabled: false,
+              allowedDomains: [],
+            },
+            iframeIntegration: {
+              enabled: false,
+              allowedDomains: [],
+            },
+          },
         };
       });
     }
@@ -127,6 +161,28 @@ export default function CompanySettingsPage() {
             paymentSettings: settings.paymentSettings
           }));
         }
+        
+        // Also fetch integration settings
+        try {
+          const integrationSettings: any = await apiClient.get('/company-settings/integration');
+          setCompanyData(prev => ({
+            ...prev,
+            integrationSettings: {
+              apiKey: integrationSettings?.apiKey || "",
+              allowedOrigins: integrationSettings?.allowedOrigins || [],
+              redirectIntegration: {
+                enabled: integrationSettings?.redirectIntegration?.enabled || false,
+                allowedDomains: integrationSettings?.redirectIntegration?.allowedDomains || [],
+              },
+              iframeIntegration: {
+                enabled: integrationSettings?.iframeIntegration?.enabled || false,
+                allowedDomains: integrationSettings?.iframeIntegration?.allowedDomains || [],
+              },
+            }
+          }));
+        } catch (err) {
+          console.error('Failed to load integration settings:', err);
+        }
       } catch (err) {
         // Optionally handle error
         console.error('Failed to load company settings:', err);
@@ -134,6 +190,19 @@ export default function CompanySettingsPage() {
     }
     fetchCompanySettings();
   }, []);
+  
+  // Update company data when API key is generated
+  useEffect(() => {
+    if (apiKey && companyData) {
+      setCompanyData(prev => ({
+        ...prev,
+        integrationSettings: {
+          ...prev.integrationSettings,
+          apiKey,
+        },
+      }));
+    }
+  }, [apiKey]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -229,6 +298,12 @@ export default function CompanySettingsPage() {
         });
       }
       
+      // Update API and integration settings
+      if (activeTab === "api") {
+        const response = await apiClient.put(`/company-settings/integration`, companyData.integrationSettings);
+        console.log("API settings updated:", response);
+      }
+      
       // Update payment settings
       if (activeTab === "payment") {
         const response = await apiClient.put(`/company-settings/payment`, companyData.paymentSettings);
@@ -264,8 +339,232 @@ export default function CompanySettingsPage() {
     }));
   };
 
+  // Add allowed domain for redirects or iframe
+  const addAllowedDomain = (integrationType: 'redirect' | 'iframe') => {
+    if (!domainInputValue.trim()) return;
+    
+    setCompanyData(prev => {
+      const integration = prev.integrationSettings[`${integrationType}Integration`];
+      
+      // Check if domain already exists
+      if (integration.allowedDomains?.includes(domainInputValue)) {
+        return prev;
+      }
+      
+      // Add new domain
+      return {
+        ...prev,
+        integrationSettings: {
+          ...prev.integrationSettings,
+          [`${integrationType}Integration`]: {
+            ...integration,
+            allowedDomains: [...(integration.allowedDomains || []), domainInputValue],
+          },
+        },
+      };
+    });
+    
+    setDomainInputValue('');
+  };
+
+  // Remove allowed domain
+  const removeAllowedDomain = (domain: string, integrationType: 'redirect' | 'iframe') => {
+    setCompanyData(prev => {
+      const integration = prev.integrationSettings[`${integrationType}Integration`];
+      return {
+        ...prev,
+        integrationSettings: {
+          ...prev.integrationSettings,
+          [`${integrationType}Integration`]: {
+            ...integration,
+            allowedDomains: integration.allowedDomains?.filter(d => d !== domain),
+          },
+        },
+      };
+    });
+  };
+
+  // Add allowed origin for API
+  const addAllowedOrigin = () => {
+    if (!originInputValue.trim()) return;
+    
+    if (!companyData.integrationSettings.allowedOrigins?.includes(originInputValue)) {
+      setCompanyData(prev => ({
+        ...prev,
+        integrationSettings: {
+          ...prev.integrationSettings,
+          allowedOrigins: [...(prev.integrationSettings.allowedOrigins || []), originInputValue],
+        },
+      }));
+    }
+    setOriginInputValue('');
+  };
+
+  // Remove allowed origin
+  const removeAllowedOrigin = (origin: string) => {
+    setCompanyData(prev => ({
+      ...prev,
+      integrationSettings: {
+        ...prev.integrationSettings,
+        allowedOrigins: prev.integrationSettings.allowedOrigins?.filter(o => o !== origin),
+      },
+    }));
+  };
+
+  // Toggle redirect or iframe integration
+  const toggleIntegration = (integrationType: 'redirect' | 'iframe', enabled: boolean) => {
+    setCompanyData(prev => ({
+      ...prev,
+      integrationSettings: {
+        ...prev.integrationSettings,
+        [`${integrationType}Integration`]: {
+          ...prev.integrationSettings[`${integrationType}Integration`],
+          enabled,
+        },
+      },
+    }));
+  };
+
+  // Copy API key to clipboard
+  const copyApiKey = async () => {
+    if (companyData.integrationSettings.apiKey) {
+      await navigator.clipboard.writeText(companyData.integrationSettings.apiKey);
+      setApiKeyCopied(true);
+      setTimeout(() => setApiKeyCopied(false), 2000);
+    }
+  };
+
+  // Generate iframe code
+  const getIframeCode = () => {
+    if (!companyData.integrationSettings.apiKey) return '';
+    
+    const iframeCode = `<iframe 
+  src="${window.location.origin}/embed?api_key=${companyData.integrationSettings.apiKey}" 
+  width="100%" 
+  height="600px" 
+  frameborder="0" 
+  allow="payment" 
+  title="SparrowX">
+</iframe>`;
+    
+    return iframeCode;
+  };
+
+  // Copy iframe code to clipboard
+  const copyIframeCode = async () => {
+    const code = getIframeCode();
+    if (code) {
+      await navigator.clipboard.writeText(code);
+      setIframeCodeCopied(true);
+      setTimeout(() => setIframeCodeCopied(false), 2000);
+    }
+  };
+
   if (isLoading) {
-    return <div className="py-8">Loading company settings...</div>;
+    return (
+      <div className="space-y-6 p-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-1/3" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+        
+        {/* Company Information Card Skeleton */}
+        <div className="border rounded-lg shadow-sm p-6 bg-card">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-1/4" />
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Integration Settings Card Skeleton */}
+        <div className="border rounded-lg shadow-sm p-6 bg-card">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-1/4" />
+            <div className="space-y-6">
+              {/* API Key Section */}
+              <div className="space-y-2 border-b pb-6">
+                <Skeleton className="h-5 w-1/3" />
+                <div className="flex gap-4">
+                  <Skeleton className="h-10 flex-1" />
+                  <Skeleton className="h-10 w-32" />
+                </div>
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+              
+              {/* Allowed Origins Section */}
+              <div className="space-y-2 border-b pb-6">
+                <Skeleton className="h-5 w-1/3" />
+                <div className="flex gap-4">
+                  <Skeleton className="h-10 flex-1" />
+                  <Skeleton className="h-10 w-24" />
+                </div>
+                <div className="mt-2 space-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+              
+              {/* Integration Options Section */}
+              <div className="space-y-4">
+                <Skeleton className="h-5 w-1/3" />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-5 rounded-sm" />
+                    <Skeleton className="h-5 w-1/4" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-5 rounded-sm" />
+                    <Skeleton className="h-5 w-1/4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Branding Card Skeleton */}
+        <div className="border rounded-lg shadow-sm p-6 bg-card">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-1/4" />
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-1/3" />
+              <div className="grid grid-cols-2 gap-4">
+                <Skeleton className="h-32 w-full rounded-md" />
+                <Skeleton className="h-32 w-full rounded-md" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -674,20 +973,255 @@ export default function CompanySettingsPage() {
                 Manage client API, portal instances, and iframe integrations
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <p className="text-muted-foreground">
-                        API configuration will be implemented in the next phase.
+            <CardContent className="space-y-6">
+              <div className="space-y-6">
+                {/* API Key Section */}
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium">API Key</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Generate API keys to authenticate your requests to the SparrowX API.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    {isGenerating ? (
+                      <Skeleton className="h-10 flex-1" />
+                    ) : (
+                      <Input 
+                        type="text" 
+                        value={companyData?.integrationSettings?.apiKey || ''}
+                        readOnly 
+                        placeholder="No API key generated yet" 
+                      />
+                    )}
+                    <Button 
+                      onClick={() => generateApiKey()} 
+                      disabled={!isAdminL2 || isGenerating}
+                      variant="outline"
+                    >
+                      {isGenerating ? (
+                        <><Spinner size="sm" className="mr-2" /> Generating...</>
+                      ) : (
+                        'Generate API Key'
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    Use this API key for iframe integration. Warning: Regenerating will invalidate the previous key.
+                  </p>
+                </div>
+
+                <Separator />
+
+                {/* Allowed Origins Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Allowed Origins (CORS)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Specify domains that can make API requests to your SparrowX account.
+                  </p>
+                  <div className="flex space-x-2">
+                    <Input
+                      placeholder="https://example.com"
+                      value={originInputValue}
+                      onChange={(e) => setOriginInputValue(e.target.value)}
+                      className="flex-1"
+                      disabled={!isAdminL2}
+                    />
+                    <Button 
+                      variant="secondary" 
+                      onClick={addAllowedOrigin}
+                      disabled={!isAdminL2}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  <div className="bg-muted p-4 rounded-lg">
+                    {companyData.integrationSettings.allowedOrigins?.length ? (
+                      <ul className="space-y-2">
+                        {companyData.integrationSettings.allowedOrigins.map((origin) => (
+                          <li key={origin} className="flex justify-between items-center">
+                            <span>{origin}</span>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => removeAllowedOrigin(origin)}
+                              disabled={!isAdminL2}
+                            >
+                              Remove
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-muted-foreground">No origins added. Add domains to allow cross-origin requests.</p>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Redirect Integration Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-medium">Redirect Integration</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Configure how users are redirected from your website to SparrowX.
                       </p>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>This feature is coming soon!</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </div>
+                    <Switch 
+                      checked={companyData.integrationSettings.redirectIntegration?.enabled || false}
+                      onCheckedChange={(enabled) => toggleIntegration('redirect', enabled)}
+                      disabled={!isAdminL2}
+                    />
+                  </div>
+
+                  {companyData.integrationSettings.redirectIntegration?.enabled && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Redirect URL Example</Label>
+                        <div className="bg-muted p-4 rounded-lg font-mono text-xs break-all">
+                          {window.location.origin}?company={companyData.subdomain}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label>Allowed Domains for Redirects</Label>
+                        <div className="flex space-x-2 mt-2">
+                          <Input
+                            placeholder="example.com"
+                            value={domainInputValue}
+                            onChange={(e) => setDomainInputValue(e.target.value)}
+                            className="flex-1"
+                            disabled={!isAdminL2}
+                          />
+                          <Button 
+                            variant="secondary" 
+                            onClick={() => addAllowedDomain('redirect')}
+                            disabled={!isAdminL2}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg mt-2">
+                          {companyData.integrationSettings.redirectIntegration?.allowedDomains?.length ? (
+                            <ul className="space-y-2">
+                              {companyData.integrationSettings.redirectIntegration.allowedDomains.map((domain) => (
+                                <li key={domain} className="flex justify-between items-center">
+                                  <span>{domain}</span>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => removeAllowedDomain(domain, 'redirect')}
+                                    disabled={!isAdminL2}
+                                  >
+                                    Remove
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              No domains added. Add domains to allow redirects from these websites.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* iFrame Integration Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-medium">iFrame Integration</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Embed SparrowX directly into your website using an iframe.
+                      </p>
+                    </div>
+                    <Switch 
+                      checked={companyData.integrationSettings.iframeIntegration?.enabled || false}
+                      onCheckedChange={(enabled) => toggleIntegration('iframe', enabled)}
+                      disabled={!isAdminL2}
+                    />
+                  </div>
+
+                  {companyData.integrationSettings.iframeIntegration?.enabled && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>iFrame Embed Code</Label>
+                        <div className="relative">
+                          <Textarea
+                            readOnly
+                            value={getIframeCode()}
+                            rows={6}
+                            className="font-mono text-xs"
+                            disabled={!companyData.integrationSettings.apiKey}
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="absolute top-2 right-2"
+                            onClick={copyIframeCode}
+                            disabled={!companyData.integrationSettings.apiKey}
+                          >
+                            {iframeCodeCopied ? <CheckIcon className="h-4 w-4" /> : <CopyIcon className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label>Allowed Domains for iFrame Embedding</Label>
+                        <div className="flex space-x-2 mt-2">
+                          <Input
+                            placeholder="example.com"
+                            value={domainInputValue}
+                            onChange={(e) => setDomainInputValue(e.target.value)}
+                            className="flex-1"
+                            disabled={!isAdminL2}
+                          />
+                          <Button 
+                            variant="secondary" 
+                            onClick={() => addAllowedDomain('iframe')}
+                            disabled={!isAdminL2}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg mt-2">
+                          {companyData.integrationSettings.iframeIntegration?.allowedDomains?.length ? (
+                            <ul className="space-y-2">
+                              {companyData.integrationSettings.iframeIntegration.allowedDomains.map((domain) => (
+                                <li key={domain} className="flex justify-between items-center">
+                                  <span>{domain}</span>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => removeAllowedDomain(domain, 'iframe')}
+                                    disabled={!isAdminL2}
+                                  >
+                                    Remove
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              No domains added. Add domains to allow embedding in these websites.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-muted p-4 rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          <strong>Note:</strong> Your website must be hosted on HTTPS to embed our application in an iframe.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

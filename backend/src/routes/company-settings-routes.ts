@@ -43,6 +43,27 @@ router.put(
   companySettingsController.updatePaymentSettings
 );
 
+// Get integration settings
+router.get(
+  '/integration',
+  /*checkRole(['admin_l1', 'admin_l2']),*/
+  companySettingsController.getIntegrationSettings
+);
+
+// Update integration settings
+router.put(
+  '/integration',
+  /*checkRole(['admin_l2']),*/
+  companySettingsController.updateIntegrationSettings
+);
+
+// Generate new API key
+router.post(
+  '/integration/api-key',
+  /*checkRole(['admin_l2']),*/
+  companySettingsController.generateApiKey
+);
+
 // Update notification settings
 router.put(
   '/notifications',

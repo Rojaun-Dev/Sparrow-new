@@ -2,6 +2,8 @@ import { BaseService } from './base-service';
 import { CompanySettingsRepository } from '../repositories/company-settings-repository';
 import { companySettings } from '../db/schema/company-settings';
 import { z } from 'zod';
+import { CompaniesService } from './companies-service';
+import crypto from 'crypto';
 
 // Define validation schema for notification settings
 const notificationSettingsSchema = z.object({
@@ -43,11 +45,27 @@ const paymentSettingsSchema = z.object({
   }),
 });
 
+// Define validation schema for integration settings
+const integrationSettingsSchema = z.object({
+  apiKey: z.string().optional(),
+  allowedOrigins: z.array(z.string()).optional(),
+  redirectIntegration: z.object({
+    enabled: z.boolean().default(false),
+    allowedDomains: z.array(z.string()).optional(),
+  }).optional(),
+  iframeIntegration: z.object({
+    enabled: z.boolean().default(false),
+    iframeCode: z.string().optional(),
+    allowedDomains: z.array(z.string()).optional(),
+  }).optional(),
+});
+
 // Define validation schema for all settings
 const companySettingsSchema = z.object({
   notificationSettings: notificationSettingsSchema.optional(),
   themeSettings: themeSettingsSchema.optional(),
   paymentSettings: paymentSettingsSchema.optional(),
+  integrationSettings: integrationSettingsSchema.optional(),
 });
 
 export class CompanySettingsService extends BaseService<typeof companySettings> {
@@ -71,6 +89,7 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
         notificationSettings: {},
         themeSettings: {},
         paymentSettings: {},
+        integrationSettings: {},
       };
     }
     
@@ -139,5 +158,94 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
     
     // Update payment settings
     return this.companySettingsRepository.updatePaymentSettings(companyId, validatedData);
+  }
+
+  /**
+   * Get integration settings
+   */
+  async getIntegrationSettings(companyId: string) {
+    const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+    
+    if (!settings || !settings.integrationSettings) {
+      // Return default integration settings if none exist
+      return {
+        redirectIntegration: {
+          enabled: false,
+          allowedDomains: [],
+        },
+        iframeIntegration: {
+          enabled: false,
+          allowedDomains: [],
+        },
+        apiKey: '',
+        allowedOrigins: [],
+      };
+    }
+    
+    return settings.integrationSettings;
+  }
+
+  /**
+   * Update integration settings
+   */
+  async updateIntegrationSettings(data: any, companyId: string) {
+    // Validate integration settings
+    const validatedData = integrationSettingsSchema.parse(data);
+    
+    // Update integration settings
+    return this.companySettingsRepository.updateIntegrationSettings(companyId, validatedData);
+  }
+  
+  /**
+   * Generate API key for company
+   */
+  async generateApiKey(companyId: string) {
+    // Generate a cryptographically secure random API key
+    // Use crypto.randomBytes for better security than Math.random
+    const buffer = crypto.randomBytes(32);
+    const apiKey = 'spx_' + buffer.toString('hex');
+    
+    // Get existing integration settings
+    const settings = await this.getIntegrationSettings(companyId);
+    
+    // Update with new API key
+    const updatedSettings = {
+      ...settings,
+      apiKey
+    };
+    
+    // Save updated settings
+    await this.updateIntegrationSettings(updatedSettings, companyId);
+    
+    return apiKey;
+  }
+
+  /**
+   * Find company by API key
+   * Used for authenticating API requests and iframe integration
+   */
+  async findCompanyByApiKey(apiKey: string) {
+    // Find settings record with matching API key
+    const settings = await this.companySettingsRepository.findByApiKey(apiKey);
+    
+    if (!settings) {
+      return null;
+    }
+    
+    // Get company details
+    const companiesService = new CompaniesService();
+    
+    try {
+      const company = await companiesService.getCompanyById(settings.companyId);
+      
+      // Return settings with company info
+      return {
+        ...settings,
+        company
+      };
+    } catch (error) {
+      console.error(`Error fetching company for API key: ${error}`);
+      return null;
+    }
   }
 } 

@@ -34,11 +34,68 @@ function debugToken(token: string | undefined | null) {
   }
 }
 
+// Function to detect company information from the request
+async function detectCompanyFromRequest(request: NextRequest) {
+  const url = request.nextUrl;
+  let companySubdomain = null;
+
+  // Method 1: Check for subdomain
+  // Example: company-name.app.example.com
+  const hostname = request.headers.get('host') || '';
+  const hostParts = hostname.split('.');
+  
+  // If we have at least 3 parts (subdomain.domain.tld) and it's not 'www'
+  if (hostParts.length >= 3 && hostParts[0] !== 'www') {
+    companySubdomain = hostParts[0];
+  }
+
+  // Method 2: Check for company parameter in URL
+  // Example: app.example.com?company=company-name
+  if (!companySubdomain) {
+    companySubdomain = url.searchParams.get('company');
+  }
+
+  // If we found a company identifier, try to fetch company details
+  if (companySubdomain) {
+    try {
+      console.log(`Detected company subdomain: ${companySubdomain}`);
+      
+      // Call the API to get company information
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/companies/by-subdomain/${companySubdomain}`;
+      const response = await fetch(apiUrl);
+      
+      if (response.ok) {
+        const company = await response.json();
+        return company;
+      } else {
+        console.log('Failed to fetch company data:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error fetching company data:', error);
+    }
+  }
+  
+  return null;
+}
+
 export async function middleware(request: NextRequest) {
   // Log all cookies for debugging
   // This helps identify if cookies are being properly sent with each request
   console.log('All cookies:', Array.from(request.cookies.getAll()).map(c => c.name));
   
+  // Try to detect company from the request (subdomain or URL parameter)
+  const company = await detectCompanyFromRequest(request);
+  
+  // Save detected company in request header for the application
+  if (company) {
+    // Add company information to response headers
+    const response = NextResponse.next();
+    response.headers.set('x-company-id', company.id);
+    response.headers.set('x-company-name', company.name);
+    response.headers.set('x-company-subdomain', company.subdomain);
+    return response;
+  }
+
   // Get the token from cookie or authorization header - focus on cookie first
   // We check multiple locations because tokens might be stored in different ways
   const tokenFromCookie = request.cookies.get('token')?.value;

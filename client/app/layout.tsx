@@ -11,6 +11,7 @@ import "./globals.css"
 import { QueryProvider } from "@/lib/providers/QueryProvider"
 import type { Metadata } from "next"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { CompanyProvider } from "@/hooks/useCompanyContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -31,13 +32,15 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            <QueryProvider>
-          <AuthProvider>
-              <TooltipProvider>
-                <FeedbackProvider>{children}</FeedbackProvider>
-              </TooltipProvider>
-          </AuthProvider>
-            </QueryProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <CompanyProvider>
+                <TooltipProvider>
+                  <FeedbackProvider>{children}</FeedbackProvider>
+                </TooltipProvider>
+              </CompanyProvider>
+            </AuthProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
