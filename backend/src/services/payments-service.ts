@@ -5,7 +5,7 @@ import { InvoicesService } from './invoices-service';
 import { z } from 'zod';
 import { CompanySettingsService } from './company-settings-service';
 import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
+// Import removed as it's not used
 
 // Define validation schema for payment creation
 const createPaymentSchema = z.object({
@@ -207,7 +207,17 @@ export class PaymentsService extends BaseService<typeof payments> {
     const validatedData = wiPayRequestSchema.parse(data);
     
     // Get WiPay settings
-    const paymentSettings = await this.companySettingsService.getPaymentSettings(companyId);
+    const paymentSettings = await this.companySettingsService.getPaymentSettings(companyId) as {
+      wipay?: {
+        enabled?: boolean;
+        accountNumber?: string;
+        apiKey?: string;
+        environment?: 'sandbox' | 'production';
+        countryCode?: string;
+        currency?: string;
+        feeStructure?: string;
+      }
+    };
     
     if (!paymentSettings.wipay || !paymentSettings.wipay.enabled) {
       throw new Error('WiPay is not enabled for this company');

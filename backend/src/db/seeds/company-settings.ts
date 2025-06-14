@@ -77,24 +77,35 @@ export async function seedCompanySettings(db: NodePgDatabase<any>) {
       
       await db.insert(companySettings).values({
         companyId: company.id,
-        shippingRates: {
-          baseRate: 10.00 + baseRateVariation,
-          weightRate: 2.50 + weightRateVariation, // per pound
-          dimensionalDivisor: 139,
-          minimumCharge: 15.00,
-        },
-        handlingFees: {
-          baseCharge: 5.00,
-          overweightCharge: 10.00, // for packages over 50 lbs
-          overweightThreshold: 50,
-        },
-        customsFees: {
-          percentage: 15.00, // 15% of declared value
-          minimumCharge: 10.00,
-        },
-        taxRates: {
-          generalConsumptionTax: 15.00,
-          customsDuty: 20.00,
+        paymentSettings: {
+          shippingRates: {
+            baseRate: 10.00 + baseRateVariation,
+            weightRate: 2.50 + weightRateVariation, // per pound
+            dimensionalDivisor: 139,
+            minimumCharge: 15.00,
+          },
+          handlingFees: {
+            baseCharge: 5.00,
+            overweightCharge: 10.00, // for packages over 50 lbs
+            overweightThreshold: 50,
+          },
+          customsFees: {
+            percentage: 15.00, // 15% of declared value
+            minimumCharge: 10.00,
+          },
+          taxRates: {
+            generalConsumptionTax: 15.00,
+            customsDuty: 20.00,
+          },
+          wipay: {
+            enabled: false,
+            accountNumber: '',
+            apiKey: '',
+            environment: 'sandbox',
+            countryCode: 'TT',
+            currency: 'TTD',
+            feeStructure: 'customer_pay'
+          }
         },
         notificationSettings: {
           emailNotifications: true,
