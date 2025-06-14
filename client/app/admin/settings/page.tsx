@@ -705,7 +705,13 @@ export default function CompanySettingsPage() {
               {/* WiPay Integration */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">WiPay Integration</h3>
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src="https://www.siliconcaribe.com/wp-content/uploads/2019/07/Wipay-logo-v2.png" 
+                      alt="WiPay" 
+                      className="h-8 object-contain" 
+                    />
+                  </div>
                   <Switch 
                     checked={companyData.paymentSettings?.wipay?.enabled || false}
                     onCheckedChange={(checked) => {
