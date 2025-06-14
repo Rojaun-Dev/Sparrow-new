@@ -51,6 +51,7 @@ export const registrationSchema = z
     }).refine(val => val === true, {
       message: "You must accept the terms and conditions",
     }),
+    companyId: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",

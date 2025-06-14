@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { ArrowRight, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { authService } from "@/lib/api/authService"
 import { useToast } from "@/hooks/use-toast"
@@ -21,11 +21,23 @@ import { cn } from "@/lib/utils"
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
 
+interface CompanyData {
+  id: string;
+  name?: string;
+  logo?: string | null;
+  banner?: string | null;
+  [key: string]: any;
+}
+
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
+  const [companyName, setCompanyName] = useState<string | null>(null)
+  const [companyBanner, setCompanyBanner] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login, error, clearError } = useAuth()
   const { toast } = useToast()
 
@@ -39,6 +51,38 @@ export default function LoginPage() {
     },
     mode: "onChange",
   })
+
+  // Check for company ID in the URL (from iframe redirect)
+  useEffect(() => {
+    const companySlug = searchParams.get('company')
+    if (companySlug) {
+      // Fetch company information using the ID
+      const fetchCompanyInfo = async () => {
+        try {
+          const response = await fetch(`/api/company/by-subdomain/${companySlug}`)
+          if (response.ok) {
+            const companyData: CompanyData = await response.json()
+            console.log('Fetched company data:', companyData)
+            
+            // Always use any data available, with fallbacks
+            setCompanyName(companyData.name || 'SparrowX')
+            setCompanyLogo(companyData.logo || null)
+            setCompanyBanner(companyData.banner || null)
+            
+            // Log what we're setting for debugging
+            console.log('Setting company display data:', {
+              name: companyData.name || 'SparrowX',
+              logo: companyData.logo ? 'Found' : 'Not found',
+              banner: companyData.banner ? 'Found' : 'Not found'
+            })
+          }
+        } catch (err) {
+          console.error("Error fetching company info:", err)
+        }
+      }
+      fetchCompanyInfo()
+    }
+  }, [searchParams])
 
   // Get route based on user role
   const getRouteFromRole = (role: string): string => {
@@ -106,19 +150,32 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Left side - Branding */}
-      <div className="flex flex-col justify-between bg-primary p-8 text-white md:w-1/2 lg:p-12">
-        <div>
+      <div 
+        className={`flex flex-col justify-between bg-primary p-8 text-white md:w-1/2 lg:p-12 ${companyBanner ? 'relative' : ''}`}
+      >
+        {companyBanner && (
+          <div className="absolute inset-0 z-0">
+            <Image
+              src={companyBanner}
+              alt={`${companyName} banner`}
+              fill
+              style={{objectFit: 'cover'}}
+              className="opacity-20"
+            />
+          </div>
+        )}
+        <div className="relative z-10">
           <div className="mb-8 w-48">
             <Image
-              src="/placeholder.svg?key=e5zuj"
-              alt="SparrowX Logo"
+              src={companyLogo || "/placeholder.svg?key=e5zuj"}
+              alt={companyName ? `${companyName} Logo` : "SparrowX Logo"}
               width={180}
               height={60}
               className="h-auto w-full"
             />
           </div>
           <h1 className="mb-6 text-3xl font-bold md:text-4xl lg:text-5xl">
-            Welcome to <span className="text-primary-foreground">SparrowX</span>
+            Welcome to <span className="text-primary-foreground">{companyName || "SparrowX"}</span>
           </h1>
           <p className="mb-6 max-w-md text-lg text-primary-foreground/90">
             Your trusted package forwarding service. Login to track your shipments, manage pre-alerts, and more.
@@ -126,7 +183,8 @@ export default function LoginPage() {
         </div>
         <div className="hidden md:block">
           <p className="text-sm text-primary-foreground/70">
-            © {new Date().getFullYear()} SparrowX. All rights reserved.
+            © {new Date().getFullYear()} {companyName ? `${companyName} | ` : ''}
+            <span className="text-primary-foreground">Powered by SparrowX</span>
           </p>
         </div>
       </div>

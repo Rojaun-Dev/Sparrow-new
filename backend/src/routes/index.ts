@@ -14,13 +14,16 @@ import paymentsRoutes from './payments-routes';
 import billingRoutes from './billing-routes';
 import { extractCompanyId, checkJwt } from '../middleware/auth';
 import { CompanySettingsController } from '../controllers/company-settings-controller';
+import { CompanyAssetsController } from '../controllers/company-assets-controller';
 
 const router = express.Router();
 const companySettingsController = new CompanySettingsController();
+const companyAssetsController = new CompanyAssetsController();
 
 // Apply company ID extraction middleware to all routes
 router.use(extractCompanyId);
 
+// Public endpoints - no authentication required
 // Auth routes - not scoped to company
 router.use('/auth', authRoutes);
 
@@ -29,6 +32,13 @@ router.get('/companies/by-subdomain/:subdomain', companySettingsController.getCo
 
 // Public endpoint to validate API key and get company info (for iframe integration)
 router.get('/company-by-api-key', companySettingsController.getCompanyByApiKey);
+
+// Public endpoint for company assets - no auth required (for login/register page branding)
+router.get('/companies/:companyId/public-assets', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Set company ID from params
+  (req as any).companyId = req.params.companyId;
+  return companyAssetsController.listPublicAssets(req as any, res, next);
+});
 
 // Apply JWT authentication middleware to all other routes
 // JWT middleware check is applied directly to these routes

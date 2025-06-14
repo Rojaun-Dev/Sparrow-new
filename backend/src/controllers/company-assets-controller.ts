@@ -32,6 +32,37 @@ export class CompanyAssetsController {
     }
   };
 
+  // Public endpoint to list assets for a company - no auth required
+  // Used for public branding on login/register pages
+  listPublicAssets = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      console.log('List public assets request:', {
+        companyId: req.params.companyId,
+        headers: req.headers
+      });
+      
+      const companyId = req.params.companyId as string;
+      if (!companyId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Company ID is required' 
+        });
+      }
+      
+      // Only fetch public assets (logo, banner)
+      const assets = await this.service.listAssets(companyId);
+      const publicAssets = assets.filter(asset => 
+        ['logo', 'banner', 'favicon'].includes(asset.type)
+      );
+      
+      return res.json({ success: true, data: publicAssets });
+    } catch (error) {
+      console.error('Error listing public assets:', error);
+      next(error);
+      return undefined;
+    }
+  };
+
   // Create a new asset (image or URL)
   createAsset = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {

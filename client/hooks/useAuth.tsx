@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: data.password,
         confirmPassword: data.confirmPassword || data.password,
         agreeToTerms: true,
-        // Map any additional fields as needed
+        companyId: data.companyId,
       });
       
       return { success: true };

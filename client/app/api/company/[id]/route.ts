@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { apiClient } from '@/lib/api/apiClient';
 
 interface CompanyResponse {
@@ -6,6 +6,7 @@ interface CompanyResponse {
   name: string;
   subdomain?: string;
   logo?: string | null;
+  banner?: string | null;
   [key: string]: any;
 }
 
@@ -24,54 +25,38 @@ interface EnhancedCompanyResponse extends CompanyResponse {
   banner: string | null;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: Request,
+  context: { params: { id: string } }
+) {
   try {
-    // Extract the API key from the query parameter
-    const apiKey = request.nextUrl.searchParams.get('api_key');
+    // Extract the company ID from the route parameters
+    const companyId = context.params.id;
     
-    if (!apiKey) {
+    if (!companyId) {
       return NextResponse.json(
-        { error: 'API key is required' },
+        { error: 'Company ID is required' },
         { status: 400 }
       );
     }
     
-    // Check the referring domain to ensure it's allowed
-    const referer = request.headers.get('referer');
-    let referringDomain = null;
-    
-    if (referer) {
-      try {
-        const url = new URL(referer);
-        referringDomain = url.hostname;
-      } catch (e) {
-        console.error('Invalid referer URL:', e);
-      }
-    }
-    
-    // Call the backend to verify the API key and check if the domain is allowed
-    const companyResponse = await apiClient.get<CompanyResponse>(
-      `/company-by-api-key?apiKey=${apiKey}${referringDomain ? `&domain=${referringDomain}` : ''}`
-    );
-    
-    if (!companyResponse || !companyResponse.id) {
-      throw new Error('Invalid API key or unauthorized domain');
-    }
+    // Call the backend to get company information
+    const company = await apiClient.get<CompanyResponse>(`/companies/${companyId}`);
     
     // Create a response object that we'll build upon
     const responseData: EnhancedCompanyResponse = {
-      ...companyResponse,
-      logo: companyResponse.logo || null,
+      ...company,
+      logo: company.logo || null,
       banner: null
     };
     
     // Fetch company assets using the public assets endpoint
     try {
-      console.log(`Fetching public assets for company ${companyResponse.id}`);
+      console.log(`Fetching public assets for company ${companyId}`);
       
       // Use our public assets endpoint
       const apiUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
-      const assetsResponse = await fetch(`${apiUrl}/api/public/assets/${companyResponse.id}`, {
+      const assetsResponse = await fetch(`${apiUrl}/api/public/assets/${companyId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -102,16 +87,17 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (assetError) {
-      // Log the error but continue
+      // Log the error but continue - don't fail the whole request just because assets failed
       console.error('Error fetching company assets:', assetError);
     }
     
+    // Return the company data with any assets we were able to fetch
     return NextResponse.json(responseData);
   } catch (error) {
-    console.error('API key verification failed:', error);
+    console.error('Error fetching company data:', error);
     return NextResponse.json(
-      { error: 'Invalid API key or unauthorized domain' },
-      { status: 401 }
+      { error: 'Failed to fetch company information' },
+      { status: 500 }
     );
   }
 } 

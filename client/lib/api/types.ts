@@ -30,6 +30,7 @@ export interface SignupData {
   firstName: string;
   lastName: string;
   companyName?: string;
+  companyId?: string;
   agreeToTerms: boolean;
 }
 

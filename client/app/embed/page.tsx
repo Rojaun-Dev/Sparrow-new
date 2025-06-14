@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/apiClient';
 import { Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,12 +12,15 @@ import Image from 'next/image';
 interface CompanyInfo {
   id: string;
   name: string;
-  subdomain: string;
-  logo: string | null;
+  subdomain?: string;
+  logo?: string | null;
+  banner?: string | null;
+  [key: string]: any;
 }
 
 function EmbedContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const apiKey = searchParams.get('api_key');
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,8 +42,27 @@ function EmbedContent() {
           throw new Error('Invalid API key or unauthorized domain');
         }
 
-        const companyData = await response.json();
-        setCompany(companyData);
+        const companyData: CompanyInfo = await response.json();
+        console.log('Embed: Fetched company data:', companyData);
+
+        // Ensure we have at least the required fields
+        if (!companyData || !companyData.id) {
+          throw new Error('Invalid company data received');
+        }
+
+        setCompany({
+          id: companyData.id,
+          name: companyData.name || 'SparrowX',
+          subdomain: companyData.subdomain || '',
+          logo: companyData.logo || null
+        });
+        
+        // When company data is loaded successfully and there are no errors,
+        // redirect to the project root with the company info
+        if (companyData && !error) {
+          // We'll use a query parameter to pass the company subdomain
+          router.push(`/?company=${companyData.subdomain}`);
+        }
       } catch (err) {
         console.error('Error loading company:', err);
         setError('Failed to load company information');
@@ -50,7 +72,7 @@ function EmbedContent() {
     }
 
     loadCompany();
-  }, [apiKey]);
+  }, [apiKey, router]);
 
   if (loading) {
     return (
@@ -77,7 +99,7 @@ function EmbedContent() {
   }
 
   return (
-    <div className="p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="mx-auto max-w-md">
         <CardHeader className="text-center">
           {company.logo && (
