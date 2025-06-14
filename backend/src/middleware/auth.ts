@@ -7,6 +7,10 @@ export interface AuthRequest extends Request {
   companyId?: string;
   userId?: string;
   userRole?: string;
+  user?: {
+    id: string;
+    [key: string]: any;
+  };
 }
 
 // JWT verification middleware

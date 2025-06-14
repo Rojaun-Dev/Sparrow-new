@@ -309,21 +309,36 @@ export class CompanySettingsController {
       // Check if domain is allowed for iframe embedding
       if (domain) {
         const domainStr = domain as string;
-        const integrationSettings = settings.integrationSettings || {};
+        
+        // Define a proper type for the integration settings
+        interface IntegrationSettings {
+          iframeIntegration?: {
+            enabled?: boolean;
+            allowedDomains?: string[];
+          };
+          redirectIntegration?: {
+            enabled?: boolean;
+            allowedDomains?: string[];
+          };
+          allowedOrigins?: string[];
+        }
+        
+        // Use the typed integration settings
+        const integrationSettings: IntegrationSettings = settings.integrationSettings || {};
         
         // Check if this is an iframe request and if iframe integration is enabled
         if (req.headers['sec-fetch-dest'] === 'iframe' && 
             (!integrationSettings.iframeIntegration?.enabled ||
-             (integrationSettings.iframeIntegration.allowedDomains?.length &&
-              !integrationSettings.iframeIntegration.allowedDomains.includes(domainStr)))) {
+             (integrationSettings.iframeIntegration?.allowedDomains?.length &&
+              !integrationSettings.iframeIntegration?.allowedDomains.includes(domainStr)))) {
           return res.status(403).json({ error: 'Domain not authorized for iframe embedding' });
         }
         
         // Check if this is a redirect request and if redirect integration is enabled
         if (req.headers.referer && 
             (!integrationSettings.redirectIntegration?.enabled ||
-             (integrationSettings.redirectIntegration.allowedDomains?.length &&
-              !integrationSettings.redirectIntegration.allowedDomains.includes(domainStr)))) {
+             (integrationSettings.redirectIntegration?.allowedDomains?.length &&
+              !integrationSettings.redirectIntegration?.allowedDomains.includes(domainStr)))) {
           return res.status(403).json({ error: 'Domain not authorized for redirect integration' });
         }
         
@@ -339,7 +354,7 @@ export class CompanySettingsController {
         id: settings.company.id,
         name: settings.company.name,
         subdomain: settings.company.subdomain,
-        logo: settings.company.images?.logo || null
+        logo: (settings.company.images as any)?.logo || null
       });
       
     } catch (error) {
