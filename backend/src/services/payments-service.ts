@@ -5,6 +5,7 @@ import { InvoicesService } from './invoices-service';
 import { z } from 'zod';
 import { CompanySettingsService } from './company-settings-service';
 import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
 
 // Define validation schema for payment creation
 const createPaymentSchema = z.object({
@@ -222,6 +223,15 @@ export class PaymentsService extends BaseService<typeof payments> {
     if (!invoice) {
       throw new Error('Invoice not found');
     }
+    if (typeof invoice.status !== 'string') {
+      throw new Error('Invoice status is missing or invalid');
+    }
+    if (typeof invoice.userId !== 'string') {
+      throw new Error('Invoice userId is missing or invalid');
+    }
+    if (invoice.totalAmount === undefined || invoice.totalAmount === null || isNaN(Number(invoice.totalAmount))) {
+      throw new Error('Invoice totalAmount is missing or invalid');
+    }
     
     if (invoice.status !== 'issued' && invoice.status !== 'overdue') {
       throw new Error('Cannot process payment for an invoice that is not issued or overdue');
@@ -238,7 +248,25 @@ export class PaymentsService extends BaseService<typeof payments> {
       notes: 'WiPay payment initiated',
     }, companyId);
     
+    if (!payment) {
+      throw new Error('Failed to create payment record');
+    }
+    
     // Prepare WiPay request
+    const total = Number(invoice.totalAmount);
+    if (isNaN(total)) {
+      throw new Error('Invoice totalAmount is not a valid number');
+    }
+    
+    // Generate a short order ID (must be between 1-17 characters)
+    // Use a short prefix and the first 8 chars of the payment ID
+    const shortOrderId = `px${payment.id.substring(0, 8)}`;
+    
+    // Store the mapping between short order ID and actual IDs for later reference
+    await this.update(payment.id, {
+      notes: `WiPay payment initiated. Short order ID: ${shortOrderId}, Invoice ID: ${validatedData.invoiceId}`,
+    }, companyId);
+    
     const wiPayParams = {
       account_number: paymentSettings.wipay.accountNumber,
       avs: 0, // Address Verification Service disabled
@@ -247,10 +275,10 @@ export class PaymentsService extends BaseService<typeof payments> {
       environment: paymentSettings.wipay.environment || 'sandbox',
       fee_structure: paymentSettings.wipay.feeStructure || 'customer_pay',
       method: 'credit_card',
-      order_id: `inv_${validatedData.invoiceId}_pay_${payment.id}`,
+      order_id: shortOrderId,
       origin: validatedData.origin,
       response_url: validatedData.responseUrl,
-      total: invoice.totalAmount.toFixed(2),
+      total: total.toFixed(2),
     };
     
     try {
@@ -269,7 +297,7 @@ export class PaymentsService extends BaseService<typeof payments> {
       // Update payment record with transaction details
       await this.update(payment.id, {
         transactionId: response.data.transaction_id || null,
-        notes: `WiPay payment initiated. Transaction ID: ${response.data.transaction_id || 'Not provided'}`,
+        notes: `${payment.notes}\nTransaction ID: ${response.data.transaction_id || 'Not provided'}`,
       }, companyId);
       
       return {
@@ -277,7 +305,7 @@ export class PaymentsService extends BaseService<typeof payments> {
         redirectUrl: response.data.url,
         transactionId: response.data.transaction_id,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('WiPay payment request failed:', error);
       
       // Update payment record to failed state
@@ -294,47 +322,41 @@ export class PaymentsService extends BaseService<typeof payments> {
    * Handle WiPay callback after payment is processed
    */
   async handleWiPayCallback(callbackData: any, companyId: string) {
-    // Extract order_id from callback data which contains invoice and payment IDs
+    // Extract order_id from callback data
     const orderId = callbackData.order_id;
     
-    if (!orderId || !orderId.includes('_pay_')) {
-      throw new Error('Invalid order ID format in callback');
+    if (!orderId) {
+      throw new Error('Invalid order ID in callback');
     }
     
-    // Extract payment ID from order_id
-    const paymentId = orderId.split('_pay_')[1];
-    
-    if (!paymentId) {
-      throw new Error('Could not extract payment ID from order ID');
-    }
-    
-    // Get the payment
-    const payment = await this.getById(paymentId, companyId);
+    // Find payment by the short order ID in the notes field
+    const payments = await this.paymentsRepository.findAll(companyId);
+    const payment = payments.find(p => p.notes && p.notes.includes(`Short order ID: ${orderId}`));
     
     if (!payment) {
-      throw new Error('Payment not found');
+      throw new Error('Payment not found for the given order ID');
     }
     
     // Process based on status
     if (callbackData.status === 'success' || callbackData.status === 'completed') {
       // Update payment to completed status
-      await this.completePayment(paymentId, companyId);
+      await this.completePayment(payment.id, companyId);
       
       return {
         success: true,
-        payment: await this.getById(paymentId, companyId),
+        payment: await this.getById(payment.id, companyId),
         message: 'Payment completed successfully',
       };
     } else {
       // Update payment to failed status
-      await this.update(paymentId, {
+      await this.update(payment.id, {
         status: 'failed',
-        notes: `WiPay payment failed. Status: ${callbackData.status}, Message: ${callbackData.message || 'No message provided'}`,
+        notes: `${payment.notes}\nWiPay payment failed. Status: ${callbackData.status}, Message: ${callbackData.message || 'No message provided'}`,
       }, companyId);
       
       return {
         success: false,
-        payment: await this.getById(paymentId, companyId),
+        payment: await this.getById(payment.id, companyId),
         message: callbackData.message || 'Payment processing failed',
       };
     }

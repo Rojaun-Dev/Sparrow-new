@@ -5,7 +5,7 @@ export const createPaymentSchema = z.object({
   invoiceId: z.string().uuid(),
   userId: z.string().uuid(),
   amount: z.number().positive(),
-  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check']),
+  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'cash', 'check', 'online']),
   transactionId: z.string().optional(),
   paymentDate: z.date().optional(),
   notes: z.string().optional(),

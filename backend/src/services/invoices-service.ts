@@ -20,6 +20,25 @@ export const createInvoiceSchema = z.object({
 // Validation schema for invoice update
 export const updateInvoiceSchema = createInvoiceSchema.partial();
 
+// Backend Invoice type
+export interface Invoice {
+  id: string;
+  companyId: string;
+  userId: string;
+  invoiceNumber: string;
+  status: string;
+  issueDate: Date | string;
+  dueDate: Date | string;
+  subtotal: number | string;
+  taxAmount: number | string;
+  totalAmount: number | string;
+  notes?: string;
+  items?: any[];
+  feeBreakdown?: Record<string, number>;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
 export class InvoicesService {
   private invoicesRepository: InvoicesRepository;
   private usersRepository: UsersRepository;
@@ -41,7 +60,7 @@ export class InvoicesService {
   /**
    * Get an invoice by ID with company isolation
    */
-  async getInvoiceById(id: string, companyId: string) {
+  async getInvoiceById(id: string, companyId: string): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findById(id, companyId);
     
     if (!invoice) {
@@ -57,7 +76,16 @@ export class InvoicesService {
       unitPrice: Number(item.unitPrice),
       lineTotal: Number(item.lineTotal),
     })) as any[];
-    return { ...invoice, items };
+    const fullInvoice = { ...invoice, items } as Invoice;
+    // Runtime check for required properties
+    if (
+      typeof fullInvoice.userId !== 'string' ||
+      fullInvoice.totalAmount === undefined || fullInvoice.totalAmount === null || isNaN(Number(fullInvoice.totalAmount)) ||
+      typeof fullInvoice.status !== 'string'
+    ) {
+      throw new Error('Invoice is missing required properties (userId, totalAmount, status)');
+    }
+    return fullInvoice;
   }
 
   /**

@@ -102,7 +102,7 @@ export class ApiClient {
         expires: expirationDays,
         path: '/',
         secure: isProduction,
-        sameSite: 'strict'
+        sameSite: 'lax'
       });
     }
   }
@@ -122,13 +122,13 @@ export class ApiClient {
       Cookies.remove('token', {
         path: '/',
         secure: isProduction,
-        sameSite: 'strict'
+        sameSite: 'lax'
       });
       
       Cookies.remove('refreshToken', {
         path: '/',
         secure: isProduction,
-        sameSite: 'strict'
+        sameSite: 'lax'
       });
       
       // Double-check cookies were removed - an additional safety check

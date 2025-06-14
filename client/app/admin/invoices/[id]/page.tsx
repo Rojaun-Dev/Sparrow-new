@@ -507,6 +507,7 @@ export default function AdminInvoiceDetailPage() {
                                 <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                                 <SelectItem value="cash">Cash</SelectItem>
                                 <SelectItem value="check">Check</SelectItem>
+                                <SelectItem value="online">Online Payment</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

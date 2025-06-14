@@ -176,7 +176,7 @@ export interface InvoiceItem extends BaseEntity {
 }
 
 // Payment related types
-export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check';
+export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check' | 'online';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
 export interface Payment extends BaseEntity {

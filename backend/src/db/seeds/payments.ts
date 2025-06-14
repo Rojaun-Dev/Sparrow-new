@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import logger from '../../utils/logger';
 
 // Define payment method type
-type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check';
+type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check' | 'online';
 type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
 /**

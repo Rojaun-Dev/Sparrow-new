@@ -9,6 +9,7 @@ export const paymentMethodEnum = pgEnum('payment_method', [
   'bank_transfer',
   'cash',
   'check',
+  'online',
 ]);
 
 // Define the payment status enum

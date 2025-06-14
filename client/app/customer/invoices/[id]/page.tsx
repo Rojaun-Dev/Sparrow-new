@@ -1,8 +1,9 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useState, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, AlertCircle, CreditCard, Download, ExternalLink, FileText, Printer } from "lucide-react"
+import { ArrowLeft, AlertCircle, CreditCard, Download, ExternalLink, FileText, Printer, CheckCircle, XCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { 
@@ -13,6 +14,14 @@ import {
   CardHeader, 
   CardTitle 
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -22,9 +31,10 @@ import { useUser } from "@/hooks/useUsers"
 import { useMyCompany } from "@/hooks/useCompanies"
 import InvoicePDFRenderer from "@/components/invoices/InvoicePDFRenderer"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePayWiPay } from "@/hooks/usePayWiPay"
+import { usePayWiPay, usePaymentAvailability } from "@/hooks/usePayWiPay"
 import { useCompanySettings } from "@/hooks/useCompanySettings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useAuth } from "@/hooks/useAuth"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -32,6 +42,86 @@ type PaymentHistory = {
   method: string;
   transactionId: string;
   amount: string;
+}
+
+// PaymentResultModal component
+function PaymentResultModal({ 
+  isOpen, 
+  onClose,
+  status,
+  message,
+  transactionId,
+  error
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  status: string | null;
+  message: string | null;
+  transactionId: string | null;
+  error: string | null;
+}) {
+  const isSuccess = status === "success" || status === "completed";
+  const router = useRouter();
+  
+  const handleViewPayments = () => {
+    router.push('/customer/payments');
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-center">
+            {isSuccess ? "Payment Successful" : "Payment Failed"}
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="flex justify-center py-4">
+            {isSuccess ? (
+              <CheckCircle className="h-16 w-16 text-green-500" />
+            ) : (
+              <XCircle className="h-16 w-16 text-red-500" />
+            )}
+          </div>
+          
+          {message && (
+            <Alert variant={isSuccess ? "default" : "destructive"}>
+              <AlertTitle>{isSuccess ? "Success" : "Error"}</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
+          
+          {transactionId && (
+            <div className="text-sm text-center">
+              <p className="font-medium">Transaction ID:</p>
+              <p className="text-muted-foreground">{transactionId}</p>
+            </div>
+          )}
+          
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>System Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+        
+        <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={onClose} className="w-full sm:w-1/2">
+            Close
+          </Button>
+          <Button 
+            onClick={handleViewPayments} 
+            variant="outline" 
+            className="w-full sm:w-1/2"
+          >
+            View All Payments
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // Customer Name Display Component
@@ -71,11 +161,11 @@ function CompanyNameDisplay({ companyId }: { companyId: string }) {
 // PayNowButton component
 function PayNowButton({ invoice }: { invoice: any }) {
   const { initiate, isLoading, error } = usePayWiPay();
-  const { company } = useCompanySettings();
+  const { data: paymentSettings, isLoading: isLoadingPaymentSettings } = usePaymentAvailability();
   const [showError, setShowError] = useState(false);
   
   // Check if WiPay is enabled in company settings
-  const isWiPayEnabled = company?.paymentSettings?.wipay?.enabled;
+  const isWiPayEnabled = paymentSettings?.isEnabled;
   
   const handlePayment = async () => {
     if (!isWiPayEnabled) {
@@ -93,6 +183,15 @@ function PayNowButton({ invoice }: { invoice: any }) {
       setShowError(true);
     }
   };
+  
+  if (isLoadingPaymentSettings) {
+    return (
+      <div className="space-y-3 w-full">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-4 w-3/4 mx-auto" />
+      </div>
+    );
+  }
   
   if (!isWiPayEnabled) {
     return (
@@ -139,6 +238,70 @@ function PayNowButton({ invoice }: { invoice: any }) {
 export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
   const resolvedParams = use(params);
+  
+  // State for payment result modal
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [paymentTransactionId, setPaymentTransactionId] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [hasProcessedCallback, setHasProcessedCallback] = useState(false);
+  
+  // Get URL search params for payment result
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Refresh auth token on component mount
+  useEffect(() => {
+    // Check if we're returning from WiPay
+    const hasPaymentParams = searchParams.get("status") !== null;
+    
+    if (hasPaymentParams && typeof window !== 'undefined') {
+      // Force a token refresh by setting it again from localStorage
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Ensure token is also in cookie for middleware
+        document.cookie = `token=${token}; path=/; max-age=${60*60*24*7}; samesite=lax`; // 7 days
+        console.log('Refreshed authentication token in cookies after WiPay redirect');
+      }
+    }
+  }, [searchParams]);
+  
+  // Check for payment result in URL and restore authentication if needed
+  useEffect(() => {
+    // Check if we have a stored auth token from before the WiPay redirect
+    if (typeof window !== 'undefined') {
+      const storedToken = sessionStorage.getItem('wipay_auth_token');
+      if (storedToken) {
+        // Restore the token to localStorage
+        localStorage.setItem('token', storedToken);
+        // Set the token in cookies for middleware
+        document.cookie = `token=${storedToken}; path=/; max-age=${60*60*24*7}; samesite=lax`; // 7 days
+        // Clean up session storage
+        sessionStorage.removeItem('wipay_auth_token');
+        console.log('Restored authentication token after WiPay redirect');
+      }
+    }
+    
+    const status = searchParams.get("status");
+    const message = searchParams.get("message");
+    const transactionId = searchParams.get("transaction_id");
+    
+    // Only process if we have payment parameters and haven't processed them yet
+    if (status && !hasProcessedCallback) {
+      setPaymentStatus(status);
+      setPaymentMessage(message);
+      setPaymentTransactionId(transactionId);
+      setShowPaymentModal(true);
+      setHasProcessedCallback(true);
+      
+      // Clean up URL parameters to avoid reprocessing on refresh
+      // but preserve the invoice ID
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, '', url);
+    }
+  }, [searchParams, hasProcessedCallback]);
   
   // Fetch invoice data using the useInvoice hook
   const { data: invoice, isLoading, isError, error } = useInvoice(resolvedParams.id);
@@ -243,6 +406,16 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Payment Result Modal */}
+      <PaymentResultModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        status={paymentStatus}
+        message={paymentMessage}
+        transactionId={paymentTransactionId}
+        error={paymentError}
+      />
+      
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
@@ -391,228 +564,192 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                     <TableHeader>
                       <TableRow>
                         <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Unit Price</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {invoice.items && invoice.items.length > 0 ? (
-                        invoice.items.map((item, index) => (
-                          <TableRow key={index}>
+                        invoice.items.map((item: any) => (
+                          <TableRow key={item.id}>
                             <TableCell className="font-medium">{item.description}</TableCell>
-                            <TableCell className="text-right">
-                              ${typeof item.lineTotal === 'string' 
-                                ? parseFloat(item.lineTotal).toFixed(2)
-                                : (item.lineTotal || 0).toFixed(2)}
-                            </TableCell>
+                            <TableCell className="text-right">{item.quantity}</TableCell>
+                            <TableCell className="text-right">${parseFloat(item.unitPrice).toFixed(2)}</TableCell>
+                            <TableCell className="text-right">${parseFloat(item.lineTotal).toFixed(2)}</TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={2} className="text-center text-muted-foreground py-4">
-                            No detailed items available
-                          </TableCell>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">No items on this invoice</TableCell>
                         </TableRow>
                       )}
-                      <TableRow>
-                        <TableCell className="text-right font-medium">
-                          Subtotal
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${typeof invoice.subtotal === 'string' 
-                            ? parseFloat(invoice.subtotal).toFixed(2)
-                            : (invoice.subtotal || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-right font-medium">
-                          Tax
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${typeof invoice.taxAmount === 'string' 
-                            ? parseFloat(invoice.taxAmount).toFixed(2)
-                            : (invoice.taxAmount || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-right font-medium">
-                          Total
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          ${typeof invoice.totalAmount === 'string' 
-                            ? parseFloat(invoice.totalAmount).toFixed(2)
-                            : (invoice.totalAmount || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>
-              </div>
-              
-              {/* Show payment history only if payments property exists and has items */}
-              {((invoice as any).payments && Array.isArray((invoice as any).payments) && (invoice as any).payments.length > 0) && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="mb-4 text-base font-medium">Payment History</h3>
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Method</TableHead>
-                            <TableHead>Transaction ID</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {((invoice as any).payments as any[]).map((payment: any, index: number) => (
-                            <TableRow key={index}>
-                              <TableCell>{new Date(payment.date || payment.createdAt).toLocaleDateString()}</TableCell>
-                              <TableCell>{payment.method || payment.paymentMethod || 'Unknown'}</TableCell>
-                              <TableCell className="font-mono text-xs">{payment.transactionId || payment.id || 'N/A'}</TableCell>
-                              <TableCell className="text-right">
-                                ${typeof payment.amount === 'string' 
-                                  ? parseFloat(payment.amount).toFixed(2)
-                                  : (payment.amount || 0).toFixed(2)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Subtotal</span>
+                    <span>${parseFloat(invoice.subtotal?.toString() || "0").toFixed(2)}</span>
                   </div>
-                </>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Tax</span>
+                    <span>${parseFloat(invoice.taxAmount?.toString() || "0").toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span>Total</span>
+                    <span>${parseFloat(invoice.totalAmount?.toString() || "0").toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment</CardTitle>
+              <CardDescription>
+                {invoice.status === "paid" 
+                  ? "This invoice has been paid"
+                  : "Make a payment for this invoice"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {invoice.status === "paid" ? (
+                <div className="space-y-4">
+                  <div className="rounded-md bg-green-50 p-4 text-green-700">
+                    <div className="flex">
+                      <CheckCircle className="h-5 w-5 mr-2" />
+                      <p className="font-medium">Payment Complete</p>
+                    </div>
+                    <p className="text-sm mt-1">
+                      This invoice has been fully paid.
+                    </p>
+                  </div>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => router.push('/customer/payments')}
+                  >
+                    View Payment History
+                  </Button>
+                </div>
+              ) : (
+                <PayNowButton invoice={invoice} />
               )}
             </CardContent>
           </Card>
         </div>
-
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Status</CardTitle>
-              <CardDescription>
-                {invoice.status === "paid" 
-                  ? "This invoice has been paid in full." 
-                  : `Due on ${new Date(invoice.dueDate).toLocaleDateString()}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Due:</span>
-                  <span className="font-bold text-lg">
-                    ${typeof invoice.totalAmount === 'string' 
-                      ? parseFloat(invoice.totalAmount).toFixed(2)
-                      : (invoice.totalAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-                <Separator />
-                {invoice.status === "paid" ? (
-                  <div className="rounded-md bg-green-50 p-4 text-green-700 text-sm">
-                    <p>Payment complete. Thank you!</p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {invoice.status === "overdue" 
-                      ? "This invoice is past due. Please make payment as soon as possible." 
-                      : "Please make payment before the due date."}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-            {invoice.status !== "paid" && (
-              <CardFooter className="border-t px-6 pt-4">
-                <PayNowButton invoice={invoice} />
-              </CardFooter>
-            )}
-          </Card>
-        </div>
       </div>
     </div>
-  )
+  );
 }
 
-// Skeleton loader component
 function InvoiceDetailsSkeleton() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-10 rounded-md" />
+          <Skeleton className="h-10 w-10" />
           <div>
             <Skeleton className="h-8 w-40" />
-            <Skeleton className="h-4 w-24 mt-1" />
+            <Skeleton className="h-4 w-20 mt-1" />
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-36" />
+          <Skeleton className="h-10 w-24" />
+          <Skeleton className="h-10 w-32" />
         </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2">
           <Card>
-            <CardHeader>
-              <Skeleton className="h-6 w-40" />
-              <Skeleton className="h-4 w-32" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-40 mt-1" />
+              </div>
+              <Skeleton className="h-6 w-20" />
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
+                  {[...Array(4)].map((_, i) => (
                     <div key={i}>
-                      <Skeleton className="h-4 w-24 mb-1" />
-                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-5 w-32 mt-1" />
                     </div>
                   ))}
                 </div>
-                <div>
-                  <Skeleton className="h-4 w-28 mb-1" />
-                  <div className="space-y-1">
-                    {[1, 2, 3, 4].map((i) => (
-                      <Skeleton key={i} className="h-4 w-full" />
-                    ))}
-                  </div>
+                <div className="space-y-4">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i}>
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-5 w-40 mt-1" />
+                    </div>
+                  ))}
                 </div>
               </div>
               
-              <Separator />
+              <Skeleton className="h-px w-full" />
               
-              <Skeleton className="h-5 w-36 mb-2" />
-              <Skeleton className="h-[200px] w-full" />
+              <div>
+                <Skeleton className="h-6 w-40 mb-4" />
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
               
-              <Separator />
+              <Skeleton className="h-px w-full" />
               
-              <Skeleton className="h-5 w-32 mb-2" />
-              <Skeleton className="h-[200px] w-full" />
+              <div>
+                <Skeleton className="h-6 w-32 mb-4" />
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
-
+        
         <div>
           <Card>
             <CardHeader>
-              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-6 w-24" />
               <Skeleton className="h-4 w-40" />
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex justify-between">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-6 w-24" />
-                </div>
-                <Separator />
-                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-4 w-3/4 mx-auto" />
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4">
-              <Skeleton className="h-10 w-full" />
-            </CardFooter>
           </Card>
         </div>
       </div>
     </div>
-  )
+  );
 } 

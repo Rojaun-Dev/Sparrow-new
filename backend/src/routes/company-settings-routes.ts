@@ -32,7 +32,7 @@ router.put(
 // Get payment settings
 router.get(
   '/payment',
-  /*checkRole(['admin_l1', 'admin_l2']),*/
+  /*checkRole(['admin_l1', 'admin_l2', 'customer']),*/
   companySettingsController.getPaymentSettings
 );
 

@@ -164,6 +164,8 @@ export default function PaymentsPage() {
         return 'Cash';
       case 'check':
         return 'Check';
+      case 'online':
+        return 'Online Payment';
       default:
         return method.replace('_', ' ');
     }
@@ -278,6 +280,7 @@ export default function PaymentsPage() {
                     <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="check">Check</SelectItem>
+                    <SelectItem value="online">Online Payment</SelectItem>
                   </SelectContent>
                 </Select>
                 <div>
