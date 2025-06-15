@@ -6,9 +6,10 @@ import { useState, useEffect } from "react"
 import { ArrowRight, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
+import { useCompanyContext } from "@/hooks/useCompanyContext"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,64 +22,17 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 // Import the registration schema
 import { registrationSchema, type RegistrationFormValues } from "@/lib/validations/auth"
 
-interface CompanyData {
-  id: string;
-  name?: string;
-  logo?: string | null;
-  banner?: string | null;
-  [key: string]: any;
-}
-
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
-  const [companyName, setCompanyName] = useState<string | null>(null)
-  const [companyId, setCompanyId] = useState<string | null>(null)
-  const [companyBanner, setCompanyBanner] = useState<string | null>(null)
+  const { companyLogo, companyName, companyBanner, companyId, companySubdomain } = useCompanyContext()
   const [formData, setFormData] = useState<RegistrationFormValues | null>(null)
-  const [companySlug, setCompanySlug] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const { register, error, clearError } = useAuth()
   const { toast } = useToast()
-
-  // Check for company ID in the URL (from iframe redirect)
-  useEffect(() => {
-    const slugParam = searchParams.get('company');
-    let detectedSlug: string | null | undefined = slugParam;
-    if (!detectedSlug) {
-      const hostname = window.location.hostname;
-      const hostParts = hostname.split('.');
-      if (hostParts.length >= 3 && hostParts[0] !== 'www') {
-        detectedSlug = hostParts[0];
-      }
-    }
-    if (!detectedSlug) {
-      detectedSlug = localStorage.getItem('companySlug') || undefined;
-    }
-    if (detectedSlug) {
-      setCompanySlug(detectedSlug);
-      localStorage.setItem('companySlug', detectedSlug);
-      const fetchCompanyInfo = async () => {
-        try {
-          const response = await fetch(`/api/company/by-subdomain/${detectedSlug}`);
-          if (response.ok) {
-            const companyData: CompanyData = await response.json();
-            console.log('Fetched company data:', companyData);
-            setCompanyName(companyData.name || 'SparrowX');
-            setCompanyLogo(companyData.logo || null);
-            setCompanyBanner(companyData.banner || null);
-            setCompanyId(companyData.id);
-          }
-        } catch (err) {
-          console.error('Error fetching company info:', err);
-        }
-      };
-      fetchCompanyInfo();
-    }
-  }, [searchParams]);
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<RegistrationFormValues>({
@@ -120,7 +74,7 @@ export default function RegisterPage() {
           description: 'You can now sign in with your credentials.',
           variant: 'default'
         });
-        router.push(`/?company=${companySlug || ''}`);
+        router.push(`/?company=${companySubdomain || ''}`);
       } else {
         const msg = result.message || 'Registration failed';
         toast({

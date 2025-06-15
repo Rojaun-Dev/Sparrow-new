@@ -6,10 +6,11 @@ import { useState, useEffect } from "react"
 import { ArrowRight, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { authService } from "@/lib/api/authService"
 import { useToast } from "@/hooks/use-toast"
+import { useCompanyContext } from "@/hooks/useCompanyContext"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,24 +22,14 @@ import { cn } from "@/lib/utils"
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
 
-interface CompanyData {
-  id: string;
-  name?: string;
-  logo?: string | null;
-  banner?: string | null;
-  [key: string]: any;
-}
-
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
-  const [companyName, setCompanyName] = useState<string | null>(null)
-  const [companyBanner, setCompanyBanner] = useState<string | null>(null)
-  const [companySlug, setCompanySlug] = useState<string | null>(null)
+  const { companyLogo, companyName, companyBanner, companySubdomain, refetch } = useCompanyContext()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const { login, error, clearError } = useAuth()
   const { toast } = useToast()
 
@@ -52,45 +43,6 @@ export default function LoginPage() {
     },
     mode: "onChange",
   })
-
-  // Check for company ID in the URL (from iframe redirect)
-  useEffect(() => {
-    const slugParam = searchParams.get('company');
-    let detectedSlug: string | null | undefined = slugParam;
-    if (!detectedSlug) {
-      // Fallback to subdomain detection
-      const hostname = window.location.hostname;
-      const hostParts = hostname.split('.');
-      if (hostParts.length >= 3 && hostParts[0] !== 'www') {
-        detectedSlug = hostParts[0];
-      }
-    }
-    // Final fallback: stored slug from previous visit (e.g., after logout)
-    if (!detectedSlug) {
-      detectedSlug = localStorage.getItem('companySlug') || undefined;
-    }
-    if (detectedSlug) {
-      setCompanySlug(detectedSlug);
-      // Persist slug for future visits
-      localStorage.setItem('companySlug', detectedSlug);
-      // Fetch company information using the slug
-      const fetchCompanyInfo = async () => {
-        try {
-          const response = await fetch(`/api/company/by-subdomain/${detectedSlug}`);
-          if (response.ok) {
-            const companyData: CompanyData = await response.json();
-            console.log('Fetched company data:', companyData);
-            setCompanyName(companyData.name || 'SparrowX');
-            setCompanyLogo(companyData.logo || null);
-            setCompanyBanner(companyData.banner || null);
-          }
-        } catch (err) {
-          console.error('Error fetching company info:', err);
-        }
-      };
-      fetchCompanyInfo();
-    }
-  }, [searchParams]);
 
   // Get route based on user role
   const getRouteFromRole = (role: string): string => {
@@ -356,7 +308,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm">
             Don't have an account?{" "}
-            <Link href={`/register${companySlug ? `?company=${companySlug}` : ''}`} className="text-primary font-medium hover:underline">
+            <Link href={`/register${companySubdomain ? `?company=${companySubdomain}` : ''}`} className="text-primary font-medium hover:underline">
               Sign up
             </Link>
           </div>
