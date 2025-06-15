@@ -3,14 +3,17 @@ import { AuthRequest } from '../middleware/auth';
 import { CompanySettingsService } from '../services/company-settings-service';
 import { z } from 'zod';
 import { CompaniesService } from '../services/companies-service';
+import { CompanyAssetsService } from '../services/company-assets-service';
 
 export class CompanySettingsController {
   private companySettingsService: CompanySettingsService;
   private companiesService: CompaniesService;
+  private companyAssetsService: CompanyAssetsService;
 
   constructor() {
     this.companySettingsService = new CompanySettingsService();
     this.companiesService = new CompaniesService();
+    this.companyAssetsService = new CompanyAssetsService();
   }
 
   /**
@@ -272,12 +275,31 @@ export class CompanySettingsController {
         return res.status(404).json({ error: 'Company not found' });
       }
       
-      // Return only public information
+      // Fetch logo and banner from assets table
+      let logo: string | null = null;
+      let banner: string | null = null;
+      try {
+        const assets = await this.companyAssetsService.listAssets(company.id);
+        const toDataUrl = (asset: any) => {
+          if (!asset?.imageData) return null;
+          if (asset.imageData.startsWith('data:')) return asset.imageData;
+          const mime = asset.metadata?.mimeType || 'image/png';
+          return `data:${mime};base64,${asset.imageData}`;
+        };
+        const logoAsset = assets.find(a => a.type === 'logo');
+        const bannerAsset = assets.find(a => a.type === 'banner');
+        logo = toDataUrl(logoAsset);
+        banner = toDataUrl(bannerAsset);
+      } catch (assetErr) {
+        console.error('Error fetching company assets:', assetErr);
+      }
+
       return res.json({
         id: company.id,
         name: company.name,
         subdomain: company.subdomain,
-        logo: (company.images as any)?.logo || null,
+        logo,
+        banner,
         success: true
       });
     } catch (error) {
@@ -349,12 +371,31 @@ export class CompanySettingsController {
         }
       }
       
-      // Return company information
+      // Fetch logo and banner from assets table
+      let logo: string | null = null;
+      let banner: string | null = null;
+      try {
+        const assets = await this.companyAssetsService.listAssets(settings.company.id);
+        const toDataUrl = (asset: any) => {
+          if (!asset?.imageData) return null;
+          if (asset.imageData.startsWith('data:')) return asset.imageData;
+          const mime = asset.metadata?.mimeType || 'image/png';
+          return `data:${mime};base64,${asset.imageData}`;
+        };
+        const logoAsset = assets.find(a => a.type === 'logo');
+        const bannerAsset = assets.find(a => a.type === 'banner');
+        logo = toDataUrl(logoAsset);
+        banner = toDataUrl(bannerAsset);
+      } catch (assetErr) {
+        console.error('Error fetching company assets:', assetErr);
+      }
+
       return res.json({
         id: settings.company.id,
         name: settings.company.name,
         subdomain: settings.company.subdomain,
-        logo: (settings.company.images as any)?.logo || null
+        logo,
+        banner
       });
       
     } catch (error) {

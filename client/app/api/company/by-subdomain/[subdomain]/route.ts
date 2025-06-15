@@ -57,7 +57,7 @@ export async function GET(
       console.log(`Fetching public assets for company ${company.id}`);
       
       // Use our public assets endpoint
-      const apiUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+      const apiUrl = process.env.NEXT_PUBLIC_URL || '';
       const assetsResponse = await fetch(`${apiUrl}/api/public/assets/${company.id}`, {
         method: 'GET',
         headers: {
@@ -75,16 +75,20 @@ export async function GET(
         if (Array.isArray(assets) && assets.length > 0) {
           responseData.assets = assets;
           
-          // Extract logo and banner directly from assets
+          const toDataUrl = (asset: any) => {
+            if (!asset || !asset.imageData) return null;
+            // If already in data URL format, return as is
+            if (asset.imageData.startsWith('data:')) return asset.imageData;
+            // Detect mime type from metadata if provided, default to png
+            const mime = asset.metadata?.mimeType || 'image/png';
+            return `data:${mime};base64,${asset.imageData}`;
+          };
+
           const logoAsset = assets.find(asset => asset.type === 'logo');
-          if (logoAsset && logoAsset.imageData) {
-            responseData.logo = logoAsset.imageData;
-          }
-          
+          responseData.logo = toDataUrl(logoAsset);
+
           const bannerAsset = assets.find(asset => asset.type === 'banner');
-          if (bannerAsset && bannerAsset.imageData) {
-            responseData.banner = bannerAsset.imageData;
-          }
+          responseData.banner = toDataUrl(bannerAsset);
         }
       }
     } catch (assetError) {
