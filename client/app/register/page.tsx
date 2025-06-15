@@ -26,13 +26,18 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { companyLogo, companyName, companyBanner, companyId, companySubdomain } = useCompanyContext()
+  const { companyLogo, companyName, companyBanner, companyId, companySubdomain, forceRefresh } = useCompanyContext()
   const [formData, setFormData] = useState<RegistrationFormValues | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const { register, error, clearError } = useAuth()
   const { toast } = useToast()
+
+  // Force refresh company data when the page loads
+  useEffect(() => {
+    forceRefresh();
+  }, [forceRefresh]);
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<RegistrationFormValues>({

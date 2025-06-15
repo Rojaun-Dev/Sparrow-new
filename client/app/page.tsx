@@ -26,12 +26,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const { companyLogo, companyName, companyBanner, companySubdomain, refetch } = useCompanyContext()
+  const { companyLogo, companyName, companyBanner, companySubdomain, forceRefresh } = useCompanyContext()
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const { login, error, clearError } = useAuth()
   const { toast } = useToast()
+
+  // Force refresh company data when the page loads
+  useEffect(() => {
+    forceRefresh();
+  }, [forceRefresh]);
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<LoginFormValues>({
