@@ -36,6 +36,7 @@ export default function LoginPage() {
   const [companyLogo, setCompanyLogo] = useState<string | null>(null)
   const [companyName, setCompanyName] = useState<string | null>(null)
   const [companyBanner, setCompanyBanner] = useState<string | null>(null)
+  const [companySlug, setCompanySlug] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, error, clearError } = useAuth()
@@ -69,6 +70,7 @@ export default function LoginPage() {
       detectedSlug = localStorage.getItem('companySlug') || undefined;
     }
     if (detectedSlug) {
+      setCompanySlug(detectedSlug);
       // Persist slug for future visits
       localStorage.setItem('companySlug', detectedSlug);
       // Fetch company information using the slug
@@ -354,7 +356,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm">
             Don't have an account?{" "}
-            <Link href="/register" className="text-primary font-medium hover:underline">
+            <Link href={`/register${companySlug ? `?company=${companySlug}` : ''}`} className="text-primary font-medium hover:underline">
               Sign up
             </Link>
           </div>

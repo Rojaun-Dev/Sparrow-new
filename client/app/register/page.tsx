@@ -38,6 +38,7 @@ export default function RegisterPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [companyBanner, setCompanyBanner] = useState<string | null>(null)
   const [formData, setFormData] = useState<RegistrationFormValues | null>(null)
+  const [companySlug, setCompanySlug] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { register, error, clearError } = useAuth()
@@ -58,6 +59,7 @@ export default function RegisterPage() {
       detectedSlug = localStorage.getItem('companySlug') || undefined;
     }
     if (detectedSlug) {
+      setCompanySlug(detectedSlug);
       localStorage.setItem('companySlug', detectedSlug);
       const fetchCompanyInfo = async () => {
         try {
@@ -118,7 +120,7 @@ export default function RegisterPage() {
           description: 'You can now sign in with your credentials.',
           variant: 'default'
         });
-        router.push('/?company='+ (searchParams.get('company') || ''));
+        router.push(`/?company=${companySlug || ''}`);
       } else {
         const msg = result.message || 'Registration failed';
         toast({

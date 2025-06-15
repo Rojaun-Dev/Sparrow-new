@@ -281,10 +281,14 @@ export class CompanySettingsController {
       try {
         const assets = await this.companyAssetsService.listAssets(company.id);
         const toDataUrl = (asset: any) => {
-          if (!asset?.imageData) return null;
-          if (asset.imageData.startsWith('data:')) return asset.imageData;
-          const mime = asset.metadata?.mimeType || 'image/png';
-          return `data:${mime};base64,${asset.imageData}`;
+          if (!asset) return null;
+          if (asset.imageData) {
+            if (asset.imageData.startsWith('data:')) return asset.imageData;
+            const mime = asset.metadata?.mimeType || 'image/png';
+            return `data:${mime};base64,${asset.imageData}`;
+          }
+          if (asset.metadata?.url) return asset.metadata.url;
+          return null;
         };
         const logoAsset = assets.find(a => a.type === 'logo');
         const bannerAsset = assets.find(a => a.type === 'banner');
@@ -377,10 +381,14 @@ export class CompanySettingsController {
       try {
         const assets = await this.companyAssetsService.listAssets(settings.company.id);
         const toDataUrl = (asset: any) => {
-          if (!asset?.imageData) return null;
-          if (asset.imageData.startsWith('data:')) return asset.imageData;
-          const mime = asset.metadata?.mimeType || 'image/png';
-          return `data:${mime};base64,${asset.imageData}`;
+          if (!asset) return null;
+          if (asset.imageData) {
+            if (asset.imageData.startsWith('data:')) return asset.imageData;
+            const mime = asset.metadata?.mimeType || 'image/png';
+            return `data:${mime};base64,${asset.imageData}`;
+          }
+          if (asset.metadata?.url) return asset.metadata.url;
+          return null;
         };
         const logoAsset = assets.find(a => a.type === 'logo');
         const bannerAsset = assets.find(a => a.type === 'banner');
