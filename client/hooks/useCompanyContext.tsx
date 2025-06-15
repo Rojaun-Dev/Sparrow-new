@@ -58,11 +58,18 @@ export const CompanyProvider = ({ children }: CompanyProviderProps) => {
         const hostParts = hostname.split('.');
         const subdomainFromHost = hostParts.length >= 3 && hostParts[0] !== 'www' ? hostParts[0] : null;
 
-        const detectedSubdomain = companyParam || subdomainFromHost;
+        let detectedSubdomain = companyParam || subdomainFromHost;
+
+        // Normalize by removing '-client' suffix if present
+        if (detectedSubdomain && detectedSubdomain.endsWith('-client')) {
+          detectedSubdomain = detectedSubdomain.replace(/-client$/, '');
+        }
 
         if (detectedSubdomain) {
           // Fetch company information from API
-          const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || '/api'}/companies/by-subdomain/${detectedSubdomain}`;
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL
+            ? `${process.env.NEXT_PUBLIC_API_URL}/companies/by-subdomain/${detectedSubdomain}`
+            : `/api/company/by-subdomain/${detectedSubdomain}`;
           const response = await fetch(apiUrl);
 
           if (response.ok) {

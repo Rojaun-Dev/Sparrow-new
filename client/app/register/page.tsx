@@ -57,6 +57,9 @@ export default function RegisterPage() {
     if (!detectedSlug) {
       detectedSlug = localStorage.getItem('companySlug') || undefined;
     }
+    if (detectedSlug && detectedSlug.endsWith('-client')) {
+      detectedSlug = detectedSlug.replace(/-client$/, '');
+    }
     if (detectedSlug) {
       localStorage.setItem('companySlug', detectedSlug);
       const fetchCompanyInfo = async () => {

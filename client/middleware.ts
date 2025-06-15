@@ -55,6 +55,11 @@ async function detectCompanyFromRequest(request: NextRequest) {
     companySubdomain = url.searchParams.get('company');
   }
 
+  // Normalize subdomain (e.g., remove Vercel '-client' suffix if present)
+  if (companySubdomain && companySubdomain.endsWith('-client')) {
+    companySubdomain = companySubdomain.replace(/-client$/, '');
+  }
+
   // If we found a company identifier, try to fetch company details
   if (companySubdomain) {
     try {
