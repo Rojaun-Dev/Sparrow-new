@@ -36,16 +36,21 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Check the referring domain to ensure it's allowed
-    const referer = request.headers.get('referer');
-    let referringDomain = null;
-    
-    if (referer) {
-      try {
-        const url = new URL(referer);
-        referringDomain = url.hostname;
-      } catch (e) {
-        console.error('Invalid referer URL:', e);
+    // Prefer an explicit domain query param (set by the embed script) over the Referer header
+    const domainParam = request.nextUrl.searchParams.get('domain');
+
+    let referringDomain: string | null = domainParam || null;
+
+    // Fallback to the Referer header only if the domain param was not provided
+    if (!referringDomain) {
+      const refererHeader = request.headers.get('referer');
+      if (refererHeader) {
+        try {
+          const url = new URL(refererHeader);
+          referringDomain = url.hostname;
+        } catch (e) {
+          console.error('Invalid referer URL:', e);
+        }
       }
     }
     

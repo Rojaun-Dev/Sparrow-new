@@ -36,8 +36,21 @@ function EmbedContent() {
           return;
         }
 
-        // Verify API key and get company info
-        const response = await fetch(`/api/embed/verify?api_key=${apiKey}`);
+        // Determine the top-level domain (the page that embeds the iframe)
+        const parentDomain = typeof document !== 'undefined' && document.referrer
+          ? (() => {
+              try {
+                return new URL(document.referrer).hostname;
+              } catch {
+                return '';
+              }
+            })()
+          : '';
+
+        const domainParam = parentDomain ? `&domain=${encodeURIComponent(parentDomain)}` : '';
+
+        // Verify API key and get company info, sending the parent domain when available
+        const response = await fetch(`/api/embed/verify?api_key=${apiKey}${domainParam}`);
         if (!response.ok) {
           throw new Error('Invalid API key or unauthorized domain');
         }
