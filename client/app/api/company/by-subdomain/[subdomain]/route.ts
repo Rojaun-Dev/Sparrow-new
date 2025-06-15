@@ -57,8 +57,8 @@ export async function GET(
       console.log(`Fetching public assets for company ${company.id}`);
       
       // Use our public assets endpoint
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const assetsResponse = await fetch(`${apiUrl}/companies/${company.id}/public-assets`, {
+      const apiUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+      const assetsResponse = await fetch(`${apiUrl}/api/public/assets/${company.id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

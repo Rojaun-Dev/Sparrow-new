@@ -69,10 +69,6 @@ export default function LoginPage() {
       detectedSlug = localStorage.getItem('companySlug') || undefined;
     }
     if (detectedSlug) {
-      // Normalize subdomain: strip '-client' suffix used in deploy hostnames
-      if (detectedSlug.endsWith('-client')) {
-        detectedSlug = detectedSlug.replace(/-client$/, '');
-      }
       // Persist slug for future visits
       localStorage.setItem('companySlug', detectedSlug);
       // Fetch company information using the slug
