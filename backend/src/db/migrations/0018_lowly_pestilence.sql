@@ -1,0 +1,1 @@
+ALTER TYPE "package_status" ADD VALUE 'in_transit';

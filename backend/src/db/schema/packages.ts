@@ -4,6 +4,7 @@ import { users } from './users';
 
 // Define the package status enum
 export const packageStatusEnum = pgEnum('package_status', [
+  'in_transit',
   'pre_alert',
   'received',
   'processed',
@@ -20,6 +21,7 @@ export const packages = pgTable('packages', {
   userId: uuid('user_id').notNull().references(() => users.id, {
     onDelete: 'cascade',
   }),
+  prefId: text('pref_id'),
   trackingNumber: text('tracking_number').notNull(),
   internalTrackingId: text('internal_tracking_id').notNull().unique(),
   status: packageStatusEnum('status').notNull().default('received'),

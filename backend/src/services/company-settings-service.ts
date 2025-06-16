@@ -86,6 +86,7 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
     if (!settings) {
       // Return default settings if none exist
       return {
+        internalPrefix: 'SPX',
         notificationSettings: {},
         themeSettings: {},
         paymentSettings: {},

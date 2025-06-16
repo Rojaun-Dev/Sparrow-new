@@ -12,6 +12,7 @@ export const createPackageSchema = z.object({
   userId: z.string().uuid(),
   trackingNumber: z.string().min(3).max(100),
   internalTrackingId: z.string().optional(), // Auto-generated if not provided
+  prefId: z.string().optional(), // Auto-generated based on the user's prefId
   status: z.enum(packageStatusEnum.enumValues).default('received'),
   description: z.string().optional(),
   weight: z.number().positive().optional(),
@@ -36,7 +37,7 @@ export const createPackageSchema = z.object({
 // Validation schema for package update
 export const updatePackageSchema = createPackageSchema
   .partial()
-  .omit({ internalTrackingId: true }); // Don't allow updating internal tracking ID
+  .omit({ internalTrackingId: true, prefId: true }); // Don't allow updating internal tracking ID or prefId
 
 export class PackagesService {
   private packagesRepository: PackagesRepository;
@@ -200,100 +201,142 @@ export class PackagesService {
   }
 
   /**
+   * Generate a unique tracking ID
+   */
+  private async generateTrackingId(userId: string, companyId: string): Promise<{internalTrackingId: string, prefId: string}> {
+    // Get user information to access the internalId
+    const user = await this.usersRepository.findById(userId, companyId);
+    
+    if (!user || !user.internalId) {
+      throw new AppError('User not found or missing internalId', 404);
+    }
+    
+    // Get current count of packages for this user to make a unique identifier
+    const userPackagesResult = await this.packagesRepository.findByUserId(userId, companyId);
+    const packageCount = userPackagesResult?.data?.length || 0;
+    
+    // Create package-specific suffix (padded count)
+    const packageSuffix = (packageCount + 1).toString().padStart(3, '0');
+    
+    // Format internal tracking ID as USER_INTERNAL_ID-PACKAGE_SUFFIX
+    const internalTrackingId = `${user.internalId}-${packageSuffix}`;
+    
+    // PrefId is just the user's prefId
+    const prefId = user.prefId;
+    
+    return { internalTrackingId, prefId };
+  }
+
+  /**
    * Create a new package with company isolation
    */
   async createPackage(data: z.infer<typeof createPackageSchema>, companyId: string) {
-    // Validate data
-    const validatedData = createPackageSchema.parse(data);
-    
-    // Check if user exists in this company
-    const user = await this.usersRepository.findById(validatedData.userId, companyId);
-    if (!user) {
-      throw AppError.notFound('User not found');
-    }
-    
-    // Generate internal tracking ID if not provided
-    if (!validatedData.internalTrackingId) {
-      validatedData.internalTrackingId = await this.generateTrackingId();
-    } else {
-      // Check if internal tracking ID is unique
-      const existingPackage = await this.packagesRepository.findByInternalTrackingId(
-        validatedData.internalTrackingId,
+    try {
+      // Validate data
+      const validatedData = createPackageSchema.parse(data);
+      
+      // Check if user exists in this company
+      const user = await this.usersRepository.findById(validatedData.userId, companyId);
+      if (!user) {
+        throw AppError.notFound('User not found');
+      }
+      
+      // Generate internal tracking ID and prefId if not provided
+      if (!validatedData.internalTrackingId || !validatedData.prefId) {
+        const { internalTrackingId, prefId } = await this.generateTrackingId(validatedData.userId, companyId);
+        
+        if (!validatedData.internalTrackingId) {
+          validatedData.internalTrackingId = internalTrackingId;
+        }
+        
+        if (!validatedData.prefId) {
+          validatedData.prefId = prefId;
+        }
+      } else {
+        // Check if internal tracking ID is unique if provided
+        const existingPackage = await this.packagesRepository.findByInternalTrackingId(
+          validatedData.internalTrackingId,
+          companyId
+        );
+        
+        if (existingPackage) {
+          throw AppError.conflict('Internal tracking ID is already in use');
+        }
+      }
+      
+      // Set received date to now if not provided and status is 'received'
+      if (validatedData.status === 'received' && !validatedData.receivedDate) {
+        validatedData.receivedDate = new Date();
+      }
+      
+      // Link to pre-alert if ID provided
+      let preAlert = null;
+      if (validatedData.preAlertId) {
+        preAlert = await this.preAlertsRepository.findById(validatedData.preAlertId, companyId);
+        
+        if (!preAlert) {
+          throw AppError.notFound('Pre-alert not found');
+        }
+        
+        // We'll match the pre-alert to this package after creation
+      } else {
+        // Look for matching pre-alert by tracking number
+        preAlert = await this.preAlertsRepository.findByTrackingNumber(
+          validatedData.trackingNumber,
+          companyId
+        );
+        
+        // If a matching pre-alert is found and it's not already matched, match it
+        if (preAlert && preAlert.status === 'pending' && !preAlert.packageId) {
+          // We'll match it after creating the package
+        }
+      }
+      
+      // Set default tags to ['general'] if not provided or empty
+      if (!validatedData.tags || !Array.isArray(validatedData.tags) || validatedData.tags.length === 0) {
+        validatedData.tags = ['general'];
+      }
+      
+      // Create the package
+      const newPackage = await this.packagesRepository.create(
+        // Remove preAlertId as it's not part of the package schema
+        Object.fromEntries(
+          Object.entries(validatedData).filter(([key]) => key !== 'preAlertId')
+        ),
         companyId
       );
       
-      if (existingPackage) {
-        throw AppError.conflict('Internal tracking ID is already in use');
-      }
-    }
-    
-    // Set received date to now if not provided and status is 'received'
-    if (validatedData.status === 'received' && !validatedData.receivedDate) {
-      validatedData.receivedDate = new Date();
-    }
-    
-    // Link to pre-alert if ID provided
-    let preAlert = null;
-    if (validatedData.preAlertId) {
-      preAlert = await this.preAlertsRepository.findById(validatedData.preAlertId, companyId);
-      
-      if (!preAlert) {
-        throw AppError.notFound('Pre-alert not found');
-      }
-      
-      // We'll match the pre-alert to this package after creation
-    } else {
-      // Look for matching pre-alert by tracking number
-      preAlert = await this.preAlertsRepository.findByTrackingNumber(
-        validatedData.trackingNumber,
-        companyId
-      );
-      
-      // If a matching pre-alert is found and it's not already matched, match it
-      if (preAlert && preAlert.status === 'pending' && !preAlert.packageId) {
-        // We'll match it after creating the package
-      }
-    }
-    
-    // Set default tags to ['general'] if not provided or empty
-    if (!validatedData.tags || !Array.isArray(validatedData.tags) || validatedData.tags.length === 0) {
-      validatedData.tags = ['general'];
-    }
-    
-    // Create the package
-    const newPackage = await this.packagesRepository.create(
-      // Remove preAlertId as it's not part of the package schema
-      Object.fromEntries(
-        Object.entries(validatedData).filter(([key]) => key !== 'preAlertId')
-      ),
-      companyId
-    );
-    
-    // Update pre-alert status if package was created successfully
-    if (newPackage) {
-      // Link the pre-alert to this package
-      if (preAlert) {
-        await this.preAlertsRepository.matchToPackage(
-          preAlert.id,
-          newPackage.id,
-          companyId
-        );
+      // Update pre-alert status if package was created successfully
+      if (newPackage) {
+        // Link the pre-alert to this package
+        if (preAlert) {
+          await this.preAlertsRepository.matchToPackage(
+            preAlert.id,
+            newPackage.id,
+            companyId
+          );
+        }
+        
+        // If new data is provided for dimensions or sender, update the package
+        if (data.dimensions || data.senderInfo) {
+          await this.updatePackage(
+            newPackage.id,
+            {
+              dimensions: data.dimensions,
+              senderInfo: data.senderInfo,
+            },
+            companyId
+          );
+        }
       }
       
-      // If new data is provided for dimensions or sender, update the package
-      if (data.dimensions || data.senderInfo) {
-        await this.updatePackage(
-          newPackage.id,
-          {
-            dimensions: data.dimensions,
-            senderInfo: data.senderInfo,
-          },
-          companyId
-        );
+      return newPackage;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw AppError.badRequest('Validation error', error.errors);
       }
+      throw error;
     }
-    
-    return newPackage;
   }
 
   /**
@@ -365,18 +408,6 @@ export class PackagesService {
   }
 
   /**
-   * Generate a unique tracking ID
-   */
-  private generateTrackingId(): string {
-    // Create a unique identifier for the package
-    const prefix = 'SPX';
-    const randomDigits = Math.floor(10000 + Math.random() * 90000); // 5-digit random number
-    const suffix = randomUUID().substring(0, 4).toUpperCase();
-    
-    return `${prefix}${randomDigits}${suffix}`;
-  }
-
-  /**
    * Create a package with pre-alert data
    */
   async createPackageFromPreAlert(preAlertId: string, companyId: string, data: any) {
@@ -397,12 +428,16 @@ export class PackagesService {
         ? preAlertData.tags
         : ['general'];
     
+    // Generate internal tracking ID and prefId
+    const { internalTrackingId, prefId } = await this.generateTrackingId(preAlertData.userId, companyId);
+    
     // Create a new package using pre-alert data and additional data
     const newPackage = await this.packagesRepository.create({
       userId: preAlertData.userId,
       companyId: companyId,
       trackingNumber: preAlertData.trackingNumber,
-      internalTrackingId: this.generateTrackingId(),
+      internalTrackingId: internalTrackingId,
+      prefId: prefId,
       status: 'received',
       description: data.description || preAlertData.description,
       weight: data.weight || preAlertData.estimatedWeight,

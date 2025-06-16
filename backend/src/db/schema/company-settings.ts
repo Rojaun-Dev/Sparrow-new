@@ -1,4 +1,4 @@
-import { pgTable, uuid, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, jsonb, timestamp, text } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 
 export const companySettings = pgTable('company_settings', {
@@ -6,6 +6,7 @@ export const companySettings = pgTable('company_settings', {
   companyId: uuid('company_id').notNull().references(() => companies.id, {
     onDelete: 'cascade',
   }).unique(), // One settings record per company
+  internalPrefix: text('internal_prefix').notNull().default('SPX'),
   notificationSettings: jsonb('notification_settings').default({}),
   themeSettings: jsonb('theme_settings').default({}),
   paymentSettings: jsonb('payment_settings').default({}),

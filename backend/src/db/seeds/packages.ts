@@ -2,51 +2,79 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { packages } from '../schema/packages';
 import { users } from '../schema/users';
 import { companies } from '../schema/companies';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import logger from '../../utils/logger';
-import { randomUUID } from 'crypto';
 
 // Define package status type
 type PackageStatus = 'pre_alert' | 'received' | 'processed' | 'ready_for_pickup' | 'delivered';
 
 /**
- * Generate a unique tracking ID with company-specific prefix
+ * Generate internal tracking ID based on user's internal ID
  */
-function generateTrackingId(companySubdomain: string): string {
-  // Create a unique identifier for the package with company-specific prefix
-  const prefixMap: { [key: string]: string } = {
-    'sparrow': 'SPX',
-    'express': 'EXP',
-    'shipitfast': 'SIF',
-    'jampack': 'JMP'
+async function generateInternalTrackingId(db: NodePgDatabase<any>, userId: string, companyId: string): Promise<{internalTrackingId: string, prefId: string}> {
+  // Get the user to access their internalId
+  const userResults = await db.select({
+    internalId: users.internalId,
+    prefId: users.prefId
+  })
+  .from(users)
+  .where(
+    and(
+      eq(users.id, userId),
+      eq(users.companyId, companyId)
+    )
+  );
+  
+  if (!userResults.length || !userResults[0].internalId) {
+    throw new Error(`User ${userId} not found or missing internalId`);
+  }
+  
+  const user = userResults[0];
+  
+  // Get current count of packages for this user to make a unique identifier
+  const existingPackages = await db.select({
+    count: sql<number>`count(*)`.mapWith(Number)
+  })
+  .from(packages)
+  .where(
+    and(
+      eq(packages.userId, userId),
+      eq(packages.companyId, companyId)
+    )
+  );
+  
+  const packageCount = existingPackages[0].count + 1;
+  
+  // Create package-specific suffix (padded count)
+  const packageSuffix = packageCount.toString().padStart(3, '0');
+  
+  // Format internal tracking ID as USER_INTERNAL_ID-PACKAGE_SUFFIX
+  const internalTrackingId = `${user.internalId}-${packageSuffix}`;
+  
+  return {
+    internalTrackingId,
+    prefId: user.prefId
   };
-  
-  const prefix = prefixMap[companySubdomain] || 'PKG';
-  const randomDigits = Math.floor(10000 + Math.random() * 90000); // 5-digit random number
-  const suffix = randomUUID().substring(0, 4).toUpperCase();
-  
-  return `${prefix}${randomDigits}${suffix}`;
 }
 
 /**
  * Generate random tags for packages
  */
 function generateRandomTags(): string[] {
-  const allTags = ['fragile', 'heavy', 'electronics', 'clothing', 'urgent', 'documents', 'perishable', 'gift', 'liquid', 'books', 'toys', 'furniture', 'vip', 'priority', 'commercial'];
-  const numberOfTags = Math.floor(Math.random() * 3) + 1; // 1-3 tags per package
-  const selectedTags: string[] = [];
+  const allTags = ['general', 'fragile', 'electronics', 'clothing', 'books', 'food', 'toys', 'furniture', 'urgent'];
+  const numTags = Math.floor(Math.random() * 3) + 1; // 1-3 tags
+  const tags: string[] = ['general']; // Always include general
   
-  for (let i = 0; i < numberOfTags; i++) {
-    const randomTagIndex = Math.floor(Math.random() * allTags.length);
-    const tag = allTags[randomTagIndex];
-    
-    // Only add tag if not already selected
-    if (!selectedTags.includes(tag)) {
-      selectedTags.push(tag);
+  // Add additional random tags
+  for (let i = 0; i < numTags; i++) {
+    const randomIndex = Math.floor(Math.random() * (allTags.length - 1)) + 1; // Skip 'general'
+    const tag = allTags[randomIndex];
+    if (!tags.includes(tag)) {
+      tags.push(tag);
     }
   }
   
-  return selectedTags;
+  return tags;
 }
 
 /**
@@ -103,14 +131,18 @@ export async function seedPackages(db: NodePgDatabase<any>) {
           receivedDate.setDate(receivedDate.getDate() - Math.floor(Math.random() * 14)); // 0-14 days ago
           
           const processingDate = new Date(receivedDate);
-          processingDate.setDate(processingDate.getDate() + 1); // 1 day after receiving
+          processingDate.setDate(processingDate.getDate() + 1);
+          
+          // Generate internal tracking ID and prefId based on user
+          const { internalTrackingId, prefId } = await generateInternalTrackingId(db, customer.id, company.id);
           
           // Package data with explicit company ID
           const packageData = {
             userId: customer.id,
             companyId: company.id,
             trackingNumber: `SHIP${Math.floor(Math.random() * 10000000)}US`,
-            internalTrackingId: generateTrackingId(company.subdomain),
+            internalTrackingId,
+            prefId,
             status: randomStatus,
             description: `Package ${i+1} for ${customer.firstName} ${customer.lastName}`,
             weight: weight.toString(),

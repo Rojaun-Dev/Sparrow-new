@@ -14,6 +14,8 @@ export const users = pgTable('users', {
   companyId: uuid('company_id').notNull().references(() => companies.id, {
     onDelete: 'cascade', // When a company is deleted, delete all of its users
   }),
+  internalId: text('internal_id').unique().notNull(), // Unique 4 digit number for internal tracking.
+  prefId: text('pref_id').unique().notNull(), // Company prefix combined with internalid (e.g., SPX-1234)
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash'), // For JWT authentication
   firstName: text('first_name').notNull(),

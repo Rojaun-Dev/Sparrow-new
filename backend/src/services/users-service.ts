@@ -20,7 +20,9 @@ const baseUserSchema = z.object({
   trn: z.string().optional(),
   pickupLocationId: z.string().optional(),
   role: z.enum(['customer', 'admin_l1', 'admin_l2', 'super_admin'] as const).default('customer'),
-  passwordHash: z.string()
+  passwordHash: z.string(),
+  internalId: z.string().optional(), // Will be auto-generated if not provided
+  prefId: z.string().optional(), // Will be auto-generated based on company prefix and internalId
 });
 
 // Validation schema for user creation
@@ -32,6 +34,8 @@ export const updateUserSchema = baseUserSchema
   .extend({
     resetToken: z.string().nullable().optional(),
     resetTokenExpires: z.date().nullable().optional(),
+    internalId: z.string().optional(), // Allow updating, but will be handled specially
+    prefId: z.string().optional(), // Allow updating, but will be handled specially
     notificationPreferences: z.object({
       email: z.boolean().default(true),
       sms: z.boolean().default(false),
@@ -74,6 +78,56 @@ export class UsersService {
 
   constructor() {
     this.repository = new UsersRepository();
+  }
+
+  /**
+   * Generate a unique 4-digit internal ID for a user
+   * @param companyId - The company ID
+   * @returns A unique 4-digit internal ID
+   */
+  private async generateInternalId(companyId: string): Promise<string> {
+    // Get all existing internal IDs for this company
+    const users = await this.repository.findAll(companyId);
+    const existingIds = new Set(users.map(user => user.internalId));
+    
+    // Try to find a unique 4-digit number not already in use
+    let attempts = 0;
+    let internalId: string;
+    
+    do {
+      // Generate a random 4-digit number
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      internalId = randomNum.toString();
+      
+      // Prevent infinite loop
+      attempts++;
+      if (attempts > 1000) {
+        throw new Error('Could not generate a unique internal ID after 1000 attempts');
+      }
+    } while (existingIds.has(internalId));
+    
+    return internalId;
+  }
+
+  /**
+   * Format a prefId based on company prefix and internal ID
+   * @param companyId - The company ID
+   * @param internalId - The internal ID
+   * @returns Formatted prefId
+   */
+  private async formatPrefId(companyId: string, internalId: string): Promise<string> {
+    // Import the company settings service
+    const { CompanySettingsService } = await import('./company-settings-service');
+    const companySettingsService = new CompanySettingsService();
+    
+    // Get company settings to access the prefix
+    const settings = await companySettingsService.getCompanySettings(companyId);
+    
+    // Use the company prefix or default to 'SPX'
+    const prefix = settings?.internalPrefix || 'SPX';
+    
+    // Format as PREFIX-INTERNALID
+    return `${prefix}-${internalId}`;
   }
 
   /**
@@ -287,21 +341,39 @@ export class UsersService {
    * Create a new user with company isolation
    */
   async createUser(data: z.infer<typeof createUserSchema>, companyId: string) {
-    // Validate data
-    const validatedData = createUserSchema.parse(data);
-    
-    // Check if email is already in use within the company
-    const existingUser = await this.repository.findByEmail(validatedData.email, companyId);
-    if (existingUser) {
-      throw AppError.conflict('Email is already in use');
+    try {
+      // Validate data
+      const validatedData = createUserSchema.parse(data);
+      
+      // Check if email is already in use within the company
+      const existingUser = await this.repository.findByEmail(validatedData.email, companyId);
+      if (existingUser) {
+        throw AppError.conflict('Email is already in use');
+      }
+      
+      // For JWT authentication, passwordHash must be provided
+      if (!validatedData.passwordHash) {
+        throw AppError.badRequest('Password hash must be provided');
+      }
+
+      // Generate internalId if not provided
+      if (!validatedData.internalId) {
+        validatedData.internalId = await this.generateInternalId(companyId);
+      }
+
+      // Generate prefId if not provided
+      if (!validatedData.prefId) {
+        validatedData.prefId = await this.formatPrefId(companyId, validatedData.internalId);
+      }
+      
+      // Create the user
+      return this.repository.create(validatedData, companyId);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw AppError.badRequest('Validation error', error.errors);
+      }
+      throw error;
     }
-    
-    // For JWT authentication, passwordHash must be provided
-    if (!validatedData.passwordHash) {
-      throw AppError.badRequest('Password hash must be provided');
-    }
-    
-    return this.repository.create(validatedData, companyId);
   }
 
   /**

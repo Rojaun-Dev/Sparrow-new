@@ -330,4 +330,21 @@ export class UsersRepository extends BaseRepository<typeof users> {
     
     return result[0];
   }
+
+  /**
+   * Find a user by internal ID
+   */
+  async findByInternalId(internalId: string, companyId: string) {
+    const results = await this.db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.companyId, companyId),
+          eq(users.internalId, internalId)
+        )
+      );
+    
+    return results.length > 0 ? results[0] : null;
+  }
 } 
