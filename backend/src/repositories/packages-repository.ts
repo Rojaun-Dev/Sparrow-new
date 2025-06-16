@@ -32,24 +32,6 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
   }
 
   /**
-   * Find a package by internal tracking ID within a company
-   */
-  async findByInternalTrackingId(internalTrackingId: string, companyId: string) {
-    const result = await this.db
-      .select()
-      .from(this.table)
-      .where(
-        and(
-          eq(this.table.internalTrackingId, internalTrackingId),
-          eq(this.table.companyId, companyId)
-        )
-      )
-      .limit(1);
-    
-    return result.length > 0 ? result[0] : null;
-  }
-
-  /**
    * Find packages by user ID within a company with filtering options
    */
   async findByUserId(
@@ -76,11 +58,10 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       conditions.push(eq(this.table.status, filters.status as any));
     }
     
-    // Add search filter (search in tracking number or internal tracking ID)
+    // Add search filter (search in tracking number or description)
     if (filters.search) {
       const searchConditions = [
         like(this.table.trackingNumber, `%${filters.search}%`),
-        like(this.table.internalTrackingId, `%${filters.search}%`),
         like(this.table.description, `%${filters.search}%`)
       ].filter((condition): condition is SQL<unknown> => condition !== undefined);
       
@@ -168,11 +149,10 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
   /**
    * Search packages by various criteria within a company
    */
-  async search(
+  async searchPackages(
     companyId: string,
     {
       trackingNumber,
-      internalTrackingId,
       userId,
       status,
       receivedDateFrom,
@@ -183,7 +163,6 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       pageSize = 10
     }: {
       trackingNumber?: string;
-      internalTrackingId?: string;
       userId?: string;
       status?: string;
       receivedDateFrom?: Date;
@@ -201,15 +180,11 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       conditions.push(like(this.table.trackingNumber, `%${trackingNumber}%`));
     }
     
-    if (internalTrackingId) {
-      conditions.push(like(this.table.internalTrackingId, `%${internalTrackingId}%`));
-    }
-    
     if (userId) {
       conditions.push(eq(this.table.userId, userId));
     }
     
-    if (status && Object.values(packageStatusEnum.enumValues).includes(status as any)) {
+    if (status) {
       conditions.push(eq(this.table.status, status as any));
     }
     
@@ -221,24 +196,15 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       conditions.push(lte(this.table.receivedDate, receivedDateTo));
     }
     
-    // Calculate pagination
+    // Set up sorting
+    const sortField = sortBy === 'receivedDate' ? this.table.receivedDate : this.table.createdAt;
+    const sortFunc = sortOrder === 'asc' ? asc : desc;
+    const sortOptions = sortFunc(sortField);
+    
+    // Set up pagination
     const offset = (page - 1) * pageSize;
     
-    // Determine sort direction
-    const sortDirection = sortOrder === 'asc' ? asc : desc;
-    
-    // Get valid sort columns
-    const validSortColumns = {
-      createdAt: this.table.createdAt,
-      receivedDate: this.table.receivedDate,
-      updatedAt: this.table.updatedAt,
-      trackingNumber: this.table.trackingNumber,
-    };
-    
-    // Default to createdAt if invalid sortBy is provided
-    const sortColumn = validSortColumns[sortBy as keyof typeof validSortColumns] || this.table.createdAt;
-    
-    // Get total count (for pagination info)
+    // Get the count for pagination
     const countResult = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(this.table)
@@ -246,12 +212,12 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
     
     const totalCount = Number(countResult[0].count);
     
-    // Get paginated results
+    // Get the data with pagination
     const results = await this.db
       .select()
       .from(this.table)
       .where(and(...conditions))
-      .orderBy(sortDirection(sortColumn))
+      .orderBy(sortOptions)
       .limit(pageSize)
       .offset(offset);
     
@@ -260,58 +226,45 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       pagination: {
         page,
         pageSize,
-        totalCount,
+        total: totalCount,
         totalPages: Math.ceil(totalCount / pageSize),
       },
     };
   }
 
   /**
-   * Find packages that haven't been billed yet for a specific user
-   * These are packages that don't have an associated invoice item
+   * Find packages that have not been billed for a user
    */
-  async findUnbilledByUser(userId: string, companyId: string) {
-    return this.db
+  async findUnbilledByUserId(userId: string, companyId: string) {
+    // Select packages that don't exist in invoice_items
+    const unbilledPackages = await this.db
       .select()
       .from(this.table)
       .where(
         and(
           eq(this.table.userId, userId),
           eq(this.table.companyId, companyId),
-          or(
-            // Packages in processed or ready_for_pickup states
-            eq(this.table.status, 'processed' as any),
-            eq(this.table.status, 'ready_for_pickup' as any)
-          ),
-          // Not already in an invoice
           not(
             exists(
               this.db
                 .select()
                 .from(invoiceItems)
-                .where(
-                  and(
-                    eq(invoiceItems.packageId, this.table.id),
-                    eq(invoiceItems.companyId, companyId)
-                  )
-                )
+                .where(eq(invoiceItems.packageId, this.table.id))
             )
           )
         )
       )
       .orderBy(desc(this.table.createdAt));
+    
+    return unbilledPackages;
   }
-
+  
   /**
    * Find packages by invoice ID
-   * @param invoiceId - The invoice ID to filter by
-   * @param companyId - The company ID
    */
   async findByInvoiceId(invoiceId: string, companyId: string) {
     return this.db
-      .select({
-        package: this.table,
-      })
+      .select()
       .from(this.table)
       .innerJoin(
         invoiceItems,
@@ -321,28 +274,92 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
         )
       )
       .where(eq(this.table.companyId, companyId))
-      .orderBy(desc(this.table.createdAt))
-      .then(results => results.map(r => r.package));
+      .orderBy(desc(this.table.receivedDate));
   }
-
-  async findAllForExport(companyId: string, filters: any = {}) {
-    let conditions: SQL<unknown>[] = [eq(this.table.companyId, companyId)];
-    if (filters.status) {
-      conditions.push(eq(this.table.status, filters.status));
+  
+  /**
+   * Find all packages for a company with filtering options for export
+   */
+  async findByCompanyId(companyId: string, filters: any = {}) {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      search,
+      fromDate,
+      toDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = filters;
+    
+    // Build conditions
+    const conditions: SQL<unknown>[] = [eq(this.table.companyId, companyId)];
+    
+    if (status) {
+      conditions.push(eq(this.table.status, status as any));
     }
-    if (filters.search) {
-      conditions.push(like(this.table.trackingNumber, `%${filters.search}%`));
+    
+    if (search) {
+      const searchTerm = `%${search}%`;
+      conditions.push(
+        or(
+          like(this.table.trackingNumber, searchTerm),
+          like(this.table.description, searchTerm)
+        ) as SQL<unknown>
+      );
     }
-    if (filters.dateFrom) {
-      conditions.push(gte(this.table.createdAt, new Date(filters.dateFrom)));
+    
+    if (fromDate) {
+      const from = new Date(fromDate);
+      conditions.push(gte(this.table.createdAt, from));
     }
-    if (filters.dateTo) {
-      conditions.push(lte(this.table.createdAt, new Date(filters.dateTo)));
+    
+    if (toDate) {
+      const to = new Date(toDate);
+      to.setHours(23, 59, 59, 999); // End of the day
+      conditions.push(lte(this.table.createdAt, to));
     }
-    // Add more filters as needed
-    return this.db
-      .select()
+    
+    // Calculate pagination
+    const offset = (page - 1) * limit;
+    
+    // Set up sorting
+    let orderBy;
+    if (sortBy === 'trackingNumber') {
+      orderBy = sortOrder === 'asc' ? asc(this.table.trackingNumber) : desc(this.table.trackingNumber);
+    } else if (sortBy === 'status') {
+      orderBy = sortOrder === 'asc' ? asc(this.table.status) : desc(this.table.status);
+    } else if (sortBy === 'receivedDate') {
+      orderBy = sortOrder === 'asc' ? asc(this.table.receivedDate) : desc(this.table.receivedDate);
+    } else {
+      orderBy = sortOrder === 'asc' ? asc(this.table.createdAt) : desc(this.table.createdAt);
+    }
+    
+    // Get total count
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)` })
       .from(this.table)
       .where(and(...conditions));
+      
+    const totalCount = Number(count);
+    
+    // Get data
+    const results = await this.db
+      .select()
+      .from(this.table)
+      .where(and(...conditions))
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset);
+    
+    return {
+      data: results,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    };
   }
 } 

@@ -74,9 +74,13 @@ export const extractCompanyId = (
   _res: Response,
   next: NextFunction
 ) => {
+  const originalUrl = req.originalUrl;
+  console.log(`[extractCompanyId] Processing request: ${req.method} ${originalUrl}`);
+
   // First check if companyId exists in route params
   if (req.params.companyId) {
     req.companyId = req.params.companyId;
+    console.log(`[extractCompanyId] Found companyId in params: ${req.companyId}`);
     return next();
   }
   
@@ -93,12 +97,18 @@ export const extractCompanyId = (
       };
       
       req.companyId = decoded.companyId || decoded['https://sparrowx.com/company_id'];
-    } catch (error) {
+      console.log(`[extractCompanyId] Extracted companyId from token: ${req.companyId}`);
+    } catch (error: any) {
       // Continue even if token verification fails
       // This allows public routes to work without a token
+      console.log('[extractCompanyId] Failed to extract companyId from token:', error.message);
     }
   }
+  else {
+    console.log('[extractCompanyId] No authorization header found');
+  }
   
+  console.log(`[extractCompanyId] Final companyId: ${req.companyId || 'undefined'}`);
   next();
 };
 

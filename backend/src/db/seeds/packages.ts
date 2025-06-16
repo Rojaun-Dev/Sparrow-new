@@ -9,12 +9,11 @@ import logger from '../../utils/logger';
 type PackageStatus = 'pre_alert' | 'received' | 'processed' | 'ready_for_pickup' | 'delivered';
 
 /**
- * Generate internal tracking ID based on user's internal ID
+ * Get user's prefId if available
  */
-async function generateInternalTrackingId(db: NodePgDatabase<any>, userId: string, companyId: string): Promise<{internalTrackingId: string, prefId: string}> {
-  // Get the user to access their internalId
+async function getUserPrefId(db: NodePgDatabase<any>, userId: string, companyId: string): Promise<string | null> {
+  // Get the user to access their prefId
   const userResults = await db.select({
-    internalId: users.internalId,
     prefId: users.prefId
   })
   .from(users)
@@ -25,36 +24,11 @@ async function generateInternalTrackingId(db: NodePgDatabase<any>, userId: strin
     )
   );
   
-  if (!userResults.length || !userResults[0].internalId) {
-    throw new Error(`User ${userId} not found or missing internalId`);
+  if (!userResults.length) {
+    throw new Error(`User ${userId} not found`);
   }
   
-  const user = userResults[0];
-  
-  // Get current count of packages for this user to make a unique identifier
-  const existingPackages = await db.select({
-    count: sql<number>`count(*)`.mapWith(Number)
-  })
-  .from(packages)
-  .where(
-    and(
-      eq(packages.userId, userId),
-      eq(packages.companyId, companyId)
-    )
-  );
-  
-  const packageCount = existingPackages[0].count + 1;
-  
-  // Create package-specific suffix (padded count)
-  const packageSuffix = packageCount.toString().padStart(3, '0');
-  
-  // Format internal tracking ID as USER_INTERNAL_ID-PACKAGE_SUFFIX
-  const internalTrackingId = `${user.internalId}-${packageSuffix}`;
-  
-  return {
-    internalTrackingId,
-    prefId: user.prefId
-  };
+  return userResults[0].prefId || null;
 }
 
 /**
@@ -133,15 +107,14 @@ export async function seedPackages(db: NodePgDatabase<any>) {
           const processingDate = new Date(receivedDate);
           processingDate.setDate(processingDate.getDate() + 1);
           
-          // Generate internal tracking ID and prefId based on user
-          const { internalTrackingId, prefId } = await generateInternalTrackingId(db, customer.id, company.id);
+          // Get user's prefId if available
+          const prefId = await getUserPrefId(db, customer.id, company.id);
           
           // Package data with explicit company ID
           const packageData = {
             userId: customer.id,
             companyId: company.id,
             trackingNumber: `SHIP${Math.floor(Math.random() * 10000000)}US`,
-            internalTrackingId,
             prefId,
             status: randomStatus,
             description: `Package ${i+1} for ${customer.firstName} ${customer.lastName}`,

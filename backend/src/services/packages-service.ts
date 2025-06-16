@@ -7,37 +7,32 @@ import { packageStatusEnum, packages } from '../db/schema/packages';
 import { randomUUID } from 'crypto';
 import { SQL, eq, and, gte, lte, or, ilike, desc, asc, sql } from 'drizzle-orm';
 
-// Validation schema for package creation
+// Define the schema for creating a package
 export const createPackageSchema = z.object({
-  userId: z.string().uuid(),
-  trackingNumber: z.string().min(3).max(100),
-  internalTrackingId: z.string().optional(), // Auto-generated if not provided
-  prefId: z.string().optional(), // Auto-generated based on the user's prefId
-  status: z.enum(packageStatusEnum.enumValues).default('received'),
+  userId: z.string().uuid().optional(),
+  trackingNumber: z.string(),
+  status: z.enum(packageStatusEnum.enumValues).optional().default('received'),
   description: z.string().optional(),
-  weight: z.number().positive().optional(),
-  dimensions: z
-    .object({
-      length: z.number().positive().optional(),
-      width: z.number().positive().optional(),
-      height: z.number().positive().optional(),
-    })
-    .optional(),
-  declaredValue: z.number().nonnegative().optional(),
-  senderInfo: z.record(z.string()).optional(),
-  receivedDate: z.coerce.date().optional(),
-  processingDate: z.coerce.date().optional(),
+  weight: z.number().optional(),
+  dimensions: z.object({
+    length: z.number().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+  }).optional(),
+  senderInfo: z.record(z.string(), z.any()).optional(),
+  declaredValue: z.number().optional(),
+  receivedDate: z.date().optional(),
+  processingDate: z.date().optional(),
   photos: z.array(z.string()).optional(),
   notes: z.string().optional(),
-  // Pre-alert ID for linking a package to an existing pre-alert
-  preAlertId: z.string().uuid().optional(),
   tags: z.array(z.string()).optional(),
+  preAlertId: z.string().optional(),
 });
 
-// Validation schema for package update
+// Schema for updating a package
 export const updatePackageSchema = createPackageSchema
   .partial()
-  .omit({ internalTrackingId: true, prefId: true }); // Don't allow updating internal tracking ID or prefId
+  .omit({ prefId: true }); // Don't allow updating prefId
 
 export class PackagesService {
   private packagesRepository: PackagesRepository;
@@ -100,7 +95,6 @@ export class PackagesService {
       const searchTerm = `%${filters.search}%`;
       const searchConditions: SQL<unknown>[] = [
         ilike(packages.trackingNumber, searchTerm),
-        ilike(packages.internalTrackingId, searchTerm),
         ilike(packages.description, searchTerm)
       ];
       if (searchConditions.length > 0) {
@@ -122,7 +116,6 @@ export class PackagesService {
         id: packages.id,
         userId: packages.userId,
         trackingNumber: packages.trackingNumber,
-        internalTrackingId: packages.internalTrackingId,
         status: packages.status,
         description: packages.description,
         weight: packages.weight,
@@ -201,30 +194,22 @@ export class PackagesService {
   }
 
   /**
-   * Generate a unique tracking ID
+   * Get prefId from user
    */
-  private async generateTrackingId(userId: string, companyId: string): Promise<{internalTrackingId: string, prefId: string}> {
-    // Get user information to access the internalId
-    const user = await this.usersRepository.findById(userId, companyId);
-    
-    if (!user || !user.internalId) {
-      throw new AppError('User not found or missing internalId', 404);
+  private async getUserPrefId(userId: string | undefined, companyId: string): Promise<string | null> {
+    // If no userId is provided, return null
+    if (!userId) {
+      return null;
     }
     
-    // Get current count of packages for this user to make a unique identifier
-    const userPackagesResult = await this.packagesRepository.findByUserId(userId, companyId);
-    const packageCount = userPackagesResult?.data?.length || 0;
+    // Get user information to access the prefId
+    const user = await this.usersRepository.findById(userId, companyId);
     
-    // Create package-specific suffix (padded count)
-    const packageSuffix = (packageCount + 1).toString().padStart(3, '0');
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
     
-    // Format internal tracking ID as USER_INTERNAL_ID-PACKAGE_SUFFIX
-    const internalTrackingId = `${user.internalId}-${packageSuffix}`;
-    
-    // PrefId is just the user's prefId
-    const prefId = user.prefId;
-    
-    return { internalTrackingId, prefId };
+    return user.prefId || null;
   }
 
   /**
@@ -232,108 +217,62 @@ export class PackagesService {
    */
   async createPackage(data: z.infer<typeof createPackageSchema>, companyId: string) {
     try {
+      // Debug logging for companyId
+      console.log('PackagesService.createPackage debug:', {
+        receivedCompanyId: companyId,
+        dataCompanyId: data.companyId,
+        type: typeof companyId,
+        hasCompanyId: !!companyId
+      });
+      
       // Validate data
       const validatedData = createPackageSchema.parse(data);
       
-      // Check if user exists in this company
-      const user = await this.usersRepository.findById(validatedData.userId, companyId);
-      if (!user) {
-        throw AppError.notFound('User not found');
+      // Prepare package data with company ID
+      const packageData: any = {
+        ...validatedData,
+        companyId, // Ensure companyId is explicitly set here
+      };
+      
+      // Debug logging for final package data
+      console.log('Package data being sent to repository:', {
+        hasCompanyId: !!packageData.companyId,
+        companyIdValue: packageData.companyId
+      });
+      
+      // If userId is provided, check it and get prefId
+      if (validatedData.userId) {
+        // Check if user exists in this company
+        const user = await this.usersRepository.findById(validatedData.userId, companyId);
+        if (!user) {
+          throw AppError.notFound('User not found');
+        }
+        
+        // Get prefId if available
+        const prefId = await this.getUserPrefId(validatedData.userId, companyId);
+        if (prefId) {
+          packageData.prefId = prefId;
+        }
       }
       
-      // Generate internal tracking ID and prefId if not provided
-      if (!validatedData.internalTrackingId || !validatedData.prefId) {
-        const { internalTrackingId, prefId } = await this.generateTrackingId(validatedData.userId, companyId);
-        
-        if (!validatedData.internalTrackingId) {
-          validatedData.internalTrackingId = internalTrackingId;
-        }
-        
-        if (!validatedData.prefId) {
-          validatedData.prefId = prefId;
-        }
-      } else {
-        // Check if internal tracking ID is unique if provided
-        const existingPackage = await this.packagesRepository.findByInternalTrackingId(
-          validatedData.internalTrackingId,
+      // Check for pre-alert to link
+      if (validatedData.preAlertId) {
+        // Verify pre-alert exists and belongs to this company
+        const preAlert = await this.preAlertsRepository.findById(
+          validatedData.preAlertId, 
           companyId
         );
-        
-        if (existingPackage) {
-          throw AppError.conflict('Internal tracking ID is already in use');
-        }
-      }
-      
-      // Set received date to now if not provided and status is 'received'
-      if (validatedData.status === 'received' && !validatedData.receivedDate) {
-        validatedData.receivedDate = new Date();
-      }
-      
-      // Link to pre-alert if ID provided
-      let preAlert = null;
-      if (validatedData.preAlertId) {
-        preAlert = await this.preAlertsRepository.findById(validatedData.preAlertId, companyId);
         
         if (!preAlert) {
           throw AppError.notFound('Pre-alert not found');
         }
-        
-        // We'll match the pre-alert to this package after creation
-      } else {
-        // Look for matching pre-alert by tracking number
-        preAlert = await this.preAlertsRepository.findByTrackingNumber(
-          validatedData.trackingNumber,
-          companyId
-        );
-        
-        // If a matching pre-alert is found and it's not already matched, match it
-        if (preAlert && preAlert.status === 'pending' && !preAlert.packageId) {
-          // We'll match it after creating the package
-        }
-      }
-      
-      // Set default tags to ['general'] if not provided or empty
-      if (!validatedData.tags || !Array.isArray(validatedData.tags) || validatedData.tags.length === 0) {
-        validatedData.tags = ['general'];
       }
       
       // Create the package
-      const newPackage = await this.packagesRepository.create(
-        // Remove preAlertId as it's not part of the package schema
-        Object.fromEntries(
-          Object.entries(validatedData).filter(([key]) => key !== 'preAlertId')
-        ),
-        companyId
-      );
-      
-      // Update pre-alert status if package was created successfully
-      if (newPackage) {
-        // Link the pre-alert to this package
-        if (preAlert) {
-          await this.preAlertsRepository.matchToPackage(
-            preAlert.id,
-            newPackage.id,
-            companyId
-          );
-        }
-        
-        // If new data is provided for dimensions or sender, update the package
-        if (data.dimensions || data.senderInfo) {
-          await this.updatePackage(
-            newPackage.id,
-            {
-              dimensions: data.dimensions,
-              senderInfo: data.senderInfo,
-            },
-            companyId
-          );
-        }
-      }
-      
-      return newPackage;
+      return this.packagesRepository.create(packageData, companyId);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw AppError.badRequest('Validation error', error.errors);
+        throw AppError.badRequest('Invalid package data: ' + error.errors.map(e => e.message).join(', '));
       }
       throw error;
     }
@@ -343,57 +282,54 @@ export class PackagesService {
    * Update a package with company isolation
    */
   async updatePackage(id: string, data: z.infer<typeof updatePackageSchema>, companyId: string) {
-    // Validate data
-    const validatedData = updatePackageSchema.parse(data);
-    
-    // Check if package exists
-    const pkg = await this.packagesRepository.findById(id, companyId);
-    if (!pkg) {
-      throw AppError.notFound('Package not found');
-    }
-    
-    // If changing user, verify the new user exists
-    if (validatedData.userId && validatedData.userId !== pkg.userId) {
-      const user = await this.usersRepository.findById(validatedData.userId, companyId);
-      if (!user) {
-        throw AppError.notFound('User not found');
+    try {
+      // Validate data
+      const validatedData = updatePackageSchema.parse(data);
+      
+      // Check if package exists and belongs to this company
+      const existingPackage = await this.packagesRepository.findById(id, companyId);
+      if (!existingPackage) {
+        throw AppError.notFound('Package not found');
       }
+      
+      // If userId is being updated, check that the new user exists and belongs to this company
+      if (validatedData.userId) {
+        const user = await this.usersRepository.findById(validatedData.userId, companyId);
+        if (!user) {
+          throw AppError.notFound('User not found');
+        }
+      }
+      
+      // Update the package
+      return this.packagesRepository.update(id, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw AppError.badRequest('Invalid package data: ' + error.errors.map(e => e.message).join(', '));
+      }
+      throw error;
     }
-    
-    // If changing status to 'processed', set processingDate to now if not provided
-    if (validatedData.status === 'processed' && !validatedData.processingDate && pkg.status !== 'processed') {
-      validatedData.processingDate = new Date();
-    }
-    
-    // If changing status to 'received', set receivedDate to now if not provided
-    if (validatedData.status === 'received' && !validatedData.receivedDate && pkg.status !== 'received') {
-      validatedData.receivedDate = new Date();
-    }
-    
-    return this.packagesRepository.update(id, validatedData, companyId);
   }
 
   /**
-   * Delete a package with company isolation (hard delete)
+   * Delete a package with company isolation
    */
   async deletePackage(id: string, companyId: string) {
-    // Check if package exists
-    const pkg = await this.packagesRepository.findById(id, companyId);
-    if (!pkg) {
+    // Check if package exists and belongs to this company
+    const existingPackage = await this.packagesRepository.findById(id, companyId);
+    if (!existingPackage) {
       throw AppError.notFound('Package not found');
     }
     
-    return this.packagesRepository.delete(id, companyId);
+    return this.packagesRepository.delete(id);
   }
 
   /**
-   * Search packages with various filters
+   * Advanced search for packages
    */
   async searchPackages(
     companyId: string,
     searchParams: {
       trackingNumber?: string;
-      internalTrackingId?: string;
       userId?: string;
       status?: string;
       receivedDateFrom?: Date;
@@ -404,127 +340,90 @@ export class PackagesService {
       pageSize?: number;
     }
   ) {
-    return this.packagesRepository.search(companyId, searchParams);
+    return this.packagesRepository.searchPackages(companyId, searchParams);
   }
 
   /**
-   * Create a package with pre-alert data
+   * Create a package from pre-alert
    */
   async createPackageFromPreAlert(preAlertId: string, companyId: string, data: any) {
-    // Get the pre-alert
+    // Verify pre-alert exists and belongs to this company
     const preAlert = await this.preAlertsRepository.findById(preAlertId, companyId);
-    
     if (!preAlert) {
-      throw new Error("Pre-alert not found");
+      throw AppError.notFound('Pre-alert not found');
     }
     
-    // Now TypeScript knows preAlert is not null, but we'll make a local copy to be sure
-    const preAlertData = preAlert;
-    
-    // Set default tags to ['general'] if not provided or empty
-    let tags = (data.tags && Array.isArray(data.tags) && data.tags.length > 0)
-      ? data.tags
-      : (preAlertData.tags && Array.isArray(preAlertData.tags) && preAlertData.tags.length > 0)
-        ? preAlertData.tags
-        : ['general'];
-    
-    // Generate internal tracking ID and prefId
-    const { internalTrackingId, prefId } = await this.generateTrackingId(preAlertData.userId, companyId);
-    
-    // Create a new package using pre-alert data and additional data
-    const newPackage = await this.packagesRepository.create({
-      userId: preAlertData.userId,
-      companyId: companyId,
-      trackingNumber: preAlertData.trackingNumber,
-      internalTrackingId: internalTrackingId,
-      prefId: prefId,
-      status: 'received',
-      description: data.description || preAlertData.description,
-      weight: data.weight || preAlertData.estimatedWeight,
-      dimensions: data.dimensions || null,
-      declaredValue: data.declaredValue || '0',
-      receivedDate: new Date().toISOString(),
-      photos: data.photos || [],
-      notes: data.notes || `Created from pre-alert ${preAlertData.trackingNumber}`,
-      tags,
-    }, companyId);
-    
-    // Update pre-alert status if package was created successfully
-    if (newPackage) {
-      // Double-check that preAlert is not null for TypeScript
-      if (preAlertData) {
-        // Link the pre-alert to this package
-        await this.preAlertsRepository.matchToPackage(
-          preAlertData.id,
-          newPackage.id,
-          companyId
-        );
-      }
-      
-      // If new data is provided for dimensions or sender, update the package
-      if (data.dimensions || data.senderInfo) {
-        await this.updatePackage(
-          newPackage.id,
-          {
-            dimensions: data.dimensions,
-            senderInfo: data.senderInfo,
-          },
-          companyId
-        );
-      }
+    // Get user information
+    const user = await this.usersRepository.findById(preAlert.userId, companyId);
+    if (!user) {
+      throw AppError.notFound('User not found');
     }
     
-    return newPackage;
+    // Get prefId
+    const prefId = await this.getUserPrefId(preAlert.userId, companyId);
+    
+    // Prepare package data
+    const packageData = {
+      ...data,
+      companyId,
+      userId: preAlert.userId,
+      preAlertId, // Link to the pre-alert
+      prefId,
+      // Set default values from pre-alert if not provided
+      trackingNumber: data.trackingNumber || preAlert.trackingNumber,
+      description: data.description || preAlert.description,
+      weight: data.weight || preAlert.weight,
+      dimensions: data.dimensions || preAlert.dimensions,
+    };
+    
+    // Create the package
+    const createdPackage = await this.packagesRepository.create(packageData);
+    
+    // Mark the pre-alert as processed
+    await this.preAlertsRepository.update(preAlertId, { status: 'processed' });
+    
+    return createdPackage;
   }
 
   /**
-   * Match a pre-alert to a package
+   * Match existing package to pre-alert
    */
   async matchPreAlertToPackage(preAlertId: string, packageId: string, companyId: string) {
-    // Get both the pre-alert and package to make sure they exist
+    // Verify both entities exist and belong to this company
     const preAlert = await this.preAlertsRepository.findById(preAlertId, companyId);
-    
     if (!preAlert) {
-      throw new Error("Pre-alert not found");
+      throw AppError.notFound('Pre-alert not found');
     }
     
-    // Check if the pre-alert is already matched to a package
-    if (preAlert.packageId) {
-      throw new Error("Pre-alert is already matched to a package");
+    const existingPackage = await this.packagesRepository.findById(packageId, companyId);
+    if (!existingPackage) {
+      throw AppError.notFound('Package not found');
     }
     
-    const pkg = await this.packagesRepository.findById(packageId, companyId);
+    // Update the package to link it to the pre-alert
+    const updatedPackage = await this.packagesRepository.update(packageId, { 
+      preAlertId,
+      // You might want to update other fields from the pre-alert as well
+    });
     
-    if (!pkg) {
-      throw new Error("Package not found");
-    }
+    // Mark the pre-alert as processed
+    await this.preAlertsRepository.update(preAlertId, { 
+      status: 'processed',
+      packageId // Add reference to the package in the pre-alert
+    });
     
-    // TypeScript is not tracking the null check above, so we need to check again
-    if (preAlert) {
-      // Update the pre-alert with the package ID
-      await this.preAlertsRepository.matchToPackage(
-        preAlert.id,
-        pkg.id,
-        companyId
-      );
-    }
-    
-    return {
-      message: "Pre-alert matched to package successfully",
-      preAlert,
-      package: pkg
-    };
+    return updatedPackage;
   }
 
   /**
-   * Get packages by invoice ID with company isolation
+   * Get packages by invoice ID
    */
   async getPackagesByInvoiceId(invoiceId: string, companyId: string) {
     return this.packagesRepository.findByInvoiceId(invoiceId, companyId);
   }
-  
+
   /**
-   * Get packages for a specific company with filtering and pagination (for superadmin)
+   * Get packages for a company with various filters
    */
   async getPackagesForCompany(params: {
     companyId: string;
@@ -537,134 +436,108 @@ export class PackagesService {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) {
-    const db = this.packagesRepository.getDatabaseInstance();
+    const { 
+      companyId,
+      page = 1, 
+      limit = 10,
+      status,
+      search,
+      dateFrom,
+      dateTo,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = params;
     
-    // Set up pagination parameters
-    const page = params.page || 1;
-    const limit = params.limit || 10;
-    const offset = (page - 1) * limit;
+    // Build search parameters
+    const searchParams: any = {
+      page,
+      limit,
+      sortBy,
+      sortOrder
+    };
     
-    // Set up sorting
-    const orderBy: SQL[] = [];
-    if (params.sortBy) {
-      const direction = params.sortOrder === 'desc' ? desc : asc;
-      
-      // Match the sort parameter to a valid column
-      switch(params.sortBy) {
-        case 'trackingNumber':
-          orderBy.push(direction(packages.trackingNumber));
-          break;
-        case 'status':
-          orderBy.push(direction(packages.status));
-          break;
-        case 'receivedDate':
-          orderBy.push(direction(packages.receivedDate));
-          break;
-        case 'createdAt':
-          orderBy.push(direction(packages.createdAt));
-          break;
-        default:
-          orderBy.push(desc(packages.createdAt)); // Default sort
-      }
-    } else {
-      orderBy.push(desc(packages.createdAt)); // Default sort if none specified
+    if (status) {
+      searchParams.status = status;
     }
     
-    // Build the filter conditions
-    const conditions: SQL<unknown>[] = [eq(packages.companyId, params.companyId)];
-    
-    // Add status filter if provided
-    if (params.status) {
-      conditions.push(eq(packages.status, params.status as any));
+    if (search) {
+      searchParams.search = search;
     }
     
-    // Add date range filters if provided
-    if (params.dateFrom) {
-      const fromDate = new Date(params.dateFrom);
-      conditions.push(gte(packages.createdAt, fromDate));
+    if (dateFrom) {
+      searchParams.fromDate = dateFrom;
     }
     
-    if (params.dateTo) {
-      const toDate = new Date(params.dateTo);
-      // Set to end of day
-      toDate.setHours(23, 59, 59, 999);
-      conditions.push(lte(packages.createdAt, toDate));
+    if (dateTo) {
+      searchParams.toDate = dateTo;
     }
     
-    // Add search filter if provided
-    if (params.search) {
-      const searchTerm = `%${params.search}%`;
-      const searchConditions: SQL<unknown>[] = [
-        ilike(packages.trackingNumber, searchTerm),
-        ilike(packages.internalTrackingId, searchTerm),
-        ilike(packages.description, searchTerm)
-      ];
-      
-      if (searchConditions.length > 0) {
-        // Use type assertion to ensure the or() function returns SQL<unknown>
-        conditions.push(or(...searchConditions) as SQL<unknown>);
-      }
-    }
-
-    // Combine all conditions with AND
-    const finalConditions = and(...conditions);
+    // Fetch packages with pagination
+    const result = await this.packagesRepository.findByCompanyId(
+      companyId,
+      searchParams
+    );
     
-    // Get total count for pagination
-    const [{ count: totalItems }] = await db
-      .select({ count: sql<number>`count(*)`.mapWith(Number) })
-      .from(packages)
-      .where(finalConditions);
-      
-    // Calculate total pages
-    const totalPages = Math.ceil(totalItems / limit);
-    
-    // Get the data with pagination
-    const data = await db
-      .select({
-        id: packages.id,
-        userId: packages.userId,
-        trackingNumber: packages.trackingNumber,
-        internalTrackingId: packages.internalTrackingId,
-        status: packages.status,
-        description: packages.description,
-        weight: packages.weight,
-        dimensions: packages.dimensions,
-        receivedDate: packages.receivedDate,
-        processingDate: packages.processingDate,
-        createdAt: packages.createdAt,
-        updatedAt: packages.updatedAt,
+    // Enhance the data with user information
+    const enhancedData = await Promise.all(
+      result.data.map(async (pkg) => {
+        try {
+          const user = await this.usersRepository.findById(pkg.userId, companyId);
+          return {
+            ...pkg,
+            user: user ? {
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              prefId: user.prefId
+            } : null
+          };
+        } catch (error) {
+          console.error(`Error fetching user for package ${pkg.id}:`, error);
+          return {
+            ...pkg,
+            user: null
+          };
+        }
       })
-      .from(packages)
-      .where(finalConditions)
-      .orderBy(...orderBy)
-      .limit(limit)
-      .offset(offset);
+    );
     
     return {
-      data,
-      pagination: {
-        page,
-        limit,
-        totalItems,
-        totalPages
-      }
+      data: enhancedData,
+      pagination: result.pagination
     };
   }
 
+  /**
+   * Export packages to CSV format
+   */
   async exportPackagesCsv(companyId: string, filters: any = {}) {
-    // Use the repository to get all packages for the company with filters (no pagination)
-    // Remove pagination params if present
-    const repoFilters = { ...filters };
-    delete repoFilters.page;
-    delete repoFilters.limit;
-    // You may want to add more fields to filter as needed
-    return this.packagesRepository.findAllForExport(companyId, repoFilters);
+    // Get all packages for export (no pagination)
+    filters.limit = 1000; // Set a reasonable limit
+    const result = await this.getPackagesForCompany({
+      companyId,
+      ...filters
+    });
+    
+    // Transform data for CSV export
+    return result.data.map(pkg => ({
+      ID: pkg.id,
+      'Tracking Number': pkg.trackingNumber,
+      Status: pkg.status,
+      Description: pkg.description || '',
+      Weight: pkg.weight || '',
+      'Customer Name': pkg.user ? `${pkg.user.firstName} ${pkg.user.lastName}` : '',
+      'Customer Email': pkg.user?.email || '',
+      'Received Date': pkg.receivedDate ? new Date(pkg.receivedDate).toLocaleDateString() : '',
+      'Created At': new Date(pkg.createdAt).toLocaleDateString()
+    }));
   }
 
   /**
-   * Get unbilled packages for a user (not already on an invoice)
+   * Get unbilled packages for a user
    */
   async getUnbilledPackagesByUser(userId: string, companyId: string) {
-    return this.packagesRepository.findUnbilledByUser(userId, companyId);
+    return this.packagesRepository.findUnbilledByUserId(userId, companyId);
   }
 } 

@@ -18,12 +18,11 @@ export const packages = pgTable('packages', {
   companyId: uuid('company_id').notNull().references(() => companies.id, {
     onDelete: 'cascade',
   }),
-  userId: uuid('user_id').notNull().references(() => users.id, {
+  userId: uuid('user_id').references(() => users.id, {
     onDelete: 'cascade',
   }),
   prefId: text('pref_id'),
   trackingNumber: text('tracking_number').notNull(),
-  internalTrackingId: text('internal_tracking_id').notNull().unique(),
   status: packageStatusEnum('status').notNull().default('received'),
   description: text('description'),
   weight: decimal('weight', { precision: 10, scale: 2 }),

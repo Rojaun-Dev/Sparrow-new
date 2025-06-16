@@ -24,9 +24,9 @@ export class ApiClient {
     // Create axios instance
     this.client = axios.create({
       baseURL: this.baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      // Do not set a default Content-Type header here.
+      // Axios will automatically set the correct header based on the request data.
+      // Additional default headers (like Accept) can be added here if needed.
     });
 
     // Set up request interceptors

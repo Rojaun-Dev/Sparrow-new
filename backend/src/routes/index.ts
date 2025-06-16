@@ -12,6 +12,7 @@ import statisticsRoutes from './statistics-routes';
 import invoicesRoutes from './invoices-routes';
 import paymentsRoutes from './payments-routes';
 import billingRoutes from './billing-routes';
+import importRoutes from './import-routes';
 import { extractCompanyId, checkJwt } from '../middleware/auth';
 import { CompanySettingsController } from '../controllers/company-settings-controller';
 import { CompanyAssetsController } from '../controllers/company-assets-controller';
@@ -81,6 +82,9 @@ protectedRoutes.use('/companies/:companyId/fees', feesRoutes);
 
 // Billing routes - scoped to company
 protectedRoutes.use('/companies/:companyId/billing', billingRoutes);
+
+// Import routes - scoped to company
+protectedRoutes.use('/companies/:companyId/import', importRoutes);
 
 // Admin routes - not scoped to company, admin specific
 protectedRoutes.use('/admin', adminRoutes);
