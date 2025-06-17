@@ -2,7 +2,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { packages } from '../schema/packages';
 import { users } from '../schema/users';
 import { companies } from '../schema/companies';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import logger from '../../utils/logger';
 
 // Define package status type

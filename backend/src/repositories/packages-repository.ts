@@ -17,7 +17,7 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
   /**
    * Override delete method to add logging and error handling
    */
-  async delete(id: string, companyId?: string): Promise<void> {
+  async delete(id: string, companyId?: string): Promise<any> {
     console.log(`PackagesRepository.delete called with id=${id}, companyId=${companyId}`);
     try {
       const result = await super.delete(id, companyId);

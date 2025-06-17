@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { AutoImportService } from '../services/auto-import-service';
-import { AppError } from '../utils/app-error';
 
 // Extended request interface with company ID
 interface AuthRequest extends Request {
@@ -21,32 +20,29 @@ export class AutoImportController {
    */
   startMagayaImport = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { userId, dateRange = 'this_week' } = req.body;
       const companyId = req.companyId as string;
-      const initiatorUserId = req.userId as string;
-
-      if (!companyId) {
-        throw new AppError('Company ID is required', 400);
-      }
-
-      if (!initiatorUserId) {
-        throw new AppError('User ID is required', 400);
-      }
-
+      const userId = req.userId as string;
+      
+      // Handle specified parameters
+      const dateRange = req.query.dateRange as 'today' | 'this_week' | 'this_month' || 'today';
+      const networkId = req.query.networkId as string;
+      
+      // Start the import process
       const result = await this.autoImportService.startAutoImport({
-        userId,
-        dateRange,
         companyId,
-        initiatorUserId
+        initiatorUserId: userId,
+        dateRange,
+        networkId
       });
-
-      return res.status(200).json({
+      
+      return res.status(202).json({
         success: true,
-        message: 'Auto import started',
-        data: result
+        message: 'Import process initiated',
+        data: { id: result.id }
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
+      return undefined; // This ensures all paths return a value
     }
   };
 
@@ -55,35 +51,32 @@ export class AutoImportController {
    */
   getImportStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
       const companyId = req.companyId as string;
-
-      if (!id) {
-        return res.status(200).json({
-          status: 'unknown',
-          message: 'No import ID provided'
+      const { importId } = req.params;
+      
+      if (!importId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Import ID is required'
         });
       }
-
-      const status = this.autoImportService.getImportStatus(id, companyId);
-
+      
+      const status = this.autoImportService.getImportStatus(importId, companyId);
+      
       if (!status) {
-        return res.status(200).json({
-          status: 'unknown',
-          message: 'Import not found or not authorized'
+        return res.status(404).json({
+          success: false,
+          message: 'Import job not found'
         });
       }
-
+      
       return res.status(200).json({
-        status: status.status,
-        progress: status.progress,
-        startTime: status.startTime,
-        endTime: status.endTime,
-        error: status.error,
-        result: status.result
+        success: true,
+        data: status
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
+      return undefined; // This ensures all paths return a value
     }
   };
 
@@ -93,34 +86,28 @@ export class AutoImportController {
   getLatestImportStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
-
-      const allImports = this.autoImportService.getAllImportsForCompany(companyId);
       
-      // Get the most recent import
-      const sortedImports = allImports.sort((a, b) => {
-        return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-      });
-
-      const latestImport = sortedImports[0];
-
-      if (!latestImport) {
-        return res.status(200).json({
-          status: 'none',
-          message: 'No imports found for this company'
+      const statuses = this.autoImportService.getAllImportsForCompany(companyId);
+      
+      if (!statuses || statuses.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No import jobs found for this company'
         });
       }
-
+      
+      // Sort by start time desc to get latest
+      const latestImport = statuses.sort((a, b) => 
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      )[0];
+      
       return res.status(200).json({
-        id: latestImport.id,
-        status: latestImport.status,
-        progress: latestImport.progress,
-        startTime: latestImport.startTime,
-        endTime: latestImport.endTime,
-        error: latestImport.error,
-        result: latestImport.result
+        success: true,
+        data: latestImport
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
+      return undefined; // This ensures all paths return a value
     }
   };
 
@@ -129,46 +116,22 @@ export class AutoImportController {
    */
   updateCronSettings = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { cronEnabled, cronInterval } = req.body;
       const companyId = req.companyId as string;
       const userId = req.userId as string;
+      const { cronEnabled, cronInterval } = req.body;
       
-      if (!companyId) {
-        throw new AppError('Company ID is required', 400);
-      }
-      
-      if (!userId) {
-        throw new AppError('User ID is required', 400);
-      }
-      
-      // Validate admin role for this operation
-      if (req.userRole !== 'admin_l1' && req.userRole !== 'admin_l2') {
-        throw new AppError('Only admin users can update cron job settings', 403);
-      }
-      
-      // Validate cronInterval if provided
-      if (cronInterval !== undefined) {
-        const validIntervals = [8, 12, 24, 48, 72];
-        if (!validIntervals.includes(cronInterval)) {
-          throw new AppError('Invalid cron interval. Must be one of: 8, 12, 24, 48, 72 hours', 400);
-        }
-      }
-      
-      await this.autoImportService.updateCronSettings(
-        companyId, 
-        { 
-          cronEnabled, 
-          cronInterval 
-        }, 
-        userId
-      );
+      await this.autoImportService.updateCronSettings(companyId, {
+        cronEnabled,
+        cronInterval
+      }, userId);
       
       return res.status(200).json({
         success: true,
-        message: 'Cron job settings updated successfully'
+        message: 'Cron settings updated successfully'
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
+      return undefined; // This ensures all paths return a value
     }
   };
 } 

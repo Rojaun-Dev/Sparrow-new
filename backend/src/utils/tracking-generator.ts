@@ -37,7 +37,7 @@ export async function generateTrackingId(companyId: string): Promise<string> {
   const existingPackage = await db
     .select()
     .from(packages)
-    .where(eq(packages.internalTrackingId, trackingId))
+    .where(eq(packages.trackingNumber, trackingId))
     .limit(1);
   
   // If exists (very unlikely), generate a new one recursively

@@ -465,25 +465,24 @@ export class BillingService {
    * Generate invoices for all unprocessed packages for a user
    */
   async generateInvoiceForUser(userId: string, companyId: string) {
-    // Get user
+    // Check if user exists and belongs to this company
     const user = await this.usersRepository.findById(userId, companyId);
     if (!user) {
-      throw new AppError('User not found', 404);
+      throw AppError.notFound('User not found');
     }
     
-    // Get all packages that don't have an invoice yet
-    // This would typically be packages in 'processed' or 'ready_for_pickup' states
-    // that haven't been associated with an invoice
-    const packages = await this.packagesRepository.findUnbilledByUser(userId, companyId);
+    // Get all unbilled packages for this user
+    const packages = await this.packagesRepository.findUnbilledByUserId(userId, companyId);
     
-    if (!packages || packages.length === 0) {
-      throw new AppError('No unprocessed packages found for this user', 400);
+    if (packages.length === 0) {
+      throw AppError.badRequest('No unbilled packages found for this user');
     }
     
-    // Generate invoice
+    // Generate invoice for these packages
     return this.generateInvoice({
       userId,
       packageIds: packages.map(pkg => pkg.id),
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
     }, companyId);
   }
 

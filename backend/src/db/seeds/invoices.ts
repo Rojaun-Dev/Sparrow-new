@@ -9,7 +9,7 @@ import logger from '../../utils/logger';
 // Define package interface for type safety
 interface PackageRecord {
   id: string;
-  userId: string;
+  userId: string | null;
   weight: string | null;
   declaredValue: string | null;
 }
@@ -84,6 +84,8 @@ export async function seedInvoices(db: NodePgDatabase<any>) {
       // Group packages by user for invoicing
       const packagesByUser: PackagesByUser = {};
       for (const pkg of packageRecords) {
+        if (pkg.userId === null) continue; // Skip packages without a user ID
+        
         if (!packagesByUser[pkg.userId]) {
           packagesByUser[pkg.userId] = [];
         }

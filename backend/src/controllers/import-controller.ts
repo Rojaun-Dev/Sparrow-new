@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { ImportService } from '../services/import-service';
 import { AuditLogsService } from '../services/audit-logs-service';
 import { UploadedFile } from 'express-fileupload';
-import { randomUUID } from 'crypto';
 
 // Extended request interface with company ID
 interface AuthRequest extends Request {
@@ -29,69 +28,60 @@ export class ImportController {
    */
   importPackages = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { userId } = req.params;
-      const { csvContent } = req.body;
-      const companyId = (req.companyId as string) || req.params.companyId;
-      const initiatorUserId = req.userId as string;
-
+      const companyId = req.companyId as string;
+      const { userId, csvContent } = req.body;
+      
       if (!csvContent) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           success: false,
-          message: 'CSV content is required',
+          message: 'CSV content is required'
         });
       }
-
-      // userId is now optional
-
-      // Create audit log for import initiation
+      
+      // Log import start
       await this.auditLogsService.createLog({
-        userId: initiatorUserId,
         companyId,
-        action: 'import_initiated',
+        userId: req.userId as string,
+        action: 'import_started',
         entityType: 'package',
-        entityId: randomUUID(),
-        details: {
+        entityId: 'batch',
+        details: { 
           targetUserId: userId,
           method: 'csv_content',
-          importType: 'packages'
-        },
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+          size: csvContent.length
+        }
       });
-
+      
+      // Process the import
       const result = await this.importService.importPackagesFromCsv(
         csvContent,
         userId,
         companyId
       );
-
-      // Create audit log for import completion
+      
+      // Log import result
       await this.auditLogsService.createLog({
-        userId: initiatorUserId,
         companyId,
+        userId: req.userId as string,
         action: 'import_completed',
         entityType: 'package',
-        entityId: randomUUID(),
+        entityId: 'batch',
         details: {
-          targetUserId: userId,
-          method: 'csv_content',
           totalRecords: result.totalRecords,
           successCount: result.successCount,
           failedCount: result.failedCount,
           skippedCount: result.skippedCount,
-          packageIds: result.createdPackages.map((pkg: any) => pkg.id)
-        },
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+          targetUserId: userId
+        }
       });
-
+      
       return res.status(200).json({
         success: true,
-        message: 'Import completed',
-        data: result,
+        data: result
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
+      return undefined; // This ensures all paths return a value
     }
   };
 
@@ -100,107 +90,77 @@ export class ImportController {
    */
   importPackagesFromFile = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      // userId is optional
-      const { userId } = req.params;
+      const companyId = req.companyId as string;
+      const { userId } = req.body;
       
-      // DEBUG: detailed logging of all possible sources of companyId
-      console.log('[ImportController] companyId sources:', {
-        fromReq: req.companyId,
-        fromParams: req.params.companyId,
-        fromUrl: req.originalUrl,
-        fromQuery: req.query.companyId,
-        fromPath: req.path
-      });
-      
-      // Extract companyId directly from URL path
-      let companyId = req.params.companyId;
-      
-      // If not in params, try from middleware
-      if (!companyId) {
-        companyId = req.companyId as string;
-      }
-      
-      // Last resort - parse from URL
-      if (!companyId && req.originalUrl) {
-        const match = req.originalUrl.match(/\/companies\/([^\/]+)/);
-        if (match && match[1]) {
-          companyId = match[1];
-          console.log(`[ImportController] Extracted companyId from URL: ${companyId}`);
-        }
-      }
-      
-      // Log final companyId
-      console.log(`[ImportController] Using companyId: ${companyId}`);
-      
-      const initiatorUserId = req.userId as string;
-      
-      const uploaded = req.files?.csvFile as UploadedFile | UploadedFile[] | undefined;
-
-      if (!uploaded) {
+      // Check for file
+      if (!req.files || !req.files.file) {
         return res.status(400).json({
           success: false,
-          message: 'CSV file is required',
+          message: 'No file uploaded'
         });
       }
-
-      // If multiple files were uploaded under the same field, take the first one
-      const csvFile = Array.isArray(uploaded) ? uploaded[0] : uploaded;
-
-      // Create audit log for import initiation
+      
+      const file = Array.isArray(req.files.file) 
+        ? req.files.file[0] 
+        : req.files.file;
+      
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        return res.status(400).json({
+          success: false,
+          message: 'File must be a CSV'
+        });
+      }
+      
+      // Read file content
+      const csvContent = file.data.toString('utf-8');
+      
+      // Log import start
       await this.auditLogsService.createLog({
-        userId: initiatorUserId,
         companyId,
-        action: 'import_initiated',
+        userId: req.userId as string,
+        action: 'import_started',
         entityType: 'package',
-        entityId: randomUUID(),
-        details: {
+        entityId: 'batch',
+        details: { 
           targetUserId: userId,
           method: 'file_upload',
-          fileName: csvFile.name,
-          fileSize: csvFile.size,
-          importType: 'packages'
-        },
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+          filename: file.name,
+          size: file.size
+        }
       });
-
-      // Get file buffer and convert to string
-      const csvContent = csvFile.data.toString('utf8');
-
+      
+      // Process the import
       const result = await this.importService.importPackagesFromCsv(
         csvContent,
         userId,
         companyId
       );
-
-      // Create audit log for import completion
+      
+      // Log import result
       await this.auditLogsService.createLog({
-        userId: initiatorUserId,
         companyId,
+        userId: req.userId as string,
         action: 'import_completed',
         entityType: 'package',
-        entityId: randomUUID(),
+        entityId: 'batch',
         details: {
-          targetUserId: userId,
-          method: 'file_upload',
-          fileName: csvFile.name,
           totalRecords: result.totalRecords,
           successCount: result.successCount,
           failedCount: result.failedCount,
           skippedCount: result.skippedCount,
-          packageIds: result.createdPackages.map((pkg: any) => pkg.id)
-        },
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+          targetUserId: userId,
+          filename: file.name
+        }
       });
-
+      
       return res.status(200).json({
         success: true,
-        message: 'Import completed',
-        data: result,
+        data: result
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
+      return undefined; // This ensures all paths return a value
     }
   };
 } 

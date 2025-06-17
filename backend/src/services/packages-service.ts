@@ -4,35 +4,33 @@ import { PreAlertsRepository } from '../repositories/pre-alerts-repository';
 import { UsersRepository } from '../repositories/users-repository';
 import { AppError } from '../utils/app-error';
 import { packageStatusEnum, packages } from '../db/schema/packages';
-import { randomUUID } from 'crypto';
 import { SQL, eq, and, gte, lte, or, ilike, desc, asc, sql } from 'drizzle-orm';
+import { createPackageSchema, updatePackageSchema } from '../validation/package-schemas';
 
-// Define the schema for creating a package
-export const createPackageSchema = z.object({
-  userId: z.string().uuid().optional(),
-  trackingNumber: z.string(),
-  status: z.enum(packageStatusEnum.enumValues).optional().default('received'),
-  description: z.string().optional(),
-  weight: z.number().optional(),
-  dimensions: z.object({
-    length: z.number().optional(),
-    width: z.number().optional(),
-    height: z.number().optional(),
-  }).optional(),
-  senderInfo: z.record(z.string(), z.any()).optional(),
-  declaredValue: z.number().optional(),
-  receivedDate: z.date().optional(),
-  processingDate: z.date().optional(),
-  photos: z.array(z.string()).optional(),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  preAlertId: z.string().optional(),
+// Define the shape of package metadata for type safety
+export interface PackageMetadata {
+  length?: number;
+  width?: number;
+  height?: number;
+}
+
+export const allPackageStatuses = [
+  'in_transit',
+  'pre_alert',
+  'received',
+  'processed',
+  'ready_for_pickup',
+  'delivered',
+  'returned',
+] as const;
+
+export type PackageStatus = typeof allPackageStatuses[number];
+
+// Update schema that doesn't allow prefId updates
+export const updatePackageSchemaWithoutPrefId = updatePackageSchema.extend({
+  // Define prefId as optional but always undefined to prevent updates
+  prefId: z.undefined().optional(),
 });
-
-// Schema for updating a package
-export const updatePackageSchema = createPackageSchema
-  .partial()
-  .omit({ prefId: true }); // Don't allow updating prefId
 
 export class PackagesService {
   private packagesRepository: PackagesRepository;
@@ -220,7 +218,6 @@ export class PackagesService {
       // Debug logging for companyId
       console.log('PackagesService.createPackage debug:', {
         receivedCompanyId: companyId,
-        dataCompanyId: data.companyId,
         type: typeof companyId,
         hasCompanyId: !!companyId
       });
@@ -255,19 +252,6 @@ export class PackagesService {
         }
       }
       
-      // Check for pre-alert to link
-      if (validatedData.preAlertId) {
-        // Verify pre-alert exists and belongs to this company
-        const preAlert = await this.preAlertsRepository.findById(
-          validatedData.preAlertId, 
-          companyId
-        );
-        
-        if (!preAlert) {
-          throw AppError.notFound('Pre-alert not found');
-        }
-      }
-      
       // Create the package
       return this.packagesRepository.create(packageData, companyId);
     } catch (error) {
@@ -282,32 +266,25 @@ export class PackagesService {
    * Update a package with company isolation
    */
   async updatePackage(id: string, data: z.infer<typeof updatePackageSchema>, companyId: string) {
-    try {
-      // Validate data
-      const validatedData = updatePackageSchema.parse(data);
-      
-      // Check if package exists and belongs to this company
-      const existingPackage = await this.packagesRepository.findById(id, companyId);
-      if (!existingPackage) {
-        throw AppError.notFound('Package not found');
-      }
-      
-      // If userId is being updated, check that the new user exists and belongs to this company
-      if (validatedData.userId) {
-        const user = await this.usersRepository.findById(validatedData.userId, companyId);
-        if (!user) {
-          throw AppError.notFound('User not found');
-        }
-      }
-      
-      // Update the package
-      return this.packagesRepository.update(id, validatedData);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw AppError.badRequest('Invalid package data: ' + error.errors.map(e => e.message).join(', '));
-      }
-      throw error;
+    // Get the current package
+    const existingPackage = await this.packagesRepository.findById(id, companyId);
+    if (!existingPackage) {
+      throw AppError.notFound('Package not found');
     }
+    
+    // Parse and validate the data without allowing prefId updates
+    const validatedData = updatePackageSchemaWithoutPrefId.parse(data);
+    
+    // Handle userId validation if present
+    if (validatedData.userId) {
+      const user = await this.usersRepository.findById(validatedData.userId, companyId);
+      if (!user) {
+        throw AppError.badRequest('Invalid user ID');
+      }
+    }
+    
+    // Update the package
+    return this.packagesRepository.update(id, validatedData, companyId);
   }
 
   /**
@@ -368,7 +345,6 @@ export class PackagesService {
       ...data,
       companyId,
       userId: preAlert.userId,
-      preAlertId, // Link to the pre-alert
       prefId,
       // Set default values from pre-alert if not provided
       trackingNumber: data.trackingNumber || preAlert.trackingNumber,
@@ -378,10 +354,10 @@ export class PackagesService {
     };
     
     // Create the package
-    const createdPackage = await this.packagesRepository.create(packageData);
+    const createdPackage = await this.packagesRepository.create(packageData, companyId);
     
     // Mark the pre-alert as processed
-    await this.preAlertsRepository.update(preAlertId, { status: 'processed' });
+    await this.preAlertsRepository.update(preAlertId, { status: 'matched' }, companyId);
     
     return createdPackage;
   }
@@ -478,17 +454,25 @@ export class PackagesService {
     const enhancedData = await Promise.all(
       result.data.map(async (pkg) => {
         try {
-          const user = await this.usersRepository.findById(pkg.userId, companyId);
-          return {
-            ...pkg,
-            user: user ? {
-              id: user.id,
-              firstName: user.firstName,
-              lastName: user.lastName,
-              email: user.email,
-              prefId: user.prefId
-            } : null
-          };
+          // Add null check for userId
+          if (pkg.userId) {
+            const user = await this.usersRepository.findById(pkg.userId, companyId);
+            return {
+              ...pkg,
+              user: user ? {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                prefId: user.prefId
+              } : null
+            };
+          } else {
+            return {
+              ...pkg,
+              user: null
+            };
+          }
         } catch (error) {
           console.error(`Error fetching user for package ${pkg.id}:`, error);
           return {

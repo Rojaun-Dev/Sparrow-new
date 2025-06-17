@@ -17,6 +17,14 @@ import autoImportRoutes from './auto-import-routes';
 import { extractCompanyId, checkJwt } from '../middleware/auth';
 import { CompanySettingsController } from '../controllers/company-settings-controller';
 import { CompanyAssetsController } from '../controllers/company-assets-controller';
+import { AutoImportController } from '../controllers/auto-import-controller';
+
+// Extended request interface with company ID
+interface AuthRequest extends express.Request {
+  companyId?: string;
+  userId?: string;
+  userRole?: string;
+}
 
 const router = express.Router();
 const companySettingsController = new CompanySettingsController();
@@ -93,22 +101,11 @@ protectedRoutes.use('/companies/:companyId/auto-import', autoImportRoutes);
 // Admin routes - not scoped to company, admin specific
 protectedRoutes.use('/admin', adminRoutes);
 
-// Add a general auto-import status endpoint
+// Auto-import routes
 router.get('/auto-import/status', checkJwt, (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Extract companyId from request
-  const companyId = (req as any).companyId;
-  
-  if (!companyId) {
-    return res.status(401).json({
-      success: false,
-      message: 'Authentication required'
-    });
-  }
-  
-  // Forward to the latest status endpoint
-  (req as any).params = { ...(req as any).params, companyId };
-  req.url = `/companies/${companyId}/auto-import/status/latest`;
-  autoImportRoutes(req, res, next);
+  // Forward to controller
+  const controller = new AutoImportController();
+  return controller.getLatestImportStatus(req as AuthRequest, res, next);
 });
 
 export default router; 

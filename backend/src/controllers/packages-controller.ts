@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PackagesService, createPackageSchema, updatePackageSchema } from '../services/packages-service';
+import { PackagesService } from '../services/packages-service';
+import { createPackageSchema, updatePackageSchema } from '../validation/package-schemas';
 import { ApiResponse } from '../utils/response';
 import { format as csvFormat } from 'fast-csv';
 import { PassThrough } from 'stream';
