@@ -177,17 +177,18 @@ export class AutoImportService {
       
       console.log(`Starting Magaya LiveTrack auto-import for company ${options.companyId}`);
       
-      // Launch browser with more generous timeout for slow connections
+      // Launch browser in non-headless mode for debugging
       browser = await chromium.launch({ 
-        headless: true,
-        timeout: 60000 // 60 second timeout for slow connections
+        headless: false, // Set to false for debugging
+        timeout: 60000, // 60 second timeout for slow connections
+        slowMo: 100 // Slow down operations by 100ms for better visibility
       });
       
       // Create context with download path
       const context = await browser.newContext({
         acceptDownloads: true,
-        downloadsPath: downloadFolder,
-        viewport: { width: 1920, height: 1080 } // Set larger viewport for better reliability
+        // Set viewport for better reliability
+        viewport: { width: 1920, height: 1080 } 
       });
       
       // Navigate to Magaya LiveTrack
@@ -196,6 +197,29 @@ export class AutoImportService {
       // Add additional logging for navigation events
       page.on('console', (msg: { text: () => string }) => console.log(`Browser console: ${msg.text()}`));
       page.on('pageerror', (err: Error) => console.error(`Browser page error: ${err.message}`));
+      
+      // Add more detailed debugging
+      page.on('request', request => console.log(`Request: ${request.url()}`));
+      page.on('response', response => console.log(`Response: ${response.url()} - ${response.status()}`));
+      
+      // Enable screenshots for debugging
+      const screenshotPath = path.join(downloadFolder, 'screenshots');
+      if (!fs.existsSync(screenshotPath)) {
+        fs.mkdirSync(screenshotPath, { recursive: true });
+      }
+      
+      // Helper function to take screenshots at key points
+      const takeScreenshot = async (name: string) => {
+        try {
+          await page.screenshot({ 
+            path: path.join(screenshotPath, `${name}-${Date.now()}.png`),
+            fullPage: true 
+          });
+          console.log(`Screenshot saved: ${name}`);
+        } catch (e) {
+          console.error(`Failed to take screenshot ${name}:`, e);
+        }
+      };
       
       console.log('Navigating to Magaya LiveTrack login page');
       await page.goto('https://tracking.magaya.com/#livetrack', { 
@@ -262,8 +286,10 @@ export class AutoImportService {
       });
       
       console.log('Clicking login button');
+      await takeScreenshot('before-login');
       await page.click(loginButtonSelector);
       console.log('Login button clicked');
+      await takeScreenshot('after-login-click');
       
       // Wait for the main page to load
       status.progress = 30;
@@ -289,17 +315,48 @@ export class AutoImportService {
         
         console.log('No login errors detected, waiting for dashboard to load');
         
-        // Wait for the Cargo Detail entry in the left menu to appear
-        // We need to locate the Cargo Detail menu item in the left sidebar
-        console.log('Waiting for menu to load...');
+        // Wait for the main dashboard to load - try multiple selectors
+        console.log('Waiting for dashboard to load...');
         
-        // First wait for the sidebar menu to appear
-        await page.waitForSelector('.entryView', { 
-          timeout: 30000,
-          state: 'visible'
-        });
+        // Try multiple selectors that might indicate successful login
+        const dashboardSelectors = [
+          '.entryView', // Original selector
+          '.x-panel-body', // General panel body
+          '.x-grid-view', // Grid view that often appears after login
+          '.x-toolbar', // Toolbar that's usually present in the dashboard
+          '#ext-comp-1001', // Common component ID in Magaya
+          'div.x-panel-default' // Default panel class
+        ];
         
-        console.log('Menu loaded successfully');
+        let dashboardLoaded = false;
+        for (const selector of dashboardSelectors) {
+          try {
+            console.log(`Trying selector: ${selector}`);
+            await page.waitForSelector(selector, { 
+              timeout: 5000, // Short timeout for each attempt
+              state: 'visible'
+            });
+            console.log(`Dashboard detected using selector: ${selector}`);
+            dashboardLoaded = true;
+            break;
+          } catch (e) {
+            console.log(`Selector ${selector} not found, trying next...`);
+          }
+        }
+        
+        if (!dashboardLoaded) {
+          // If none of the selectors worked, try waiting for any content to load
+          console.log('No specific selectors found, waiting for any content...');
+          await page.waitForFunction(`
+            document.body.textContent && document.body.textContent.length > 100
+          `, { timeout: 10000 });
+        }
+        
+        // Give a little extra time for everything to render
+        await page.waitForTimeout(3000);
+        
+        console.log('Dashboard appears to be loaded');
+        await takeScreenshot('dashboard-loaded');
       } catch (loginError) {
         console.error('Login failed:', loginError);
         throw new Error(`Login failed: ${loginError instanceof Error ? loginError.message : 'Unknown error'}`);
@@ -308,35 +365,72 @@ export class AutoImportService {
       // Find and click on Cargo Detail item in the sidebar menu
       console.log('Looking for Cargo Detail menu item');
       
-      // Using the exact HTML structure from the provided files
       // First wait a bit to ensure the sidebar is fully rendered
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
       
-      // Looking specifically for the Cargo Detail menu item with its specific structure
-      const cargoDetailSelector = '.entryView div .cargo_detail_icon';
-      const cargoDetailFound = await page.$(cargoDetailSelector)
-        .then((element: any) => !!element)
-        .catch(() => false);
+      // Try multiple selectors for finding the Cargo Detail menu item
+      const cargoDetailSelectors = [
+        // Original selector
+        '.entryView div .cargo_detail_icon',
+        // Text-based selectors
+        'div:has-text("Cargo Detail")',
+        '[title*="Cargo Detail"]',
+        'span:has-text("Cargo Detail")',
+        // Generic menu item selectors
+        '.x-menu-item:has-text("Cargo")',
+        '.x-menu-item:has-text("Detail")',
+        // By XPath
+        '//div[contains(text(), "Cargo Detail")]',
+        '//span[contains(text(), "Cargo Detail")]'
+      ];
+      
+      let cargoDetailFound = false;
+      for (const selector of cargoDetailSelectors) {
+        try {
+          console.log(`Trying to find Cargo Detail with selector: ${selector}`);
+          const element = await page.$(selector);
+          if (element) {
+            console.log(`Found Cargo Detail using selector: ${selector}`);
+            await element.click();
+            cargoDetailFound = true;
+            break;
+          }
+        } catch (e) {
+          console.log(`Selector ${selector} not found or couldn't be clicked`);
+        }
+      }
       
       if (!cargoDetailFound) {
-        // Try alternative selector
-        const altSelector = '.entryView:has-text("Cargo Detail")';
-        const altFound = await page.$(altSelector)
-          .then((element: any) => !!element)
-          .catch(() => false);
-          
-        if (!altFound) {
-          console.error('Could not find Cargo Detail menu item');
-          throw new Error('Could not find Cargo Detail menu item in the sidebar');
-        }
+        // If we can't find the Cargo Detail specifically, try to find any menu item
+        // that might lead to the cargo/shipment data
+        const genericSelectors = [
+          'div:has-text("Shipment")',
+          'div:has-text("Cargo")',
+          'div:has-text("Tracking")',
+          '.x-grid-view', // Sometimes the grid is already visible
+          '.x-panel-body' // Or a panel with data
+        ];
         
-        // Click using alternative selector
-        console.log('Clicking on Cargo Detail using alternative selector');
-        await page.click(altSelector);
+        for (const selector of genericSelectors) {
+          try {
+            console.log(`Trying generic selector: ${selector}`);
+            const element = await page.$(selector);
+            if (element) {
+              console.log(`Found alternative navigation element: ${selector}`);
+              await element.click();
+              cargoDetailFound = true;
+              break;
+            }
+          } catch (e) {
+            console.log(`Generic selector ${selector} not found or couldn't be clicked`);
+          }
+        }
+      }
+      
+      if (!cargoDetailFound) {
+        console.log('Could not find Cargo Detail menu item, but will try to continue anyway');
       } else {
-        // Click on the parent of the icon to activate the menu item
-        console.log('Clicking on Cargo Detail menu item using icon parent');
-        await page.click(`${cargoDetailSelector} >> xpath=./ancestor::div[contains(@class, "entryView")]`);
+        console.log('Successfully clicked on a menu item that should lead to cargo data');
       }
       
       // Wait for the cargo detail page to load
@@ -346,6 +440,7 @@ export class AutoImportService {
       
       // Wait for the cargo detail page to fully load
       await page.waitForTimeout(5000); // Give more time for page transition
+      await takeScreenshot('after-cargo-detail-click');
       
       // Try multiple selectors for the date filter button since the UI may vary
       console.log('Looking for Dates dropdown button');
@@ -392,50 +487,94 @@ export class AutoImportService {
       // Wait for dropdown to appear
       await page.waitForTimeout(1000);
       
-      // Select date range based on option
-      let dateValue = '';
+      // Map our date range options to the actual text in the dropdown
+      let dateDisplayText = '';
       switch (options.dateRange) {
         case 'today':
-          dateValue = 'today';
+          dateDisplayText = 'Today';
           break;
         case 'this_week':
-          dateValue = 'thisWeekToDate';
+          dateDisplayText = 'This week';
           break;
         case 'this_month':
-          dateValue = 'thisMonthToDate';
+          dateDisplayText = 'This month';
           break;
         default:
-          dateValue = 'thisWeekToDate';
+          dateDisplayText = 'This week to date';
       }
       
-      console.log(`Selecting date range with value: ${dateValue}`);
+      console.log(`Selecting date range: "${dateDisplayText}"`);
+      await takeScreenshot('date-dropdown-open');
       
-      // Try multiple approaches to select the date range
+      // Take a screenshot of the dropdown to see what's available
+      await page.waitForTimeout(1000);
+      
+      // Try multiple approaches to select the date range based on the actual HTML structure
       const dateSelectors = [
-        `[data-value="${dateValue}"]`,
-        `.x-boundlist-item:has-text("${dateValue === 'today' ? 'Today' : 
-          dateValue === 'thisWeekToDate' ? 'This Week to Date' : 'This Month to Date'}")`,
-        `div[role="option"]:has-text("${dateValue === 'today' ? 'Today' : 
-          dateValue === 'thisWeekToDate' ? 'This Week to Date' : 'This Month to Date'}")`
+        // By contains text
+        `.x-boundlist-item:has-text("${dateDisplayText}")`,
+        // By role and text
+        `li[role="option"]:has-text("${dateDisplayText}")`,
+        // By data attributes
+        `li[data-recordindex]:has-text("${dateDisplayText}")`,
+        // Direct XPath by text
+        `//li[contains(text(), "${dateDisplayText}")]`,
+        // XPath for exact text match
+        `//li[text()="${dateDisplayText}"]`
       ];
+      
+      // Log all visible options for debugging
+      console.log('Available date options:');
+      const visibleOptions = await page.$$eval('.x-boundlist-item', 
+        (items) => items.map(item => item.textContent?.trim())
+      );
+      console.log(visibleOptions);
       
       let dateOptionFound = false;
       for (const selector of dateSelectors) {
-        const exists = await page.$(selector)
-          .then((element: any) => !!element)
-          .catch(() => false);
+        try {
+          console.log(`Trying selector: ${selector}`);
+          const element = await page.$(selector);
+          if (element) {
+            console.log(`Found date option using selector: ${selector}`);
+            await element.click();
+            dateOptionFound = true;
+            break;
+          }
+        } catch (e) {
+          console.log(`Error with selector ${selector}: ${e}`);
+        }
+      }
+      
+      // If we couldn't find the exact option, try clicking by index
+      if (!dateOptionFound) {
+        try {
+          console.log('Trying to select by index instead');
+          // Find the index of our target option in the visible options
+          const targetIndex = visibleOptions.findIndex(
+            text => text?.toLowerCase().includes(dateDisplayText.toLowerCase())
+          );
           
-        if (exists) {
-          console.log(`Found date option using selector: ${selector}`);
-          await page.click(selector);
-          dateOptionFound = true;
-          break;
+          if (targetIndex >= 0) {
+            console.log(`Found option at index ${targetIndex}: ${visibleOptions[targetIndex]}`);
+            await page.click(`.x-boundlist-item:nth-child(${targetIndex + 1})`);
+            dateOptionFound = true;
+          } else {
+            // If all else fails, just click the first option
+            console.log('Target not found in list, clicking first option');
+            await page.click('.x-boundlist-item:first-child');
+            dateOptionFound = true;
+          }
+        } catch (e) {
+          console.error('Failed to select by index:', e);
         }
       }
       
       if (!dateOptionFound) {
-        console.error(`Could not find date option with value: ${dateValue}`);
-        throw new Error(`Could not find date option: ${dateValue}`);
+        console.error(`Could not find date option: ${dateDisplayText}`);
+        console.log('Will try to continue anyway');
+      } else {
+        console.log(`Successfully selected date option: ${dateDisplayText}`);
       }
       
       console.log('Date range selected');

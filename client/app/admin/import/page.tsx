@@ -49,7 +49,17 @@ export default function ImportPage() {
   useEffect(() => {
     const fetchMagayaSettings = async () => {
       try {
-        const response = await apiClient.get('/company-settings/integration');
+        const response = await apiClient.get<{
+          magayaIntegration?: {
+            enabled?: boolean;
+            username?: string;
+            password?: string;
+            dateRangePreference?: string;
+            autoImportEnabled?: boolean;
+            networkId?: string;
+          }
+        }>('/company-settings/integration');
+        
         setMagayaSettings({
           enabled: !!response?.magayaIntegration?.enabled,
           username: response?.magayaIntegration?.username,
@@ -136,7 +146,8 @@ export default function ImportPage() {
     
     try {
       setIsAutoImporting(true);
-      const response = await apiClient.post('/auto-import/magaya', {
+      const companyId = user?.companyId;
+      const response = await apiClient.post(`/companies/${companyId}/auto-import/magaya`, {
         userId: targetUserId,
         dateRange: magayaSettings.dateRangePreference || 'this_week'
       });
@@ -150,8 +161,26 @@ export default function ImportPage() {
       const pollStatus = setInterval(async () => {
         attempts++;
         try {
-          const statusResponse = await apiClient.get('/auto-import/status');
-          if (statusResponse.status === 'completed') {
+          // Use the general status endpoint that's already set up in the backend
+          interface ImportStatusResponse {
+            id?: string;
+            status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'none' | 'unknown';
+            error?: string;
+            progress?: number;
+            startTime?: Date;
+            endTime?: Date;
+            result?: {
+              successCount: number;
+              failedCount?: number;
+              skippedCount?: number;
+              totalRecords?: number;
+            };
+          }
+          
+          const companyId = user?.companyId;
+          const statusResponse = await apiClient.get<ImportStatusResponse>(`/companies/${companyId}/auto-import/status/latest`);
+          
+          if (statusResponse && statusResponse.status === 'completed') {
             clearInterval(pollStatus);
             setIsAutoImporting(false);
             
@@ -160,7 +189,7 @@ export default function ImportPage() {
               setImportComplete(true);
               toast.success(`Import complete: ${statusResponse.result.successCount} packages imported`);
             }
-          } else if (statusResponse.status === 'failed') {
+          } else if (statusResponse && statusResponse.status === 'failed') {
             clearInterval(pollStatus);
             setIsAutoImporting(false);
             toast.error(`Import failed: ${statusResponse.error || 'Unknown error'}`);
