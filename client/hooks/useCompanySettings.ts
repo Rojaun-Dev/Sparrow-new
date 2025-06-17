@@ -3,12 +3,34 @@ import { apiClient } from '@/lib/api/apiClient';
 import { useToast } from './use-toast';
 import { useMyAdminCompany } from './useCompanies';
 
+// Define the company settings type
+interface CompanySettings {
+  id?: string;
+  companyId?: string;
+  internalPrefix?: string;
+  notificationSettings?: Record<string, any>;
+  themeSettings?: Record<string, any>;
+  paymentSettings?: Record<string, any>;
+  integrationSettings?: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export function useCompanySettings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
   // Use the existing company data query
   const companyQuery = useMyAdminCompany();
+  
+  // Get company settings
+  const settingsQuery = useQuery<CompanySettings>({
+    queryKey: ['companySettings'],
+    queryFn: async () => {
+      return apiClient.get('/company-settings');
+    },
+    enabled: !!companyQuery.data?.id,
+  });
   
   // Update integration settings
   const updateIntegrationSettings = useMutation({
@@ -30,6 +52,28 @@ export function useCompanySettings() {
         variant: "destructive",
       });
       console.error("Error updating integration settings:", error);
+    }
+  });
+  
+  // Update internal prefix
+  const updateInternalPrefix = useMutation({
+    mutationFn: async (internalPrefix: string) => {
+      return apiClient.put('/company-settings/internal-prefix', { internalPrefix });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Internal prefix updated",
+        description: "Company internal prefix has been updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['companySettings'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error.message || "Failed to update internal prefix",
+        variant: "destructive",
+      });
+      console.error("Error updating internal prefix:", error);
     }
   });
   
@@ -89,10 +133,12 @@ export function useCompanySettings() {
 
   return {
     company: companyQuery.data,
-    isLoading: companyQuery.isLoading,
-    error: companyQuery.error,
+    settings: settingsQuery.data as CompanySettings,
+    isLoading: companyQuery.isLoading || settingsQuery.isLoading,
+    error: companyQuery.error || settingsQuery.error,
     updateCompany,
     updateLocations,
-    updateIntegrationSettings
+    updateIntegrationSettings,
+    updateInternalPrefix
   };
 } 

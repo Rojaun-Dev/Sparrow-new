@@ -74,6 +74,7 @@ const integrationSettingsSchema = z.object({
 
 // Define validation schema for all settings
 const companySettingsSchema = z.object({
+  internalPrefix: z.string().min(2).max(5).optional(),
   notificationSettings: notificationSettingsSchema.optional(),
   themeSettings: themeSettingsSchema.optional(),
   paymentSettings: paymentSettingsSchema.optional(),
@@ -280,5 +281,32 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
       console.error('Error getting all company settings:', error);
       throw error;
     }
+  }
+
+  /**
+   * Update internal prefix for a company
+   */
+  async updateInternalPrefix(companyId: string, internalPrefix: string) {
+    // Validate prefix (2-5 characters)
+    if (!internalPrefix || internalPrefix.length < 2 || internalPrefix.length > 5) {
+      throw new Error('Internal prefix must be between 2 and 5 characters');
+    }
+    
+    // Get existing settings
+    const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+    
+    if (!settings) {
+      // Create new settings with the prefix
+      return this.companySettingsRepository.create({
+        companyId,
+        internalPrefix,
+      }, companyId);
+    }
+    
+    // Update existing settings
+    return this.companySettingsRepository.update(settings.id, {
+      internalPrefix,
+      updatedAt: new Date(),
+    }, companyId);
   }
 } 

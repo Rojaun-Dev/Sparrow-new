@@ -78,4 +78,11 @@ router.put(
   companySettingsController.updateThemeSettings
 );
 
+// Update internal prefix
+router.put(
+  '/internal-prefix',
+  /*checkRole(['admin_l2']),*/
+  companySettingsController.updateInternalPrefix
+);
+
 export default router; 

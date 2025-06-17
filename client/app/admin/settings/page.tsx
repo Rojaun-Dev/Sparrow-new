@@ -34,7 +34,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 export default function CompanySettingsPage() {
   const { user } = useAuth();
   const isAdminL2 = user?.role === "admin_l2";
-  const { company, isLoading, updateCompany, updateLocations, updateIntegrationSettings } = useCompanySettings();
+  const { company, settings, isLoading, updateCompany, updateLocations, updateIntegrationSettings, updateInternalPrefix } = useCompanySettings();
   const { assets, getAssetByType, uploadAsset, deleteAsset } = useCompanyAssets();
   const { generateApiKey, isGenerating, apiKey } = useApiKey();
   
@@ -72,6 +72,7 @@ export default function CompanySettingsPage() {
         cronInterval: 24,
       },
     },
+    internalPrefix: "SPX",
   });
   
   const [activeTab, setActiveTab] = useState("general")
@@ -95,6 +96,9 @@ export default function CompanySettingsPage() {
   const [iframeCodeCopied, setIframeCodeCopied] = useState(false);
   const [domainInputValue, setDomainInputValue] = useState('');
   const [originInputValue, setOriginInputValue] = useState('');
+  
+  // Add new state for internal prefix
+  const [internalPrefixValue, setInternalPrefixValue] = useState("");
   
   // Load company data when available
   useEffect(() => {
@@ -149,6 +153,7 @@ export default function CompanySettingsPage() {
               cronInterval: 24,
             },
           },
+          internalPrefix: "SPX",
         };
       });
     }
@@ -181,7 +186,8 @@ export default function CompanySettingsPage() {
         if (settings?.paymentSettings) {
           setCompanyData(prev => ({
             ...prev,
-            paymentSettings: settings.paymentSettings
+            paymentSettings: settings.paymentSettings,
+            internalPrefix: settings.internalPrefix || "SPX",
           }));
         }
         
@@ -212,7 +218,8 @@ export default function CompanySettingsPage() {
                 cronEnabled: integrationSettings?.magayaIntegration?.cronEnabled || false,
                 cronInterval: integrationSettings?.magayaIntegration?.cronInterval || 24,
               },
-            }
+            },
+            internalPrefix: settings?.internalPrefix || prev.internalPrefix,
           }));
         } catch (err) {
           console.error('Failed to load integration settings:', err);
@@ -237,6 +244,13 @@ export default function CompanySettingsPage() {
       }));
     }
   }, [apiKey]);
+  
+  // Update internal prefix when settings are loaded
+  useEffect(() => {
+    if (settings?.internalPrefix) {
+      setInternalPrefixValue(settings.internalPrefix);
+    }
+  }, [settings]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -500,6 +514,29 @@ export default function CompanySettingsPage() {
     }
   };
 
+  // Add a handler for updating the internal prefix
+  const handleUpdateInternalPrefix = async () => {
+    if (!internalPrefixValue || internalPrefixValue.length < 2 || internalPrefixValue.length > 5) {
+      toast({
+        title: "Invalid prefix",
+        description: "Internal prefix must be between 2 and 5 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      await updateInternalPrefix.mutateAsync(internalPrefixValue);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      console.error("Failed to update internal prefix:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-6">
@@ -751,6 +788,57 @@ export default function CompanySettingsPage() {
                   This information will appear on invoices and is used for payment processing.
                 </p>
               </div>
+
+              {/* Internal Prefix Section - Only visible to admin_l2 users */}
+              {isAdminL2 && (
+                <>
+                  <Separator className="my-6" />
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-medium">Internal Prefix Settings</h3>
+                      <p className="text-sm text-muted-foreground">
+                        This prefix is used for internal tracking IDs and customer reference numbers.
+                        Changing this will affect all new packages and users.
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <Label htmlFor="internalPrefix">Internal Prefix</Label>
+                        <Input
+                          id="internalPrefix"
+                          name="internalPrefix"
+                          value={internalPrefixValue}
+                          onChange={(e) => setInternalPrefixValue(e.target.value.toUpperCase())}
+                          placeholder="SPX"
+                          className="mt-1"
+                          maxLength={5}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          2-5 characters, uppercase letters recommended
+                        </p>
+                      </div>
+                      <div className="flex items-end">
+                        <Button 
+                          onClick={handleUpdateInternalPrefix}
+                          disabled={isSaving || !internalPrefixValue || internalPrefixValue === settings?.internalPrefix}
+                          className="mb-1"
+                        >
+                          {isSaving ? <Spinner className="mr-2 h-4 w-4" /> : null}
+                          Update Prefix
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm">
+                        <strong>Example:</strong> With prefix "{internalPrefixValue || 'SPX'}", tracking IDs will look like:
+                        <code className="ml-2 bg-muted px-2 py-1 rounded">{internalPrefixValue || 'SPX'}-23-05-ABC123</code>
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

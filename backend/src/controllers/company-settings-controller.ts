@@ -434,4 +434,42 @@ export class CompanySettingsController {
       return res.status(500).json({ error: 'Failed to validate API key' });
     }
   };
+
+  /**
+   * Update internal prefix
+   */
+  updateInternalPrefix = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+    try {
+      const companyId = req.companyId;
+      if (!companyId) {
+        return res.status(400).json({ error: 'Company ID is required' });
+      }
+
+      // Check if user has admin_l2 role
+      if (req.userRole !== 'admin_l2' && req.userRole !== 'super_admin') {
+        return res.status(403).json({ 
+          error: 'Unauthorized', 
+          message: 'Only admin_l2 users can update the internal prefix' 
+        });
+      }
+      
+      const { internalPrefix } = req.body;
+      
+      if (!internalPrefix) {
+        return res.status(400).json({ error: 'Internal prefix is required' });
+      }
+      
+      const settings = await this.companySettingsService.updateInternalPrefix(companyId, internalPrefix);
+      return res.json(settings);
+    } catch (error) {
+      console.error('Error updating internal prefix:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid data', details: error.errors });
+      } else if (error instanceof Error) {
+        return res.status(400).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: 'Failed to update internal prefix' });
+      }
+    }
+  };
 } 

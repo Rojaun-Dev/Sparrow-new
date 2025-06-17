@@ -1,26 +1,41 @@
 import { randomUUID } from 'crypto';
 import { db } from '../db';
 import { companies } from '../db/schema/companies';
+import { companySettings } from '../db/schema/company-settings';
 import { packages } from '../db/schema/packages';
 import { eq } from 'drizzle-orm';
 
 /**
  * Generates a unique internal tracking ID for a package
- * Format: [Company Prefix (first 3 chars)]-[Year (2 digits)]-[Month (2 digits)]-[Unique Identifier (6 chars)]
+ * Format: [Company Prefix]-[Year (2 digits)]-[Month (2 digits)]-[Unique Identifier (6 chars)]
  * Example: ABC-23-05-ABC123
  */
 export async function generateTrackingId(companyId: string): Promise<string> {
-  // Get company name/code to use as prefix (first 3 characters)
-  const companyResult = await db
-    .select({ name: companies.name })
-    .from(companies)
-    .where(eq(companies.id, companyId))
+  // Get company prefix from settings, or fall back to company name
+  const settingsResult = await db
+    .select({ internalPrefix: companySettings.internalPrefix })
+    .from(companySettings)
+    .where(eq(companySettings.companyId, companyId))
     .limit(1);
   
-  // If company not found, use a default prefix
-  const prefix = companyResult.length > 0
-    ? companyResult[0].name.substring(0, 3).toUpperCase()
-    : 'SPC';
+  let prefix: string;
+  
+  if (settingsResult.length > 0 && settingsResult[0].internalPrefix) {
+    // Use the configured internal prefix
+    prefix = settingsResult[0].internalPrefix;
+  } else {
+    // Fall back to company name prefix if no settings found
+    const companyResult = await db
+      .select({ name: companies.name })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .limit(1);
+    
+    // If company not found, use a default prefix
+    prefix = companyResult.length > 0
+      ? companyResult[0].name.substring(0, 3).toUpperCase()
+      : 'SPX';
+  }
   
   // Get current date components
   const now = new Date();
