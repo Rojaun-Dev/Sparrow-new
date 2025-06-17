@@ -14,7 +14,8 @@ import {
   Eye,
   Pencil,
   Camera,
-  Trash2
+  Trash2,
+  Loader2
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -54,10 +55,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useGenerateInvoice, useInvoiceByPackageId } from '@/hooks/useInvoices';
 import { useRouter } from 'next/navigation';
+import { apiClient } from "@/lib/api/apiClient";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { ImportStatusAlert, ImportStatusProps } from "@/components/admin/ImportStatusAlert";
 
 // Status maps
 const STATUS_LABELS: Record<string, string> = {
   pre_alert: "Pre-Alert",
+  in_transit: "In Transit",
   received: "Received",
   processed: "Processed",
   ready_for_pickup: "Ready for Pickup",
@@ -67,6 +72,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_VARIANTS: Record<string, string> = {
   pre_alert: "warning",
+  in_transit: "default",
   received: "default",
   processed: "secondary",
   ready_for_pickup: "success",
@@ -139,6 +145,7 @@ export default function PackagesPage() {
   const { exportCsv, loading: exportLoading } = useExportCsv();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const updateStatusMutation = useUpdatePackageStatus();
   const deleteMutation = useMutation({
     mutationFn: async ({ id, sendNotification }: { id: string; sendNotification?: boolean }) => {
@@ -168,12 +175,31 @@ export default function PackagesPage() {
     data: packagesData,
     isLoading,
     error,
+    refetch
   } = usePackages({
     search: searchQuery,
     status: activeTab === 'all' ? undefined : activeTab as PackageStatus,
     page,
     limit: pageSize,
   });
+
+  // Check if navigating from import page and refresh data
+  useEffect(() => {
+    // Force refresh data when the page is loaded
+    refetch();
+    
+    // Set up a listener for focus events to refresh data
+    const handleFocus = () => {
+      console.log('Window focused, refreshing packages data');
+      refetch();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [refetch]);
 
   // Fetch all users for the company
   const { data: usersData, isLoading: usersLoading } = useUsers();
@@ -192,6 +218,44 @@ export default function PackagesPage() {
   const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
   const [quickInvoiceUserId, setQuickInvoiceUserId] = useState<string | null>(null);
   const [showQuickInvoiceDialog, setShowQuickInvoiceDialog] = useState(false);
+  const [isAutoImporting, setIsAutoImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<ImportStatusProps>({ status: 'none' });
+  const { company } = useCompanySettings();
+  const [magayaSettings, setMagayaSettings] = useState({
+    enabled: false,
+    autoImportEnabled: false,
+    dateRangePreference: 'this_week',
+    networkId: '',
+  });
+  
+  // Fetch Magaya integration settings on component mount
+  useEffect(() => {
+    const fetchMagayaSettings = async () => {
+      try {
+        const response = await apiClient.get<{
+          magayaIntegration?: {
+            enabled?: boolean;
+            username?: string;
+            password?: string;
+            dateRangePreference?: string;
+            autoImportEnabled?: boolean;
+            networkId?: string;
+          }
+        }>('/company-settings/integration');
+        
+        setMagayaSettings({
+          enabled: !!response?.magayaIntegration?.enabled,
+          autoImportEnabled: !!response?.magayaIntegration?.autoImportEnabled,
+          dateRangePreference: response?.magayaIntegration?.dateRangePreference || 'this_week',
+          networkId: response?.magayaIntegration?.networkId || '',
+        });
+      } catch (error) {
+        console.error("Failed to fetch Magaya integration settings:", error);
+      }
+    };
+    
+    fetchMagayaSettings();
+  }, []);
 
   const openDeleteDialog = (packageId: string) => {
     setPackageToDelete(packageId)
@@ -258,18 +322,160 @@ export default function PackagesPage() {
     );
   };
 
+  // Add handleAutoImport function
+  const handleAutoImport = async () => {
+    // Check if Network ID is configured
+    if (!magayaSettings.networkId) {
+      toast({ title: 'Network ID Required', description: 'Network ID is required for Magaya auto-import. Please configure it in Settings.', variant: 'destructive' });
+      return;
+    }
+    
+    try {
+      setIsAutoImporting(true);
+      setImportStatus({ status: 'pending', progress: 0 });
+      const companyId = user?.companyId;
+      const response = await apiClient.post(`/companies/${companyId}/auto-import/magaya`, {
+        dateRange: magayaSettings.dateRangePreference
+      });
+      
+      toast({ title: 'Auto Import Started', description: 'Connecting to Magaya and downloading data...' });
+      
+      // Poll for status updates
+      let attempts = 0;
+      const maxAttempts = 60; // 2 minutes (2s intervals)
+      
+      const pollStatus = setInterval(async () => {
+        attempts++;
+        try {
+          // Use the general status endpoint that's already set up in the backend
+          interface ImportStatusResponse {
+            id?: string;
+            status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'none' | 'unknown';
+            error?: string;
+            progress?: number;
+            startTime?: Date;
+            endTime?: Date;
+            result?: {
+              successCount: number;
+              failedCount?: number;
+              skippedCount?: number;
+              totalRecords?: number;
+            };
+          }
+          
+          const companyId = user?.companyId;
+          const statusResponse = await apiClient.get<ImportStatusResponse>(`/companies/${companyId}/auto-import/status/latest`);
+          
+          // Update status state
+          if (statusResponse) {
+            setImportStatus({
+              status: statusResponse.status,
+              progress: statusResponse.progress || 0,
+              error: statusResponse.error,
+              result: statusResponse.result
+            });
+          }
+          
+          if (statusResponse && statusResponse.status === 'completed') {
+            clearInterval(pollStatus);
+            setIsAutoImporting(false);
+            
+            // Display import results
+            if (statusResponse.result) {
+              // Create a more detailed success message including added and skipped packages
+              const addedCount = statusResponse.result.successCount || 0;
+              const skippedCount = statusResponse.result.skippedCount || 0;
+              
+              let successMessage = `Import complete: ${addedCount} packages imported`;
+              if (skippedCount > 0) {
+                successMessage += `, ${skippedCount} packages skipped (already exist)`;
+              }
+              
+              toast({ title: 'Import Complete', description: successMessage });
+              
+              // Refresh packages data
+              refetch();
+            }
+          } else if (statusResponse && statusResponse.status === 'failed') {
+            clearInterval(pollStatus);
+            setIsAutoImporting(false);
+            toast({ 
+              title: 'Import Failed', 
+              description: statusResponse.error || 'Unknown error', 
+              variant: 'destructive' 
+            });
+          }
+        } catch (error) {
+          console.error("Failed to check import status", error);
+        }
+        
+        // Stop polling after max attempts
+        if (attempts >= maxAttempts) {
+          clearInterval(pollStatus);
+          setIsAutoImporting(false);
+          setImportStatus({ status: 'failed', error: 'Import process timed out' });
+          toast({ 
+            title: 'Import Timed Out', 
+            description: 'Import process timed out. Check audit logs for details.',
+            variant: 'destructive'
+          });
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error("Failed to start auto import:", error);
+      toast({ 
+        title: 'Import Failed', 
+        description: 'Failed to start auto import process',
+        variant: 'destructive'
+      });
+      setIsAutoImporting(false);
+      setImportStatus({ status: 'failed', error: 'Failed to start auto import' });
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Packages</h1>
         <div className="flex items-center gap-2">
+          {magayaSettings.enabled && magayaSettings.autoImportEnabled && (
+            <Button 
+              variant="outline"
+              onClick={handleAutoImport}
+              disabled={isAutoImporting}
+              className="gap-1"
+            >
+              {isAutoImporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Import from Magaya
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
+      
+      {magayaSettings.enabled && magayaSettings.autoImportEnabled && isAutoImporting && (
+        <ImportStatusAlert 
+          status={importStatus.status}
+          progress={importStatus.progress}
+          error={importStatus.error}
+          result={importStatus.result}
+        />
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex justify-between items-center">
           <TabsList>
             <TabsTrigger value="all">All Packages</TabsTrigger>
+            <TabsTrigger value="in_transit">In Transit</TabsTrigger>
             <TabsTrigger value="pre_alert">Pre-Alert</TabsTrigger>
             <TabsTrigger value="received">Received</TabsTrigger>
             <TabsTrigger value="processed">Processed</TabsTrigger>

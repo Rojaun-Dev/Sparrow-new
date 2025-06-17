@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileSpreadsheet, Upload, AlertCircle, CheckCircle, Download } from "lucide-react";
+import { FileSpreadsheet, Upload, AlertCircle, CheckCircle, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,14 +27,17 @@ import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { importPackagesSchema, ImportPackagesFormValues } from "@/lib/validations/import";
 import { apiClient } from "@/lib/api/apiClient";
+import { ImportStatusAlert, ImportStatusProps } from "@/components/admin/ImportStatusAlert";
 
 export default function ImportPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
   const [isAutoImporting, setIsAutoImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<ImportStatusProps>({ status: 'none' });
   const { company } = useCompanySettings();
   
   const [magayaSettings, setMagayaSettings] = useState<{
@@ -140,19 +144,26 @@ export default function ImportPage() {
     
     // Check if Network ID is configured
     if (!magayaSettings.networkId) {
-      toast.error('Network ID is required for Magaya auto-import. Please configure it in Settings.');
+      toast.error('Network ID is required for Magaya auto-import. Please configure it in Settings.', {
+        duration: 5000,
+        position: 'top-center',
+      });
       return;
     }
     
     try {
       setIsAutoImporting(true);
+      setImportStatus({ status: 'pending', progress: 0 });
       const companyId = user?.companyId;
       const response = await apiClient.post(`/companies/${companyId}/auto-import/magaya`, {
         userId: targetUserId,
         dateRange: magayaSettings.dateRangePreference || 'this_week'
       });
       
-      toast.success('Auto import process started');
+      toast.success('Auto import process started', {
+        duration: 3000,
+        position: 'top-center',
+      });
       
       // Poll for status updates
       let attempts = 0;
@@ -180,6 +191,16 @@ export default function ImportPage() {
           const companyId = user?.companyId;
           const statusResponse = await apiClient.get<ImportStatusResponse>(`/companies/${companyId}/auto-import/status/latest`);
           
+          // Update status state
+          if (statusResponse) {
+            setImportStatus({
+              status: statusResponse.status,
+              progress: statusResponse.progress || 0,
+              error: statusResponse.error,
+              result: statusResponse.result
+            });
+          }
+          
           if (statusResponse && statusResponse.status === 'completed') {
             clearInterval(pollStatus);
             setIsAutoImporting(false);
@@ -187,12 +208,40 @@ export default function ImportPage() {
             // Display import results
             if (statusResponse.result) {
               setImportComplete(true);
-              toast.success(`Import complete: ${statusResponse.result.successCount} packages imported`);
+              
+              // Create a more detailed success message including added and skipped packages
+              const addedCount = statusResponse.result.successCount || 0;
+              const skippedCount = statusResponse.result.skippedCount || 0;
+              
+              let successMessage = `Import complete: ${addedCount} packages imported`;
+              if (skippedCount > 0) {
+                successMessage += `, ${skippedCount} packages skipped (already exist)`;
+              }
+              
+              toast.success(successMessage, {
+                duration: 5000,
+                position: 'top-center',
+                id: 'import-complete-toast',
+              });
+              
+              console.log("Import success toast displayed:", successMessage);
+              
+              // Redirect to packages page after 2 seconds
+              setTimeout(() => {
+                router.push('/admin/packages');
+              }, 2000);
             }
           } else if (statusResponse && statusResponse.status === 'failed') {
             clearInterval(pollStatus);
             setIsAutoImporting(false);
-            toast.error(`Import failed: ${statusResponse.error || 'Unknown error'}`);
+            // Use the same approach for error toast
+            const errorMessage = `Import failed: ${statusResponse.error || 'Unknown error'}`;
+            toast.error(errorMessage, {
+              duration: 5000,
+              position: 'top-center',
+              id: 'import-error-toast',
+            });
+            console.log("Import error toast displayed:", errorMessage);
           }
         } catch (error) {
           console.error("Failed to check import status", error);
@@ -202,14 +251,22 @@ export default function ImportPage() {
         if (attempts >= maxAttempts) {
           clearInterval(pollStatus);
           setIsAutoImporting(false);
-          toast.error('Import process timed out. Check audit logs for details.');
+          setImportStatus({ status: 'failed', error: 'Import process timed out' });
+          toast.error('Import process timed out. Check audit logs for details.', {
+            duration: 5000,
+            position: 'top-center',
+          });
         }
       }, 2000);
       
     } catch (error) {
       console.error("Failed to start auto import:", error);
-      toast.error('Failed to start auto import process');
+      toast.error('Failed to start auto import process', {
+        duration: 5000,
+        position: 'top-center',
+      });
       setIsAutoImporting(false);
+      setImportStatus({ status: 'failed', error: 'Failed to start auto import' });
     }
   };
 
@@ -246,20 +303,33 @@ export default function ImportPage() {
             onClick={handleAutoImport}
             disabled={isAutoImporting || importing}
           >
-            <Download className="mr-2 h-4 w-4" />
-            {isAutoImporting ? "Importing..." : "Auto Import from Magaya"}
+            {isAutoImporting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Auto Import from Magaya
+              </>
+            )}
           </Button>
         )}
       </div>
       
       {magayaSettings.enabled && magayaSettings.autoImportEnabled && isAutoImporting && (
-        <Alert className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Auto Import In Progress</AlertTitle>
-          <AlertDescription>
-            Currently downloading and importing data from Magaya. This may take a few minutes.
-          </AlertDescription>
-        </Alert>
+        <ImportStatusAlert 
+          status={importStatus.status}
+          progress={importStatus.progress}
+          error={importStatus.error}
+          result={importStatus.result}
+          onComplete={() => {
+            setTimeout(() => {
+              router.push('/admin/packages');
+            }, 2000);
+          }}
+        />
       )}
       
       {magayaSettings.enabled && !magayaSettings.autoImportEnabled && (

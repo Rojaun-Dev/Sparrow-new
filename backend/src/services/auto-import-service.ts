@@ -27,6 +27,20 @@ interface AutoImportStatus {
   userId?: string;
 }
 
+interface CompanySettings {
+  integrationSettings?: {
+    magayaIntegration?: {
+      enabled: boolean;
+      username: string;
+      password: string;
+      networkId?: string;
+      dateRangePreference?: 'today' | 'this_week' | 'this_month';
+      autoImportEnabled?: boolean;
+      lastImportDate?: string;
+    };
+  };
+}
+
 export class AutoImportService {
   private companySettingsService: CompanySettingsService;
   private importService: ImportService;
@@ -52,7 +66,7 @@ export class AutoImportService {
    */
   async startAutoImport(options: AutoImportOptions): Promise<{ id: string }> {
     // Get company settings to retrieve Magaya credentials
-    const settings = await this.companySettingsService.getCompanySettings(options.companyId);
+    const settings = await this.companySettingsService.getCompanySettings(options.companyId) as CompanySettings;
     const magayaSettings = settings?.integrationSettings?.magayaIntegration;
     
     if (!magayaSettings?.enabled) {
@@ -177,9 +191,9 @@ export class AutoImportService {
       
       console.log(`Starting Magaya LiveTrack auto-import for company ${options.companyId}`);
       
-      // Launch browser in non-headless mode for debugging
+      // Launch browser in headless mode for production
       browser = await chromium.launch({ 
-        headless: false, // Set to false for debugging
+        headless: true, // Set to false for debugging
         timeout: 60000, // 60 second timeout for slow connections
         slowMo: 100 // Slow down operations by 100ms for better visibility
       });
@@ -442,142 +456,46 @@ export class AutoImportService {
       await page.waitForTimeout(5000); // Give more time for page transition
       await takeScreenshot('after-cargo-detail-click');
       
-      // Try multiple selectors for the date filter button since the UI may vary
-      console.log('Looking for Dates dropdown button');
+      // Directly type into the date range field instead of using dropdown
+      console.log('Setting date range by directly typing into the field');
       
-      // First try the specific XPath the user provided
-      const dateFilterXPath = '//*[@id="combo-1069-inputEl"]';
-      const dateFilterExists = await page.$(dateFilterXPath)
+      // Update to use the correct date input field ID (combo-1069 is dates, combo-1070 is search filter)
+      const dateInputSelector = '//*[@id="combo-1069-inputEl"]';
+      const dateInputExists = await page.$(dateInputSelector)
         .then((element: any) => !!element)
         .catch(() => false);
         
-      if (dateFilterExists) {
-        console.log('Found date filter by XPath ID');
-        // First click to open the combo box
-        await page.click(dateFilterXPath);
-      } else {
-        // Try various other selectors
-        const dateButtonSelectors = [
-          'button[title="Dates"]',
-          'button:has-text("Dates")',
-          '.x-btn:has-text("Dates")',
-          '.x-form-trigger' // Fallback to any combo box trigger
-        ];
+      if (dateInputExists) {
+        console.log('Found date input field');
         
-        let dateButtonFound = false;
-        for (const selector of dateButtonSelectors) {
-          const exists = await page.$(selector)
-            .then((element: any) => !!element)
-            .catch(() => false);
-            
-          if (exists) {
-            console.log(`Found date button using selector: ${selector}`);
-            await page.click(selector);
-            dateButtonFound = true;
+        // Map our date range options to the actual text to type
+        let dateDisplayText = '';
+        switch (options.dateRange) {
+          case 'today':
+            dateDisplayText = 'Today';
             break;
-          }
+          case 'this_week':
+            dateDisplayText = 'This week to date';
+            break;
+          case 'this_month':
+            dateDisplayText = 'This month to date';
+            break;
+          default:
+            dateDisplayText = 'This week to date';
         }
         
-        if (!dateButtonFound) {
-          console.error('Could not find Dates button using any known selector');
-          throw new Error('Could not find Dates button on the Cargo Detail page');
-        }
-      }
-      
-      // Wait for dropdown to appear
-      await page.waitForTimeout(1000);
-      
-      // Map our date range options to the actual text in the dropdown
-      let dateDisplayText = '';
-      switch (options.dateRange) {
-        case 'today':
-          dateDisplayText = 'Today';
-          break;
-        case 'this_week':
-          dateDisplayText = 'This week';
-          break;
-        case 'this_month':
-          dateDisplayText = 'This month';
-          break;
-        default:
-          dateDisplayText = 'This week to date';
-      }
-      
-      console.log(`Selecting date range: "${dateDisplayText}"`);
-      await takeScreenshot('date-dropdown-open');
-      
-      // Take a screenshot of the dropdown to see what's available
-      await page.waitForTimeout(1000);
-      
-      // Try multiple approaches to select the date range based on the actual HTML structure
-      const dateSelectors = [
-        // By contains text
-        `.x-boundlist-item:has-text("${dateDisplayText}")`,
-        // By role and text
-        `li[role="option"]:has-text("${dateDisplayText}")`,
-        // By data attributes
-        `li[data-recordindex]:has-text("${dateDisplayText}")`,
-        // Direct XPath by text
-        `//li[contains(text(), "${dateDisplayText}")]`,
-        // XPath for exact text match
-        `//li[text()="${dateDisplayText}"]`
-      ];
-      
-      // Log all visible options for debugging
-      console.log('Available date options:');
-      const visibleOptions = await page.$$eval('.x-boundlist-item', 
-        (items) => items.map(item => item.textContent?.trim())
-      );
-      console.log(visibleOptions);
-      
-      let dateOptionFound = false;
-      for (const selector of dateSelectors) {
-        try {
-          console.log(`Trying selector: ${selector}`);
-          const element = await page.$(selector);
-          if (element) {
-            console.log(`Found date option using selector: ${selector}`);
-            await element.click();
-            dateOptionFound = true;
-            break;
-          }
-        } catch (e) {
-          console.log(`Error with selector ${selector}: ${e}`);
-        }
-      }
-      
-      // If we couldn't find the exact option, try clicking by index
-      if (!dateOptionFound) {
-        try {
-          console.log('Trying to select by index instead');
-          // Find the index of our target option in the visible options
-          const targetIndex = visibleOptions.findIndex(
-            text => text?.toLowerCase().includes(dateDisplayText.toLowerCase())
-          );
-          
-          if (targetIndex >= 0) {
-            console.log(`Found option at index ${targetIndex}: ${visibleOptions[targetIndex]}`);
-            await page.click(`.x-boundlist-item:nth-child(${targetIndex + 1})`);
-            dateOptionFound = true;
-          } else {
-            // If all else fails, just click the first option
-            console.log('Target not found in list, clicking first option');
-            await page.click('.x-boundlist-item:first-child');
-            dateOptionFound = true;
-          }
-        } catch (e) {
-          console.error('Failed to select by index:', e);
-        }
-      }
-      
-      if (!dateOptionFound) {
-        console.error(`Could not find date option: ${dateDisplayText}`);
-        console.log('Will try to continue anyway');
+        // Clear any existing value and type the date range
+        await page.fill(dateInputSelector, '');
+        await page.type(dateInputSelector, dateDisplayText);
+        
+        // Press Enter to confirm
+        await page.press(dateInputSelector, 'Enter');
+        
+        console.log(`Date range set to: "${dateDisplayText}"`);
       } else {
-        console.log(`Successfully selected date option: ${dateDisplayText}`);
+        console.error('Could not find date input field using selector: ' + dateInputSelector);
+        throw new Error('Could not find date input field');
       }
-      
-      console.log('Date range selected');
       
       // Wait for data to load
       status.progress = 50;
@@ -791,8 +709,8 @@ export class AutoImportService {
       await this.auditLogsService.createLog(auditData);
       
       // Update company settings with last import date
-      const currentSettings = await this.companySettingsService.getCompanySettings(options.companyId);
-      if (currentSettings?.integrationSettings) {
+      const currentSettings = await this.companySettingsService.getCompanySettings(options.companyId) as CompanySettings;
+      if (currentSettings?.integrationSettings?.magayaIntegration) {
         const updatedSettings = {
           ...currentSettings.integrationSettings,
           magayaIntegration: {
@@ -817,12 +735,12 @@ export class AutoImportService {
       } catch (cleanupErr) {
         console.error('Failed to clean up download files:', cleanupErr);
       }
-    } catch (error) {
+    } catch (error: any) {
       // Update status to failed
       const status = this.activeImports.get(importId);
       if (status) {
         status.status = 'failed';
-        status.error = error.message;
+        status.error = error.message || 'Unknown error';
         status.endTime = new Date();
         this.activeImports.set(importId, status);
       }
@@ -835,7 +753,7 @@ export class AutoImportService {
         entityType: 'package',
         entityId: importId,
         details: {
-          error: error.message
+          error: error.message || 'Unknown error'
         }
       });
       
