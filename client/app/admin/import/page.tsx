@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileSpreadsheet, Upload, AlertCircle, CheckCircle } from "lucide-react";
+import { FileSpreadsheet, Upload, AlertCircle, CheckCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +22,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useImport } from "@/hooks/useImport";
 import { useCompanyUsers } from "@/hooks/useCompanyUsers";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { importPackagesSchema, ImportPackagesFormValues } from "@/lib/validations/import";
+import { apiClient } from "@/lib/api/apiClient";
 
 export default function ImportPage() {
   const { user } = useAuth();
@@ -31,6 +33,38 @@ export default function ImportPage() {
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
+  const [isAutoImporting, setIsAutoImporting] = useState(false);
+  const { company } = useCompanySettings();
+  
+  const [magayaSettings, setMagayaSettings] = useState<{
+    enabled: boolean;
+    username?: string;
+    password?: string;
+    dateRangePreference?: string;
+    autoImportEnabled?: boolean;
+    networkId?: string;
+  }>({ enabled: false });
+  
+  // Fetch Magaya integration settings on component mount
+  useEffect(() => {
+    const fetchMagayaSettings = async () => {
+      try {
+        const response = await apiClient.get('/company-settings/integration');
+        setMagayaSettings({
+          enabled: !!response?.magayaIntegration?.enabled,
+          username: response?.magayaIntegration?.username,
+          password: response?.magayaIntegration?.password,
+          dateRangePreference: response?.magayaIntegration?.dateRangePreference,
+          autoImportEnabled: response?.magayaIntegration?.autoImportEnabled,
+          networkId: response?.magayaIntegration?.networkId
+        });
+      } catch (error) {
+        console.error("Failed to fetch Magaya integration settings:", error);
+      }
+    };
+    
+    fetchMagayaSettings();
+  }, []);
   
   const { data: usersResponse, isLoading: loadingUsers } = useCompanyUsers(user?.companyId || '', {
     role: 'customer',
@@ -89,6 +123,66 @@ export default function ImportPage() {
       console.error("Failed to import packages:", error);
     }
   };
+  
+  const handleAutoImport = async () => {
+    const userId = form.getValues().userId;
+    const targetUserId = !userId || userId === "__unassigned" ? undefined : userId;
+    
+    // Check if Network ID is configured
+    if (!magayaSettings.networkId) {
+      toast.error('Network ID is required for Magaya auto-import. Please configure it in Settings.');
+      return;
+    }
+    
+    try {
+      setIsAutoImporting(true);
+      const response = await apiClient.post('/auto-import/magaya', {
+        userId: targetUserId,
+        dateRange: magayaSettings.dateRangePreference || 'this_week'
+      });
+      
+      toast.success('Auto import process started');
+      
+      // Poll for status updates
+      let attempts = 0;
+      const maxAttempts = 60; // 2 minutes (2s intervals)
+      
+      const pollStatus = setInterval(async () => {
+        attempts++;
+        try {
+          const statusResponse = await apiClient.get('/auto-import/status');
+          if (statusResponse.status === 'completed') {
+            clearInterval(pollStatus);
+            setIsAutoImporting(false);
+            
+            // Display import results
+            if (statusResponse.result) {
+              setImportComplete(true);
+              toast.success(`Import complete: ${statusResponse.result.successCount} packages imported`);
+            }
+          } else if (statusResponse.status === 'failed') {
+            clearInterval(pollStatus);
+            setIsAutoImporting(false);
+            toast.error(`Import failed: ${statusResponse.error || 'Unknown error'}`);
+          }
+        } catch (error) {
+          console.error("Failed to check import status", error);
+        }
+        
+        // Stop polling after max attempts
+        if (attempts >= maxAttempts) {
+          clearInterval(pollStatus);
+          setIsAutoImporting(false);
+          toast.error('Import process timed out. Check audit logs for details.');
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error("Failed to start auto import:", error);
+      toast.error('Failed to start auto import process');
+      setIsAutoImporting(false);
+    }
+  };
 
   const renderHeaders = () => {
     if (!parsedData.length) return null;
@@ -117,7 +211,37 @@ export default function ImportPage() {
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Import Packages</h1>
+        
+        {magayaSettings.enabled && magayaSettings.autoImportEnabled && (
+          <Button 
+            onClick={handleAutoImport}
+            disabled={isAutoImporting || importing}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {isAutoImporting ? "Importing..." : "Auto Import from Magaya"}
+          </Button>
+        )}
       </div>
+      
+      {magayaSettings.enabled && magayaSettings.autoImportEnabled && isAutoImporting && (
+        <Alert className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Auto Import In Progress</AlertTitle>
+          <AlertDescription>
+            Currently downloading and importing data from Magaya. This may take a few minutes.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {magayaSettings.enabled && !magayaSettings.autoImportEnabled && (
+        <Alert className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Auto Import Disabled</AlertTitle>
+          <AlertDescription>
+            Magaya integration is configured but auto import is disabled. Contact your administrator to enable this feature.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>

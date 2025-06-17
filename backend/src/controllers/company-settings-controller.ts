@@ -168,7 +168,17 @@ export class CompanySettingsController {
         return res.status(400).json({ error: 'Company ID is required' });
       }
       
+      console.log('Controller received integration settings:', JSON.stringify({
+        ...req.body,
+        // Don't log sensitive information in production
+        magayaIntegration: req.body.magayaIntegration ? {
+          ...req.body.magayaIntegration,
+          password: req.body.magayaIntegration.password ? '[REDACTED]' : undefined
+        } : undefined
+      }, null, 2));
+      
       const settings = await this.companySettingsService.updateIntegrationSettings(req.body, companyId);
+      console.log('Integration settings updated successfully for company', companyId);
       return res.json(settings);
     } catch (error) {
       console.error('Error updating integration settings:', error);

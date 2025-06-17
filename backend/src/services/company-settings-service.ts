@@ -58,6 +58,15 @@ const integrationSettingsSchema = z.object({
     iframeCode: z.string().optional(),
     allowedDomains: z.array(z.string()).optional(),
   }).optional(),
+  magayaIntegration: z.object({
+    enabled: z.boolean().default(false),
+    username: z.string().optional(),
+    password: z.string().optional(),
+    networkId: z.string().optional(),
+    dateRangePreference: z.enum(['today', 'this_week', 'this_month']).default('this_week'),
+    autoImportEnabled: z.boolean().default(false),
+    lastImportDate: z.string().optional(),
+  }).optional(),
 });
 
 // Define validation schema for all settings
@@ -190,11 +199,18 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
    * Update integration settings
    */
   async updateIntegrationSettings(data: any, companyId: string) {
-    // Validate integration settings
-    const validatedData = integrationSettingsSchema.parse(data);
-    
-    // Update integration settings
-    return this.companySettingsRepository.updateIntegrationSettings(companyId, validatedData);
+    try {
+      // Validate integration settings
+      const validatedData = integrationSettingsSchema.parse(data);
+      
+      console.log('Updating integration settings:', JSON.stringify(validatedData, null, 2));
+      
+      // Update integration settings
+      return this.companySettingsRepository.updateIntegrationSettings(companyId, validatedData);
+    } catch (error) {
+      console.error('Error validating integration settings:', error);
+      throw error;
+    }
   }
   
   /**

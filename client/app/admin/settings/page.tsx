@@ -29,11 +29,12 @@ import { toast } from "@/components/ui/use-toast"
 import { useApiKey } from "@/hooks/useApiKey"
 import { Spinner } from "@/components/ui/spinner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 
 export default function CompanySettingsPage() {
   const { user } = useAuth();
   const isAdminL2 = user?.role === "admin_l2";
-  const { company, isLoading, updateCompany, updateLocations } = useCompanySettings();
+  const { company, isLoading, updateCompany, updateLocations, updateIntegrationSettings } = useCompanySettings();
   const { assets, getAssetByType, uploadAsset, deleteAsset } = useCompanyAssets();
   const { generateApiKey, isGenerating, apiKey } = useApiKey();
   
@@ -58,6 +59,15 @@ export default function CompanySettingsPage() {
       iframeIntegration: {
         enabled: false,
         allowedDomains: [] as string[],
+      },
+      magayaIntegration: {
+        enabled: false,
+        username: "",
+        password: "",
+        networkId: "",
+        dateRangePreference: "this_week" as "today" | "this_week" | "this_month",
+        autoImportEnabled: false,
+        lastImportDate: "",
       },
     },
   });
@@ -125,6 +135,15 @@ export default function CompanySettingsPage() {
               enabled: false,
               allowedDomains: [],
             },
+            magayaIntegration: {
+              enabled: false,
+              username: "",
+              password: "",
+              networkId: "",
+              dateRangePreference: "this_week" as "today" | "this_week" | "this_month",
+              autoImportEnabled: false,
+              lastImportDate: "",
+            },
           },
         };
       });
@@ -177,6 +196,15 @@ export default function CompanySettingsPage() {
               iframeIntegration: {
                 enabled: integrationSettings?.iframeIntegration?.enabled || false,
                 allowedDomains: integrationSettings?.iframeIntegration?.allowedDomains || [],
+              },
+              magayaIntegration: {
+                enabled: integrationSettings?.magayaIntegration?.enabled || false,
+                username: integrationSettings?.magayaIntegration?.username || "",
+                password: integrationSettings?.magayaIntegration?.password || "",
+                networkId: integrationSettings?.magayaIntegration?.networkId || "",
+                dateRangePreference: integrationSettings?.magayaIntegration?.dateRangePreference || "this_week" as "today" | "this_week" | "this_month",
+                autoImportEnabled: integrationSettings?.magayaIntegration?.autoImportEnabled || false,
+                lastImportDate: integrationSettings?.magayaIntegration?.lastImportDate || "",
               },
             }
           }));
@@ -298,10 +326,11 @@ export default function CompanySettingsPage() {
         });
       }
       
-      // Update API and integration settings
-      if (activeTab === "api") {
-        const response = await apiClient.put(`/company-settings/integration`, companyData.integrationSettings);
-        console.log("API settings updated:", response);
+      // Update integration settings (API and Magaya together)
+      if (activeTab === "integrations") {
+        console.log("Saving integration settings using the dedicated mutation:", companyData.integrationSettings);
+        await updateIntegrationSettings.mutateAsync(companyData.integrationSettings);
+        console.log("Integration settings updated successfully");
       }
       
       // Update payment settings
@@ -318,6 +347,11 @@ export default function CompanySettingsPage() {
       }, 3000);
     } catch (error) {
       console.error("Error saving company settings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -599,12 +633,11 @@ export default function CompanySettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="branding">Branding</TabsTrigger>
-          <TabsTrigger value="locations">Locations</TabsTrigger>
-          <TabsTrigger value="api">API</TabsTrigger>
-          <TabsTrigger value="payment">Payment</TabsTrigger>
+        <TabsList className="grid w-full md:w-auto grid-cols-4 md:grid-cols-4 h-auto gap-2">
+          <TabsTrigger className="px-3" value="general" onClick={() => setActiveTab("general")}>General</TabsTrigger>
+          <TabsTrigger className="px-3" value="locations" onClick={() => setActiveTab("locations")}>Locations</TabsTrigger>
+          <TabsTrigger className="px-3" value="branding" onClick={() => setActiveTab("branding")}>Branding</TabsTrigger>
+          <TabsTrigger className="px-3" value="integrations" onClick={() => setActiveTab("integrations")}>Integrations</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
@@ -965,7 +998,7 @@ export default function CompanySettingsPage() {
           </Card>
         </TabsContent>
         
-        <TabsContent value="api" className="space-y-4">
+        <TabsContent value="integrations" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>API Configuration</CardTitle>
@@ -1222,243 +1255,187 @@ export default function CompanySettingsPage() {
                     </>
                   )}
                 </div>
+                
+                <Separator />
+
+                {/* Magaya Integration Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-medium">Magaya Integration</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Configure automatic imports from Magaya LiveTrack
+                      </p>
+                    </div>
+                    <Switch
+                      id="magaya-integration-enabled"
+                      checked={companyData.integrationSettings?.magayaIntegration?.enabled || false}
+                      disabled={!isAdminL2 || isSaving}
+                      onCheckedChange={(checked) => {
+                        setCompanyData((prev) => ({
+                          ...prev,
+                          integrationSettings: {
+                            ...prev.integrationSettings,
+                            magayaIntegration: {
+                              ...(prev.integrationSettings?.magayaIntegration || {}),
+                              enabled: checked,
+                            },
+                          },
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  {companyData.integrationSettings?.magayaIntegration?.enabled && (
+                    <div className="space-y-4 pt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="magaya-username">Magaya Username</Label>
+                          <Input
+                            id="magaya-username"
+                            placeholder="Enter Magaya username"
+                            value={companyData.integrationSettings?.magayaIntegration?.username || ""}
+                            disabled={!isAdminL2 || isSaving}
+                            onChange={(e) => {
+                              setCompanyData((prev) => ({
+                                ...prev,
+                                integrationSettings: {
+                                  ...prev.integrationSettings,
+                                  magayaIntegration: {
+                                    ...(prev.integrationSettings?.magayaIntegration || {}),
+                                    username: e.target.value,
+                                  },
+                                },
+                              }));
+                            }}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Username for your Magaya LiveTrack account
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="magaya-password">Magaya Password</Label>
+                          <Input
+                            id="magaya-password"
+                            type="password"
+                            placeholder="Enter Magaya password"
+                            value={companyData.integrationSettings?.magayaIntegration?.password || ""}
+                            disabled={!isAdminL2 || isSaving}
+                            onChange={(e) => {
+                              setCompanyData((prev) => ({
+                                ...prev,
+                                integrationSettings: {
+                                  ...prev.integrationSettings,
+                                  magayaIntegration: {
+                                    ...(prev.integrationSettings?.magayaIntegration || {}),
+                                    password: e.target.value,
+                                  },
+                                },
+                              }));
+                            }}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Password for your Magaya LiveTrack account
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="magaya-network-id">Magaya Network ID</Label>
+                        <Input
+                          id="magaya-network-id"
+                          placeholder="Enter Magaya Network ID"
+                          value={companyData.integrationSettings?.magayaIntegration?.networkId || ""}
+                          disabled={!isAdminL2 || isSaving}
+                          onChange={(e) => {
+                            setCompanyData((prev) => ({
+                              ...prev,
+                              integrationSettings: {
+                                ...prev.integrationSettings,
+                                magayaIntegration: {
+                                  ...(prev.integrationSettings?.magayaIntegration || {}),
+                                  networkId: e.target.value,
+                                },
+                              },
+                            }));
+                          }}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Network ID for your Magaya LiveTrack account (required for login)
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="date-range-preference">Date Range Preference</Label>
+                        <Select
+                          value={companyData.integrationSettings?.magayaIntegration?.dateRangePreference || "this_week"}
+                          disabled={!isAdminL2 || isSaving}
+                          onValueChange={(value) => {
+                            setCompanyData((prev) => ({
+                              ...prev,
+                              integrationSettings: {
+                                ...prev.integrationSettings,
+                                magayaIntegration: {
+                                  ...(prev.integrationSettings?.magayaIntegration || {}),
+                                  dateRangePreference: value as "today" | "this_week" | "this_month",
+                                },
+                              },
+                            }));
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select date range" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="today">Today</SelectItem>
+                            <SelectItem value="this_week">This Week to Date</SelectItem>
+                            <SelectItem value="this_month">This Month to Date</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          Date range to use when exporting data from Magaya
+                        </p>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="auto-import-enabled"
+                          checked={companyData.integrationSettings?.magayaIntegration?.autoImportEnabled || false}
+                          disabled={!isAdminL2 || isSaving}
+                          onCheckedChange={(checked) => {
+                            setCompanyData((prev) => ({
+                              ...prev,
+                              integrationSettings: {
+                                ...prev.integrationSettings,
+                                magayaIntegration: {
+                                  ...(prev.integrationSettings?.magayaIntegration || {}),
+                                  autoImportEnabled: checked,
+                                },
+                              },
+                            }));
+                          }}
+                        />
+                        <Label htmlFor="auto-import-enabled">Enable Auto Import</Label>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        When enabled, the system will display an Auto Import button that can automate the import process from Magaya
+                      </p>
+
+                      {companyData.integrationSettings?.magayaIntegration?.lastImportDate && (
+                        <div className="text-sm text-muted-foreground mt-4">
+                          Last import: {new Date(companyData.integrationSettings.magayaIntegration.lastImportDate).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
         
-        <TabsContent value="payment" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Settings</CardTitle>
-              <CardDescription>
-                Configure payment methods and processing options
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* WiPay Integration */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <img 
-                      src="https://www.siliconcaribe.com/wp-content/uploads/2019/07/Wipay-logo-v2.png" 
-                      alt="WiPay" 
-                      className="h-8 object-contain" 
-                    />
-                  </div>
-                  <Switch 
-                    checked={companyData.paymentSettings?.wipay?.enabled || false}
-                    onCheckedChange={(checked) => {
-                      setCompanyData(prev => ({
-                        ...prev,
-                        paymentSettings: {
-                          ...prev.paymentSettings || {},
-                          wipay: {
-                            ...(prev.paymentSettings?.wipay || {}),
-                            enabled: checked
-                          }
-                        }
-                      }));
-                    }}
-                    disabled={!isAdminL2}
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Enable WiPay payment gateway to accept online payments from your customers
-                </p>
-                
-                <Separator />
-                
-                {companyData.paymentSettings?.wipay?.enabled && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="accountNumber">Account Number</Label>
-                        <Input 
-                          id="accountNumber"
-                          value={companyData.paymentSettings?.wipay?.accountNumber || ''}
-                          onChange={(e) => {
-                            setCompanyData(prev => ({
-                              ...prev,
-                              paymentSettings: {
-                                ...prev.paymentSettings || {},
-                                wipay: {
-                                  ...(prev.paymentSettings?.wipay || {}),
-                                  accountNumber: e.target.value
-                                }
-                              }
-                            }));
-                          }}
-                          disabled={!isAdminL2}
-                          placeholder="Your WiPay account number"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="apiKey">API Key</Label>
-                        <Input 
-                          id="apiKey"
-                          type="password"
-                          value={companyData.paymentSettings?.wipay?.apiKey || ''}
-                          onChange={(e) => {
-                            setCompanyData(prev => ({
-                              ...prev,
-                              paymentSettings: {
-                                ...prev.paymentSettings || {},
-                                wipay: {
-                                  ...(prev.paymentSettings?.wipay || {}),
-                                  apiKey: e.target.value
-                                }
-                              }
-                            }));
-                          }}
-                          disabled={!isAdminL2}
-                          placeholder="Your WiPay API key"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="countryCode">Country Code</Label>
-                        <Select 
-                          value={companyData.paymentSettings?.wipay?.countryCode || 'TT'}
-                          onValueChange={(value) => {
-                            setCompanyData(prev => ({
-                              ...prev,
-                              paymentSettings: {
-                                ...prev.paymentSettings || {},
-                                wipay: {
-                                  ...(prev.paymentSettings?.wipay || {}),
-                                  countryCode: value
-                                }
-                              }
-                            }));
-                          }}
-                          disabled={!isAdminL2}
-                        >
-                          <SelectTrigger id="countryCode">
-                            <SelectValue placeholder="Select country" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="TT">Trinidad and Tobago (TT)</SelectItem>
-                            <SelectItem value="BB">Barbados (BB)</SelectItem>
-                            <SelectItem value="JM">Jamaica (JM)</SelectItem>
-                            <SelectItem value="GY">Guyana (GY)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="currency">Currency</Label>
-                        <Select 
-                          value={companyData.paymentSettings?.wipay?.currency || 'TTD'}
-                          onValueChange={(value) => {
-                            setCompanyData(prev => ({
-                              ...prev,
-                              paymentSettings: {
-                                ...prev.paymentSettings || {},
-                                wipay: {
-                                  ...(prev.paymentSettings?.wipay || {}),
-                                  currency: value
-                                }
-                              }
-                            }));
-                          }}
-                          disabled={!isAdminL2}
-                        >
-                          <SelectTrigger id="currency">
-                            <SelectValue placeholder="Select currency" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="TTD">Trinidad and Tobago Dollar (TTD)</SelectItem>
-                            <SelectItem value="USD">US Dollar (USD)</SelectItem>
-                            <SelectItem value="JMD">Jamaican Dollar (JMD)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="environment">Environment</Label>
-                        <Select 
-                          value={companyData.paymentSettings?.wipay?.environment || 'sandbox'}
-                          onValueChange={(value) => {
-                            setCompanyData(prev => ({
-                              ...prev,
-                              paymentSettings: {
-                                ...prev.paymentSettings || {},
-                                wipay: {
-                                  ...(prev.paymentSettings?.wipay || {}),
-                                  environment: value as 'sandbox' | 'live'
-                                }
-                              }
-                            }));
-                          }}
-                          disabled={!isAdminL2}
-                        >
-                          <SelectTrigger id="environment">
-                            <SelectValue placeholder="Select environment" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
-                            <SelectItem value="live">Live (Production)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="feeStructure">Fee Structure</Label>
-                        <Select 
-                          value={companyData.paymentSettings?.wipay?.feeStructure || 'customer_pay'}
-                          onValueChange={(value) => {
-                            setCompanyData(prev => ({
-                              ...prev,
-                              paymentSettings: {
-                                ...prev.paymentSettings || {},
-                                wipay: {
-                                  ...(prev.paymentSettings?.wipay || {}),
-                                  feeStructure: value as 'customer_pay' | 'merchant_absorb' | 'split'
-                                }
-                              }
-                            }));
-                          }}
-                          disabled={!isAdminL2}
-                        >
-                          <SelectTrigger id="feeStructure">
-                            <SelectValue placeholder="Select fee structure" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="customer_pay">Customer Pays Fees</SelectItem>
-                            <SelectItem value="merchant_absorb">Merchant Absorbs Fees</SelectItem>
-                            <SelectItem value="split">Split Fees</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Important</AlertTitle>
-                      <AlertDescription>
-                        Make sure your WiPay account is properly set up and verified before enabling online payments.
-                      </AlertDescription>
-                    </Alert>
-                    
-                    <div className="bg-muted p-4 rounded-md">
-                      <h4 className="font-medium mb-2">Fee Structure Information</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Choose how payment processing fees are handled:
-                      </p>
-                      <ul className="text-sm space-y-1 text-muted-foreground">
-                        <li><strong>Customer Pays Fees:</strong> Processing fees are added to the customer's total.</li>
-                        <li><strong>Merchant Absorbs Fees:</strong> Your business covers all processing fees.</li>
-                        <li><strong>Split Fees:</strong> Processing fees are shared between customer and merchant.</li>
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
       </Tabs>
     </>
   )

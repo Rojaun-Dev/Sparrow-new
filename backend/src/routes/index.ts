@@ -13,6 +13,7 @@ import invoicesRoutes from './invoices-routes';
 import paymentsRoutes from './payments-routes';
 import billingRoutes from './billing-routes';
 import importRoutes from './import-routes';
+import autoImportRoutes from './auto-import-routes';
 import { extractCompanyId, checkJwt } from '../middleware/auth';
 import { CompanySettingsController } from '../controllers/company-settings-controller';
 import { CompanyAssetsController } from '../controllers/company-assets-controller';
@@ -86,7 +87,28 @@ protectedRoutes.use('/companies/:companyId/billing', billingRoutes);
 // Import routes - scoped to company
 protectedRoutes.use('/companies/:companyId/import', importRoutes);
 
+// Auto Import routes - scoped to company
+protectedRoutes.use('/companies/:companyId/auto-import', autoImportRoutes);
+
 // Admin routes - not scoped to company, admin specific
 protectedRoutes.use('/admin', adminRoutes);
+
+// Add a general auto-import status endpoint
+router.get('/auto-import/status', checkJwt, (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Extract companyId from request
+  const companyId = (req as any).companyId;
+  
+  if (!companyId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+  
+  // Forward to the latest status endpoint
+  (req as any).params = { ...(req as any).params, companyId };
+  req.url = `/companies/${companyId}/auto-import/status/latest`;
+  autoImportRoutes(req, res, next);
+});
 
 export default router; 

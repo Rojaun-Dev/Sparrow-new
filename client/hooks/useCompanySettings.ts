@@ -10,6 +10,29 @@ export function useCompanySettings() {
   // Use the existing company data query
   const companyQuery = useMyAdminCompany();
   
+  // Update integration settings
+  const updateIntegrationSettings = useMutation({
+    mutationFn: async (integrationSettings: any) => {
+      console.log("Saving integration settings:", integrationSettings);
+      return apiClient.put('/company-settings/integration', integrationSettings);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Integration settings updated",
+        description: "Integration settings have been updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['companySettings'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error.message || "Failed to update integration settings",
+        variant: "destructive",
+      });
+      console.error("Error updating integration settings:", error);
+    }
+  });
+  
   // Update company general information
   const updateCompany = useMutation({
     mutationFn: async (data: any) => {
@@ -69,6 +92,7 @@ export function useCompanySettings() {
     isLoading: companyQuery.isLoading,
     error: companyQuery.error,
     updateCompany,
-    updateLocations
+    updateLocations,
+    updateIntegrationSettings
   };
 } 
