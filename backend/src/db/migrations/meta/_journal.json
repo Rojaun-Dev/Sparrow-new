@@ -141,6 +141,20 @@
       "when": 1750057555588,
       "tag": "0019_married_solo",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1750197602572,
+      "tag": "0020_curved_silverclaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1750198325040,
+      "tag": "0021_square_wind_dancer",
+      "breakpoints": true
     }
   ]
 }
