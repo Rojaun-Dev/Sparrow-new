@@ -401,19 +401,14 @@ export class PackagesService {
       throw AppError.notFound('Package not found');
     }
     
-    // Update the package to link it to the pre-alert
-    const updatedPackage = await this.packagesRepository.update(packageId, { 
-      preAlertId,
-      // You might want to update other fields from the pre-alert as well
-    });
+    // Update ONLY the pre-alert to link it to the package
+    // Do NOT update the package as there's no pre_alert_id column in the packages table
+    const updatedPreAlert = await this.preAlertsRepository.matchToPackage(preAlertId, packageId, companyId);
     
-    // Mark the pre-alert as processed
-    await this.preAlertsRepository.update(preAlertId, { 
-      status: 'processed',
-      packageId // Add reference to the package in the pre-alert
-    });
-    
-    return updatedPackage;
+    return {
+      package: existingPackage,
+      preAlert: updatedPreAlert
+    };
   }
 
   /**
