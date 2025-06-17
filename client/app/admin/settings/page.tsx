@@ -68,6 +68,8 @@ export default function CompanySettingsPage() {
         dateRangePreference: "this_week" as "today" | "this_week" | "this_month",
         autoImportEnabled: false,
         lastImportDate: "",
+        cronEnabled: false,
+        cronInterval: 24,
       },
     },
   });
@@ -143,6 +145,8 @@ export default function CompanySettingsPage() {
               dateRangePreference: "this_week" as "today" | "this_week" | "this_month",
               autoImportEnabled: false,
               lastImportDate: "",
+              cronEnabled: false,
+              cronInterval: 24,
             },
           },
         };
@@ -205,6 +209,8 @@ export default function CompanySettingsPage() {
                 dateRangePreference: integrationSettings?.magayaIntegration?.dateRangePreference || "this_week" as "today" | "this_week" | "this_month",
                 autoImportEnabled: integrationSettings?.magayaIntegration?.autoImportEnabled || false,
                 lastImportDate: integrationSettings?.magayaIntegration?.lastImportDate || "",
+                cronEnabled: integrationSettings?.magayaIntegration?.cronEnabled || false,
+                cronInterval: integrationSettings?.magayaIntegration?.cronInterval || 24,
               },
             }
           }));
@@ -1425,6 +1431,70 @@ export default function CompanySettingsPage() {
                       {companyData.integrationSettings?.magayaIntegration?.lastImportDate && (
                         <div className="text-sm text-muted-foreground mt-4">
                           Last import: {new Date(companyData.integrationSettings.magayaIntegration.lastImportDate).toLocaleString()}
+                        </div>
+                      )}
+
+                      {companyData.integrationSettings?.magayaIntegration?.enabled && companyData.integrationSettings?.magayaIntegration?.autoImportEnabled && (
+                        <div className="space-y-4 pt-4">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="auto-import-cron-enabled"
+                              checked={companyData.integrationSettings?.magayaIntegration?.cronEnabled || false}
+                              disabled={!isAdminL2 || isSaving}
+                              onCheckedChange={(checked) => {
+                                setCompanyData((prev) => ({
+                                  ...prev,
+                                  integrationSettings: {
+                                    ...prev.integrationSettings,
+                                    magayaIntegration: {
+                                      ...(prev.integrationSettings?.magayaIntegration || {}),
+                                      cronEnabled: checked,
+                                    },
+                                  },
+                                }));
+                              }}
+                            />
+                            <Label htmlFor="auto-import-cron-enabled">Enable Scheduled Auto Import</Label>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            When enabled, the system will automatically run imports on a regular schedule without manual intervention.
+                          </p>
+
+                          {companyData.integrationSettings?.magayaIntegration?.cronEnabled && (
+                            <div className="space-y-2">
+                              <Label htmlFor="cron-interval">Import Frequency</Label>
+                              <Select
+                                value={String(companyData.integrationSettings?.magayaIntegration?.cronInterval || 24)}
+                                disabled={!isAdminL2 || isSaving}
+                                onValueChange={(value) => {
+                                  setCompanyData((prev) => ({
+                                    ...prev,
+                                    integrationSettings: {
+                                      ...prev.integrationSettings,
+                                      magayaIntegration: {
+                                        ...(prev.integrationSettings?.magayaIntegration || {}),
+                                        cronInterval: parseInt(value, 10),
+                                      },
+                                    },
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select frequency" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="8">Every 8 hours</SelectItem>
+                                  <SelectItem value="12">Every 12 hours</SelectItem>
+                                  <SelectItem value="24">Every 24 hours (Daily)</SelectItem>
+                                  <SelectItem value="48">Every 48 hours (2 days)</SelectItem>
+                                  <SelectItem value="72">Every 72 hours (3 days)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-sm text-muted-foreground">
+                                Choose how often the system should automatically import data from Magaya.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

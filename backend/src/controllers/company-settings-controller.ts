@@ -4,16 +4,19 @@ import { CompanySettingsService } from '../services/company-settings-service';
 import { z } from 'zod';
 import { CompaniesService } from '../services/companies-service';
 import { CompanyAssetsService } from '../services/company-assets-service';
+import { AutoImportService } from '../services/auto-import-service';
 
 export class CompanySettingsController {
   private companySettingsService: CompanySettingsService;
   private companiesService: CompaniesService;
   private companyAssetsService: CompanyAssetsService;
+  private autoImportService: AutoImportService;
 
   constructor() {
     this.companySettingsService = new CompanySettingsService();
     this.companiesService = new CompaniesService();
     this.companyAssetsService = new CompanyAssetsService();
+    this.autoImportService = new AutoImportService();
   }
 
   /**
@@ -178,6 +181,16 @@ export class CompanySettingsController {
       }, null, 2));
       
       const settings = await this.companySettingsService.updateIntegrationSettings(req.body, companyId);
+
+      // If magaya cron settings are present, update scheduler
+      const magayaSettings = req.body?.magayaIntegration || {};
+      if (Object.prototype.hasOwnProperty.call(magayaSettings, 'cronEnabled') || Object.prototype.hasOwnProperty.call(magayaSettings, 'cronInterval')) {
+        await this.autoImportService.updateCronSettings(companyId, {
+          cronEnabled: magayaSettings.cronEnabled,
+          cronInterval: magayaSettings.cronInterval
+        }, req.userId as string);
+      }
+
       console.log('Integration settings updated successfully for company', companyId);
       return res.json(settings);
     } catch (error) {

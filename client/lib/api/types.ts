@@ -233,6 +233,20 @@ export interface CompanySettings extends BaseEntity {
   notificationSettings?: any;
   exchangeRateSettings?: any;
   themeSettings?: any;
+  integrationSettings?: {
+    magayaIntegration?: {
+      enabled: boolean;
+      username?: string;
+      password?: string;
+      networkId?: string;
+      dateRangePreference?: 'today' | 'this_week' | 'this_month';
+      autoImportEnabled?: boolean;
+      lastImportDate?: string;
+      cronEnabled?: boolean; // Whether scheduled auto import is enabled
+      cronInterval?: number; // Number of hours between imports (8, 12, 24, 48, 72)
+    };
+    [key: string]: any;
+  };
 }
 
 // Request parameters types

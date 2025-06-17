@@ -4,6 +4,7 @@ import { companySettings } from '../db/schema/company-settings';
 import { z } from 'zod';
 import { CompaniesService } from './companies-service';
 import crypto from 'crypto';
+import { db } from '../db';
 
 // Define validation schema for notification settings
 const notificationSettingsSchema = z.object({
@@ -66,6 +67,8 @@ const integrationSettingsSchema = z.object({
     dateRangePreference: z.enum(['today', 'this_week', 'this_month']).default('this_week'),
     autoImportEnabled: z.boolean().default(false),
     lastImportDate: z.string().optional(),
+    cronEnabled: z.boolean().optional(),
+    cronInterval: z.number().int().optional(),
   }).optional(),
 });
 
@@ -263,6 +266,19 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
     } catch (error) {
       console.error(`Error fetching company for API key: ${error}`);
       return null;
+    }
+  }
+
+  /**
+   * Get all company settings with integration settings for all companies
+   */
+  async getAllCompanySettings() {
+    try {
+      const result = await db.select().from(companySettings);
+      return result;
+    } catch (error) {
+      console.error('Error getting all company settings:', error);
+      throw error;
     }
   }
 } 

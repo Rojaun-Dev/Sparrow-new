@@ -6,6 +6,10 @@ import fs from 'fs';
 import os from 'os';
 import { AuditLogsService, AuditLogData } from './audit-logs-service';
 import { randomUUID } from 'crypto';
+import cron, { ScheduledTask } from 'node-cron';
+import { db } from '../db';
+import { users } from '../db/schema/users';
+import { eq, and, or } from 'drizzle-orm';
 
 interface AutoImportOptions {
   userId?: string;
@@ -37,6 +41,8 @@ interface CompanySettings {
       dateRangePreference?: 'today' | 'this_week' | 'this_month';
       autoImportEnabled?: boolean;
       lastImportDate?: string;
+      cronEnabled?: boolean;
+      cronInterval?: number;
     };
   };
 }
@@ -46,6 +52,7 @@ export class AutoImportService {
   private importService: ImportService;
   private auditLogsService: AuditLogsService;
   private activeImports: Map<string, AutoImportStatus>;
+  private activeCronJobs: Map<string, ScheduledTask>; // Track active cron jobs by companyId
   private downloadPath: string;
 
   constructor() {
@@ -53,11 +60,184 @@ export class AutoImportService {
     this.importService = new ImportService();
     this.auditLogsService = new AuditLogsService();
     this.activeImports = new Map();
+    this.activeCronJobs = new Map();
     this.downloadPath = path.join(os.tmpdir(), 'sparrowx-magaya-imports');
     
     // Ensure download directory exists
     if (!fs.existsSync(this.downloadPath)) {
       fs.mkdirSync(this.downloadPath, { recursive: true });
+    }
+    
+    // Setup any existing cron jobs
+    this.setupCronJobs().catch(err => {
+      console.error('Error setting up cron jobs:', err);
+    });
+  }
+
+  /**
+   * Setup cron jobs for all companies that have cron jobs enabled
+   */
+  private async setupCronJobs(): Promise<void> {
+    try {
+      // Get all company settings with magaya integration and cron enabled
+      const allSettings: any[] = await this.companySettingsService.getAllCompanySettings();
+      
+      for (const settings of allSettings) {
+        const magayaSettings: any = settings?.integrationSettings?.magayaIntegration;
+        
+        if (magayaSettings?.enabled && 
+            magayaSettings?.autoImportEnabled && 
+            magayaSettings?.cronEnabled && 
+            magayaSettings?.cronInterval) {
+          
+          await this.scheduleCronJob(settings.companyId, magayaSettings.cronInterval);
+        }
+      }
+      
+      console.log(`Setup ${this.activeCronJobs.size} cron jobs for auto-import`);
+    } catch (error) {
+      console.error('Failed to setup cron jobs:', error);
+    }
+  }
+
+  /**
+   * Schedule a cron job for auto importing data for a specific company
+   */
+  async scheduleCronJob(companyId: string, intervalHours: number): Promise<void> {
+    // First, remove any existing cron job for this company
+    this.removeCronJob(companyId);
+    
+    // Attempt to find an admin user for this company to act as initiator
+    const adminUsers = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(and(
+        eq(users.companyId, companyId),
+        or(eq(users.role, 'admin_l1'), eq(users.role, 'admin_l2'))
+      ))
+      .limit(1);
+    
+    if (!adminUsers || adminUsers.length === 0) {
+      console.error(`Cannot setup cron job for company ${companyId}: No admin users found`);
+      return;
+    }
+    
+    const initiatorUserId = adminUsers[0].id;
+    
+    // Convert hours to cron expression
+    // For testing use: '*/1 * * * *' (every minute)
+    // For production use proper hour intervals: `0 */${intervalHours} * * *` (e.g., every 8 hours)
+    const cronExpression = `0 */${intervalHours} * * *`;
+    
+    // Create and save the cron job
+    const job = cron.schedule(cronExpression, async () => {
+      try {
+        console.log(`Running scheduled auto-import for company ${companyId}`);
+        
+        // Get the latest settings in case they've changed
+        const settings = await this.companySettingsService.getCompanySettings(companyId) as CompanySettings;
+        const magayaSettings = settings?.integrationSettings?.magayaIntegration;
+        
+        if (!magayaSettings?.enabled || !magayaSettings?.autoImportEnabled) {
+          console.log(`Auto-import disabled for company ${companyId}, skipping scheduled import`);
+          return;
+        }
+        
+        // Run the import task using the admin user as initiator
+        await this.startAutoImport({
+          dateRange: magayaSettings.dateRangePreference || 'this_week',
+          companyId: companyId,
+          initiatorUserId: initiatorUserId,
+          networkId: magayaSettings.networkId
+        });
+        
+        console.log(`Completed scheduled auto-import for company ${companyId}`);
+      } catch (error) {
+        console.error(`Error in scheduled auto-import for company ${companyId}:`, error);
+      }
+    });
+    
+    // Save the job to our map
+    this.activeCronJobs.set(companyId, job);
+    
+    console.log(`Scheduled cron job for company ${companyId} to run every ${intervalHours} hours`);
+    
+    // Log this setup in audit logs
+    await this.auditLogsService.createLog({
+      userId: initiatorUserId,
+      companyId: companyId,
+      action: 'auto_import_cron_scheduled',
+      entityType: 'settings',
+      entityId: companyId,
+      details: {
+        intervalHours,
+        cronExpression
+      }
+    }).catch(e => console.error('Failed to log cron job setup:', e));
+  }
+
+  /**
+   * Remove a scheduled cron job for a company
+   */
+  removeCronJob(companyId: string): void {
+    const existingJob = this.activeCronJobs.get(companyId);
+    if (existingJob) {
+      console.log(`Stopping cron job for company ${companyId}`);
+      existingJob.stop();
+      this.activeCronJobs.delete(companyId);
+    }
+  }
+
+  /**
+   * Update cron settings for a company
+   */
+  async updateCronSettings(companyId: string, settings: {
+    cronEnabled?: boolean,
+    cronInterval?: number
+  }, userId: string): Promise<void> {
+    // Get current settings
+    const currentSettings = await this.companySettingsService.getCompanySettings(companyId) as CompanySettings;
+    const magayaSettings: any = currentSettings?.integrationSettings?.magayaIntegration || {};
+    
+    // Update settings
+    const updatedMagayaSettings: any = {
+      ...magayaSettings,
+      cronEnabled: settings.cronEnabled !== undefined ? settings.cronEnabled : magayaSettings.cronEnabled,
+      cronInterval: settings.cronInterval || magayaSettings.cronInterval
+    };
+    
+    // Save settings
+    const updatedSettings = {
+      ...currentSettings.integrationSettings,
+      magayaIntegration: updatedMagayaSettings
+    };
+    
+    await this.companySettingsService.updateIntegrationSettings(updatedSettings, companyId);
+    
+    // Log the changes
+    await this.auditLogsService.createLog({
+      userId: userId,
+      companyId: companyId,
+      action: 'auto_import_cron_settings_updated',
+      entityType: 'settings',
+      entityId: companyId,
+      details: {
+        cronEnabled: updatedMagayaSettings.cronEnabled,
+        cronInterval: updatedMagayaSettings.cronInterval
+      }
+    });
+    
+    // If cron is enabled and interval is valid, schedule or update the job
+    if (updatedMagayaSettings.enabled !== false &&
+        updatedMagayaSettings.autoImportEnabled !== false &&
+        updatedMagayaSettings.cronEnabled && 
+        updatedMagayaSettings.cronInterval) {
+      await this.scheduleCronJob(companyId, updatedMagayaSettings.cronInterval);
+    } else {
+      // Otherwise remove any existing job
+      this.removeCronJob(companyId);
+      
+      console.log(`Cron job disabled for company ${companyId}`);
     }
   }
 
@@ -170,7 +350,7 @@ export class AutoImportService {
 
   /**
    * Run the Magaya import process using Playwright
-   * This method is called asynchronously and should not throw errors directly
+   * This method is called asynchronously and should not throw errors directly... or atleast it should.
    */
   private async runImportProcess(importId: string, options: AutoImportOptions & { username: string; password: string; networkId?: string }): Promise<void> {
     // Update status to in progress

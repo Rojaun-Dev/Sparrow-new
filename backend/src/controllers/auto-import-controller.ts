@@ -123,4 +123,52 @@ export class AutoImportController {
       next(error);
     }
   };
+
+  /**
+   * Update cron job settings for auto-import
+   */
+  updateCronSettings = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { cronEnabled, cronInterval } = req.body;
+      const companyId = req.companyId as string;
+      const userId = req.userId as string;
+      
+      if (!companyId) {
+        throw new AppError('Company ID is required', 400);
+      }
+      
+      if (!userId) {
+        throw new AppError('User ID is required', 400);
+      }
+      
+      // Validate admin role for this operation
+      if (req.userRole !== 'admin_l1' && req.userRole !== 'admin_l2') {
+        throw new AppError('Only admin users can update cron job settings', 403);
+      }
+      
+      // Validate cronInterval if provided
+      if (cronInterval !== undefined) {
+        const validIntervals = [8, 12, 24, 48, 72];
+        if (!validIntervals.includes(cronInterval)) {
+          throw new AppError('Invalid cron interval. Must be one of: 8, 12, 24, 48, 72 hours', 400);
+        }
+      }
+      
+      await this.autoImportService.updateCronSettings(
+        companyId, 
+        { 
+          cronEnabled, 
+          cronInterval 
+        }, 
+        userId
+      );
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Cron job settings updated successfully'
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  };
 } 
