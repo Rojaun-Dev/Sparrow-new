@@ -320,7 +320,8 @@ export class PackagesService {
       throw AppError.notFound('Package not found');
     }
     
-    return this.packagesRepository.delete(id);
+    console.log(`Deleting package ${id} from company ${companyId}`);
+    return this.packagesRepository.delete(id, companyId);
   }
 
   /**

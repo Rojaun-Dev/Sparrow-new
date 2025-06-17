@@ -3,6 +3,7 @@ import { packages, packageStatusEnum } from '../db/schema/packages';
 import { BaseRepository } from './base-repository';
 import { invoiceItems } from '../db/schema/invoice-items';
 import { db } from '../db';
+import { AppError } from '../utils/app-error';
 
 export class PackagesRepository extends BaseRepository<typeof packages> {
   constructor() {
@@ -11,6 +12,21 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
 
   getDatabaseInstance() {
     return db;
+  }
+  
+  /**
+   * Override delete method to add logging and error handling
+   */
+  async delete(id: string, companyId?: string): Promise<void> {
+    console.log(`PackagesRepository.delete called with id=${id}, companyId=${companyId}`);
+    try {
+      const result = await super.delete(id, companyId);
+      console.log('Delete operation result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error in PackagesRepository.delete:', error);
+      throw new AppError(`Failed to delete package: ${(error as Error).message}`, 500);
+    }
   }
 
   /**

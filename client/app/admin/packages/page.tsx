@@ -142,13 +142,23 @@ export default function PackagesPage() {
   const updateStatusMutation = useUpdatePackageStatus();
   const deleteMutation = useMutation({
     mutationFn: async ({ id, sendNotification }: { id: string; sendNotification?: boolean }) => {
-      await packageService.deletePackage(id, undefined, sendNotification);
+      console.log('Inside deleteMutation.mutationFn:', { id, sendNotification });
+      try {
+        const result = await packageService.deletePackage(id, undefined, sendNotification);
+        console.log('Delete package result:', result);
+        return result;
+      } catch (error) {
+        console.error('Error in deletePackage:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
+      console.log('Delete mutation succeeded');
       toast({ title: 'Package deleted', description: 'The package was deleted successfully.' });
       queryClient.invalidateQueries({ queryKey: ['packages'] });
     },
     onError: (err: any) => {
+      console.error('Delete mutation error:', err);
       toast({ title: 'Error', description: err.message || 'Failed to delete package', variant: 'destructive' });
     },
   });
@@ -189,10 +199,34 @@ export default function PackagesPage() {
   }
 
   const handleDeletePackage = () => {
-    // In a real app, this would call an API to delete the package
-    console.log(`Deleting package ${packageToDelete}`)
-    setIsDeleteDialogOpen(false)
-    setPackageToDelete(null)
+    console.log('Delete package handler called', { packageToDelete, sendNotificationOnDelete });
+    
+    // Don't close dialog or clear state until after the mutation completes
+    if (packageToDelete) {
+      console.log('Calling deleteMutation.mutate with:', { id: packageToDelete, sendNotification: sendNotificationOnDelete });
+      
+      // Direct call to the packageService instead of using mutation
+      packageService.deletePackage(packageToDelete, undefined, sendNotificationOnDelete)
+        .then(() => {
+          console.log('Package deleted successfully');
+          toast({ title: 'Package deleted', description: 'The package was deleted successfully.' });
+          queryClient.invalidateQueries({ queryKey: ['packages'] });
+        })
+        .catch(error => {
+          console.error('Error deleting package:', error);
+          toast({ 
+            title: 'Error', 
+            description: error.message || 'Failed to delete package', 
+            variant: 'destructive' 
+          });
+        })
+        .finally(() => {
+          setIsDeleteDialogOpen(false);
+          setPackageToDelete(null);
+        });
+    } else {
+      setIsDeleteDialogOpen(false);
+    }
   }
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -468,10 +502,11 @@ export default function PackagesPage() {
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={() => {
-              if (packageToDelete) deleteMutation.mutate({ id: packageToDelete, sendNotification: sendNotificationOnDelete });
-              setIsDeleteDialogOpen(false);
-            }} disabled={deleteMutation.isPending}>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeletePackage} 
+              disabled={deleteMutation.isPending}
+            >
               {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>

@@ -85,7 +85,14 @@ export class BaseRepository<T extends PgTable<any> & TableWithCompanyId> {
   /**
    * Delete a record by ID with company isolation
    */
-  async delete(id: string, companyId: string) {
+  async delete(id: string, companyId?: string) {
+    // If companyId is not provided, assume it was already checked at the service level
+    if (!companyId) {
+      return this.db
+        .delete(this.table)
+        .where(eq(this.table.id, id));
+    }
+    
     return this.db
       .delete(this.table)
       .where(

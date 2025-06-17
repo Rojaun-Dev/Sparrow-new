@@ -233,8 +233,8 @@ export class ApiClient {
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.delete(url, config);
-    return response.data;
+    console.log(`Making DELETE request to: ${url}`, config);
+    return this.request<T>({ ...config, method: 'DELETE', url });
   }
 
   // Download a file (CSV/blob) from a GET endpoint
