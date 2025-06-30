@@ -433,7 +433,12 @@ export default function AdminCustomerViewPage() {
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <span className="text-foreground">{user.trn || <span className="text-muted-foreground">N/A</span>}</span>
+                      <span
+                        className="w-32 px-3 py-2 border rounded bg-muted/30 text-foreground font-medium text-sm select-text"
+                        style={{ minHeight: '2.25rem', display: 'inline-flex', alignItems: 'center' }}
+                      >
+                        {user.trn ? user.trn : <span className="text-muted-foreground">N/A</span>}
+                      </span>
                       <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
                         <Pencil className="h-4 w-4" />
                       </Button>

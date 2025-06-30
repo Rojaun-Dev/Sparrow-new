@@ -82,6 +82,13 @@ function CustomerRow({ customer, companyId, openActionDialog, openHardDeleteDial
         {statsLoading ? <span className="animate-spin inline-block w-4 h-4 border-b-2 border-primary rounded-full" /> : stats?.outstandingInvoices?.count ?? '-'}
       </TableCell>
       <TableCell className="hidden lg:table-cell">{formatDate(customer.createdAt)}</TableCell>
+      <TableCell className="hidden lg:table-cell">
+        {statsLoading ? (
+          <span className="animate-pulse inline-block h-4 w-20 bg-muted rounded" />
+        ) : (
+          typeof stats?.outstandingInvoices?.amount === 'number' ? `$${stats.outstandingInvoices.amount.toFixed(2)}` : '-'
+        )}
+      </TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -311,18 +318,44 @@ export default function CustomersPage() {
                   <TableHead className="hidden md:table-cell">Packages</TableHead>
                   <TableHead className="hidden md:table-cell">Invoices</TableHead>
                   <TableHead className="hidden lg:table-cell">Created</TableHead>
+                  <TableHead className="hidden lg:table-cell">Amount Owed</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  // Show 5 skeleton rows matching the table columns
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
+                          <div>
+                            <div className="h-4 w-24 bg-muted rounded animate-pulse mb-1" />
+                            <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="h-4 w-10 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="h-4 w-10 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="h-4 w-16 bg-muted rounded animate-pulse ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))
                 ) : customers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
