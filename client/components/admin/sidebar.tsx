@@ -137,6 +137,10 @@ export function AdminSidebarDesktop() {
   const { getAssetByType } = useCompanyAssets()
   const companyBanner = getAssetByType("banner")
   const companyLogo = getAssetByType("logo")
+  
+  // Debug user role status
+  console.log('[AdminSidebarDesktop] User role:', user?.role, 'isAdminL2:', isAdminL2);
+  
   const toggleSubmenu = (title: string) => setOpenSubmenu(openSubmenu === title ? null : title)
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const isSubmenuActive = (item: NavItem) => item.submenu?.some((subItem) => isActive(subItem.href)) || false
@@ -251,6 +255,10 @@ export function AdminSidebarMobile() {
   const { getAssetByType } = useCompanyAssets()
   const companyBanner = getAssetByType("banner")
   const companyLogo = getAssetByType("logo")
+  
+  // Debug user role status
+  console.log('[AdminSidebarMobile] User role:', user?.role, 'isAdminL2:', isAdminL2);
+  
   const toggleSubmenu = (title: string) => setOpenSubmenu(openSubmenu === title ? null : title)
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const isSubmenuActive = (item: NavItem) => item.submenu?.some((subItem) => isActive(subItem.href)) || false

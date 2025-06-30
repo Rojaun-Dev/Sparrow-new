@@ -88,6 +88,12 @@ export default function AdminDashboard() {
 
 
 
+  // Debug user role status
+
+  console.log('[AdminDashboard] User role:', user?.role, 'isAdminL2:', isAdminL2);
+
+
+
   useEffect(() => {
 
     fetchStatistics();
@@ -251,7 +257,7 @@ export default function AdminDashboard() {
 
             <p className="text-xs text-muted-foreground flex items-center mt-1">
 
-              {statistics?.packageGrowth > 0 ? (
+              {(statistics?.packageGrowth || 0) > 0 ? (
 
                 <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
 
@@ -261,7 +267,7 @@ export default function AdminDashboard() {
 
               )}
 
-              <span>{Math.abs(statistics?.packageGrowth || 0).toFixed(1)}% {statistics?.packageGrowth > 0 ? 'increase' : 'decrease'} from last month</span>
+              <span>{Math.abs(statistics?.packageGrowth || 0).toFixed(1)}% {(statistics?.packageGrowth || 0) > 0 ? 'increase' : 'decrease'} from last month</span>
 
             </p>
 
@@ -339,7 +345,7 @@ export default function AdminDashboard() {
 
               <p className="text-xs text-muted-foreground flex items-center mt-1">
 
-                {statistics?.revenue?.growth > 0 ? (
+                {(statistics?.revenue?.growth || 0) > 0 ? (
 
                   <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
 
@@ -349,7 +355,7 @@ export default function AdminDashboard() {
 
                 )}
 
-                <span>{Math.abs(statistics?.revenue?.growth || 0).toFixed(1)}% {statistics?.revenue?.growth > 0 ? 'increase' : 'decrease'} from last month</span>
+                <span>{Math.abs(statistics?.revenue?.growth || 0).toFixed(1)}% {(statistics?.revenue?.growth || 0) > 0 ? 'increase' : 'decrease'} from last month</span>
 
               </p>
 
