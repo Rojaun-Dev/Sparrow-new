@@ -82,13 +82,6 @@ function CustomerRow({ customer, companyId, openActionDialog, openHardDeleteDial
         {statsLoading ? <span className="animate-spin inline-block w-4 h-4 border-b-2 border-primary rounded-full" /> : stats?.outstandingInvoices?.count ?? '-'}
       </TableCell>
       <TableCell className="hidden lg:table-cell">{formatDate(customer.createdAt)}</TableCell>
-      <TableCell className="hidden lg:table-cell">
-        {statsLoading ? (
-          <span className="animate-pulse inline-block h-4 w-20 bg-muted rounded" />
-        ) : (
-          typeof stats?.outstandingInvoices?.amount === 'number' ? `$${stats.outstandingInvoices.amount.toFixed(2)}` : '-'
-        )}
-      </TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -318,7 +311,6 @@ export default function CustomersPage() {
                   <TableHead className="hidden md:table-cell">Packages</TableHead>
                   <TableHead className="hidden md:table-cell">Invoices</TableHead>
                   <TableHead className="hidden lg:table-cell">Created</TableHead>
-                  <TableHead className="hidden lg:table-cell">Amount Owed</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

@@ -399,73 +399,90 @@ export default function AdminCustomerViewPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <div className="space-y-5">
-              <CardTitle className="text-lg font-semibold tracking-tight flex items-center gap-2"><Contact className="h-6 w-6" />Contact Information</CardTitle>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Mail className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Email:</span>
-                  <span className="text-foreground">{user.email}</span>
+          <div className="space-y-6">
+            {/* Personal Information */}
+            <div>
+              <h3 className="text-lg font-medium text-muted-foreground mb-4">Personal Information</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">First Name</dt>
+                  <dd className="text-sm font-medium">{user.firstName}</dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Phone className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Phone:</span>
-                  <span className="text-foreground">{user.phone || <span className="text-muted-foreground">N/A</span>}</span>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Last Name</dt>
+                  <dd className="text-sm font-medium">{user.lastName}</dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Address:</span>
-                  <span className="text-foreground">{user.address || <span className="text-muted-foreground">N/A</span>}</span>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Email Address</dt>
+                  <dd className="text-sm font-medium">{user.email}</dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Hash className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">TRN:</span>
-                  {editTrn ? (
-                    <span className="flex items-center gap-2">
-                      <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32 font-medium" />
-                      <Button size="sm" onClick={handleTrnSave} disabled={updateUserMutation.status === 'pending'}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setEditTrn(false)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="w-32 px-3 py-2 border rounded bg-muted/30 text-foreground font-medium text-sm select-text"
-                        style={{ minHeight: '2.25rem', display: 'inline-flex', alignItems: 'center' }}
-                      >
-                        {user.trn ? user.trn : <span className="text-muted-foreground">N/A</span>}
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Phone Number</dt>
+                  <dd className="text-sm font-medium">
+                    {user.phone ? user.phone : <span className="text-muted-foreground">Not provided</span>}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">TRN</dt>
+                  <dd className="text-sm">
+                    {editTrn ? (
+                      <span className="flex items-center gap-2">
+                        <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32 font-medium" />
+                        <Button size="sm" onClick={handleTrnSave} disabled={updateUserMutation.status === 'pending'}>
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditTrn(false)}>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </span>
-                      <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </span>
-                  )}
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-32 px-3 py-2 border border-muted rounded bg-muted/20 text-sm select-text"
+                          style={{ minHeight: '2.25rem', display: 'inline-flex', alignItems: 'center' }}
+                        >
+                          {user.trn ? user.trn : <span className="text-muted-foreground">N/A</span>}
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </span>
+                    )}
+                  </dd>
                 </div>
-              </div>
+              </dl>
             </div>
-            <div className="space-y-5">
-              <CardTitle className="text-lg font-semibold tracking-tight flex items-center gap-2"><Info className="h-6 w-6" />Account Information</CardTitle>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Created:</span>
-                  <span className="text-foreground">{new Date(user.createdAt).toLocaleString()}</span>
+
+            {/* Address Information */}
+            <div>
+              <h3 className="text-lg font-medium text-muted-foreground mb-4">Address Information</h3>
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Address</dt>
+                  <dd className="text-sm whitespace-pre-wrap">
+                    {user.address ? user.address : <span className="text-muted-foreground">No address provided</span>}
+                  </dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Updated:</span>
-                  <span className="text-foreground">{new Date(user.updatedAt).toLocaleString()}</span>
+              </dl>
+            </div>
+
+            {/* Account Information */}
+            <div>
+              <h3 className="text-lg font-medium text-muted-foreground mb-4">Account Information</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Status</dt>
+                  <dd className="text-sm">
+                    <Badge variant={user.isActive ? "default" : "secondary"}>
+                      {user.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Company ID:</span>
-                  <span className="text-foreground">{user.companyId}</span>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Created</dt>
+                  <dd className="text-sm">{formatDate(user.createdAt)}</dd>
                 </div>
-              </div>
+              </dl>
             </div>
           </div>
         </CardContent>
