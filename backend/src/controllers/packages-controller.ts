@@ -435,4 +435,52 @@ export class PackagesController {
       return undefined;
     }
   };
+
+  /**
+   * Assign a user to a package
+   */
+  assignUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const companyId = req.companyId as string;
+      
+      if (!userId) {
+        return ApiResponse.validationError(res, { message: 'userId is required' });
+      }
+
+      const pkg = await this.service.assignUserToPackage(id, userId, companyId);
+      return ApiResponse.success(res, pkg, 'User assigned to package successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * Get unassigned packages
+   */
+  getUnassignedPackages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      // Extract filters from query params
+      const filters = {
+        status: req.query.status as string,
+        search: req.query.search as string,
+        dateFrom: req.query.dateFrom as string,
+        dateTo: req.query.dateTo as string,
+        sortBy: req.query.sortBy as string,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc',
+      };
+      
+      const result = await this.service.getUnassignedPackages(companyId, page, limit, filters);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
 } 

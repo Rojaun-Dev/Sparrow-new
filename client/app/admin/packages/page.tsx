@@ -15,7 +15,8 @@ import {
   Pencil,
   Camera,
   Trash2,
-  Loader2
+  Loader2,
+  UserPlus
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -48,7 +49,7 @@ import {
 import { useExportCsv } from '@/hooks/useExportCsv';
 import { packageService } from '@/lib/api/packageService';
 import { useAuth } from '@/hooks/useAuth';
-import { usePackages, useUpdatePackageStatus } from '@/hooks/usePackages';
+import { usePackages, useUpdatePackageStatus, useAssignUserToPackage } from '@/hooks/usePackages';
 import { useUsers } from '@/hooks/useUsers';
 import type { Package, PackageStatus, PaginatedResponse } from '@/lib/api/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -58,6 +59,7 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from "@/lib/api/apiClient";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { ImportStatusAlert, ImportStatusProps } from "@/components/admin/ImportStatusAlert";
+import { AssignUserModal } from "@/components/packages/AssignUserModal";
 
 // Status maps
 const STATUS_LABELS: Record<string, string> = {
@@ -227,6 +229,26 @@ export default function PackagesPage() {
     dateRangePreference: 'this_week',
     networkId: '',
   });
+  
+  // State for assign user modal
+  const [assignUserModalOpen, setAssignUserModalOpen] = useState(false);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
+  
+  // Handle opening the assign user modal
+  const handleAssignUser = (packageId: string) => {
+    setSelectedPackageId(packageId);
+    setAssignUserModalOpen(true);
+  };
+
+  // Handle successful user assignment
+  const handleAssignSuccess = () => {
+    toast({
+      title: "Success",
+      description: "Customer assigned to package successfully",
+    });
+    // Refresh packages data
+    refetch();
+  };
   
   // Fetch Magaya integration settings on component mount
   useEffect(() => {
@@ -565,7 +587,15 @@ export default function PackagesPage() {
                                   {user.email ? <span className="text-xs text-muted-foreground ml-1">({user.email})</span> : null}
                                 </Link>
                               ) : (
-                                <span>{pkg.userId}</span>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => handleAssignUser(pkg.id)}
+                                  className="flex items-center gap-1"
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                  Assign Customer
+                                </Button>
                               )}
                             </TableCell>
                             <TableCell>
@@ -755,6 +785,13 @@ export default function PackagesPage() {
         onOpenChange={setShowQuickInvoiceDialog}
         packageId={quickInvoicePackageId}
         userId={quickInvoiceUserId}
+      />
+      
+      <AssignUserModal
+        open={assignUserModalOpen}
+        onOpenChange={setAssignUserModalOpen}
+        packageId={selectedPackageId}
+        onSuccess={handleAssignSuccess}
       />
     </>
   )

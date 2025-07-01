@@ -520,4 +520,105 @@ export class PackagesService {
   async getUnbilledPackagesByUser(userId: string, companyId: string) {
     return this.packagesRepository.findUnbilledByUserId(userId, companyId);
   }
+
+  /**
+   * Assign a user to a package
+   */
+  async assignUserToPackage(packageId: string, userId: string, companyId: string) {
+    // Verify package exists and belongs to this company
+    const pkg = await this.packagesRepository.findById(packageId, companyId);
+    if (!pkg) {
+      throw AppError.notFound('Package not found');
+    }
+    
+    // Verify user exists and belongs to this company
+    const user = await this.usersRepository.findById(userId, companyId);
+    if (!user) {
+      throw AppError.notFound('User not found');
+    }
+    
+    // Get user's prefId if available
+    const prefId = await this.getUserPrefId(userId, companyId);
+    
+    // Update the package with the new userId and prefId
+    return this.packagesRepository.update(packageId, { 
+      userId, 
+      prefId: prefId || pkg.prefId 
+    }, companyId);
+  }
+
+  /**
+   * Get unassigned packages
+   */
+  async getUnassignedPackages(companyId: string, page = 1, limit = 10, filters: any = {}) {
+    const offset = (page - 1) * limit;
+    
+    // Build where clause
+    let whereClause: SQL<unknown> = and(
+      eq(packages.companyId, companyId),
+      sql`${packages.userId} IS NULL`
+    );
+    
+    // Apply filters if provided
+    if (filters.status) {
+      whereClause = and(whereClause, eq(packages.status, filters.status));
+    }
+    
+    if (filters.search) {
+      whereClause = and(whereClause, ilike(packages.trackingNumber, `%${filters.search}%`));
+    }
+    
+    if (filters.dateFrom) {
+      const dateFrom = new Date(filters.dateFrom);
+      whereClause = and(whereClause, gte(packages.receivedDate, dateFrom));
+    }
+    
+    if (filters.dateTo) {
+      const dateTo = new Date(filters.dateTo);
+      whereClause = and(whereClause, lte(packages.receivedDate, dateTo));
+    }
+    
+    // Determine sort order
+    let orderBy: SQL<unknown> = desc(packages.createdAt); // default sort
+    if (filters.sortBy) {
+      const direction = filters.sortOrder === 'asc' ? asc : desc;
+      switch (filters.sortBy) {
+        case 'trackingNumber':
+          orderBy = direction(packages.trackingNumber);
+          break;
+        case 'status':
+          orderBy = direction(packages.status);
+          break;
+        case 'receivedDate':
+          orderBy = direction(packages.receivedDate);
+          break;
+        case 'createdAt':
+          orderBy = direction(packages.createdAt);
+          break;
+        default:
+          orderBy = desc(packages.createdAt);
+      }
+    }
+    
+    // Get total count for pagination
+    const totalCount = await this.packagesRepository.count(whereClause);
+    
+    // Get paginated results
+    const results = await this.packagesRepository.findMany(whereClause, {
+      limit,
+      offset,
+      orderBy
+    });
+    
+    // Return paginated response
+    return {
+      data: results,
+      pagination: {
+        page,
+        pageSize: limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit)
+      }
+    };
+  }
 } 

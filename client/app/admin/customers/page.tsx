@@ -147,6 +147,7 @@ export default function CustomersPage() {
   const [actionType, setActionType] = useState<'deactivate' | 'reactivate' | null>(null)
   const [isHardDeleteDialogOpen, setIsHardDeleteDialogOpen] = useState(false)
   const [customerToHardDelete, setCustomerToHardDelete] = useState<string | null>(null)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
 
   // CSV export hook
   const { exportCsv, loading: exportLoading } = useExportCsv();
@@ -295,7 +296,7 @@ export default function CustomersPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" className="gap-1" onClick={handleExport} disabled={exportLoading}>
+              <Button variant="outline" className="gap-1" onClick={() => setIsExportDialogOpen(true)} disabled={exportLoading}>
                 <Download className="h-4 w-4" />
                 Export
               </Button>
@@ -471,6 +472,45 @@ export default function CustomersPage() {
             </Button>
             <Button variant="destructive" onClick={handleHardDeleteCustomer} disabled={deleteCompanyUserMutation.isPending}>
               {deleteCompanyUserMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Confirmation Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Customer Data</DialogTitle>
+            <DialogDescription>
+              This will export all customer data matching your current search and filters as a CSV file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              The export will include the following information:
+            </p>
+            <ul className="list-disc pl-5 mt-2 text-sm text-muted-foreground">
+              <li>Customer name and contact details</li>
+              <li>Account status and creation date</li>
+              <li>Address information</li>
+            </ul>
+            <p className="mt-4 text-sm font-medium">
+              Are you sure you want to proceed with the export?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                handleExport();
+                setIsExportDialogOpen(false);
+              }} 
+              disabled={exportLoading}
+            >
+              {exportLoading ? "Exporting..." : "Export CSV"}
             </Button>
           </DialogFooter>
         </DialogContent>
