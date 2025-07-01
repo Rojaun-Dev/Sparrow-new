@@ -552,31 +552,35 @@ export class PackagesService {
    */
   async getUnassignedPackages(companyId: string, page = 1, limit = 10, filters: any = {}) {
     const offset = (page - 1) * limit;
+    const db = this.packagesRepository.getDatabaseInstance();
     
-    // Build where clause
-    let whereClause: SQL<unknown> = and(
+    // Build where clause with initial condition that won't be undefined
+    const conditions: SQL<unknown>[] = [
       eq(packages.companyId, companyId),
       sql`${packages.userId} IS NULL`
-    );
+    ];
     
     // Apply filters if provided
     if (filters.status) {
-      whereClause = and(whereClause, eq(packages.status, filters.status));
+      conditions.push(eq(packages.status, filters.status));
     }
     
     if (filters.search) {
-      whereClause = and(whereClause, ilike(packages.trackingNumber, `%${filters.search}%`));
+      conditions.push(ilike(packages.trackingNumber, `%${filters.search}%`));
     }
     
     if (filters.dateFrom) {
       const dateFrom = new Date(filters.dateFrom);
-      whereClause = and(whereClause, gte(packages.receivedDate, dateFrom));
+      conditions.push(gte(packages.receivedDate, dateFrom));
     }
     
     if (filters.dateTo) {
       const dateTo = new Date(filters.dateTo);
-      whereClause = and(whereClause, lte(packages.receivedDate, dateTo));
+      conditions.push(lte(packages.receivedDate, dateTo));
     }
+
+    // Combine all conditions with AND
+    const whereClause = and(...conditions);
     
     // Determine sort order
     let orderBy: SQL<unknown> = desc(packages.createdAt); // default sort
@@ -601,14 +605,19 @@ export class PackagesService {
     }
     
     // Get total count for pagination
-    const totalCount = await this.packagesRepository.count(whereClause);
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(packages)
+      .where(whereClause);
     
     // Get paginated results
-    const results = await this.packagesRepository.findMany(whereClause, {
-      limit,
-      offset,
-      orderBy
-    });
+    const results = await db
+      .select()
+      .from(packages)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset);
     
     // Return paginated response
     return {
