@@ -297,6 +297,14 @@ export interface PaymentFilterParams extends PaginationParams {
 export interface Company extends BaseEntity {
   name: string;
   address?: string;
+  shipping_info?: {
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+  };
   phone?: string;
   email?: string;
   website?: string;

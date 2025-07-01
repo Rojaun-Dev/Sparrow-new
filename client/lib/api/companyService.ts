@@ -26,6 +26,14 @@ export interface CompanyData {
   email: string;
   phone?: string;
   address?: string;
+  shipping_info?: {
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+  };
   website?: string;
   locations?: string[];
   bankInfo?: string;

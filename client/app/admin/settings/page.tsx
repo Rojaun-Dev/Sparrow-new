@@ -45,6 +45,14 @@ export default function CompanySettingsPage() {
     email: "",
     phone: "",
     address: "",
+    shipping_info: {
+      address_line1: "",
+      address_line2: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: ""
+    },
     website: "",
     locations: [] as string[],
     bankInfo: "",
@@ -111,6 +119,7 @@ export default function CompanySettingsPage() {
           prev.email === company.email &&
           prev.phone === company.phone &&
           prev.address === company.address &&
+          JSON.stringify(prev.shipping_info) === JSON.stringify(company.shipping_info || {}) &&
           prev.website === company.website &&
           prev.bankInfo === company.bankInfo &&
           JSON.stringify(prev.locations) === JSON.stringify(company.locations || []) &&
@@ -126,6 +135,14 @@ export default function CompanySettingsPage() {
           email: company.email || "",
           phone: company.phone || "",
           address: company.address || "",
+          shipping_info: company.shipping_info || {
+            address_line1: "",
+            address_line2: "",
+            city: "",
+            state: "",
+            zip: "",
+            country: ""
+          },
           website: company.website || "",
           locations: company.locations || [],
           bankInfo: company.bankInfo || "",
@@ -254,7 +271,20 @@ export default function CompanySettingsPage() {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setCompanyData(prev => ({ ...prev, [name]: value }))
+    
+    // Handle nested properties like shipping_info.address_line1
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.')
+      setCompanyData(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent as keyof typeof prev],
+          [child]: value
+        }
+      }))
+    } else {
+      setCompanyData(prev => ({ ...prev, [name]: value }))
+    }
   }
   
   const handleSelectChange = (name: string, value: string) => {
@@ -294,6 +324,7 @@ export default function CompanySettingsPage() {
           email: companyData.email,
           phone: companyData.phone,
           address: companyData.address,
+          shipping_info: companyData.shipping_info,
           website: companyData.website,
           bankInfo: companyData.bankInfo,
         });
@@ -751,6 +782,7 @@ export default function CompanySettingsPage() {
               
               <div className="space-y-2">
                 <Label htmlFor="address">Business Address</Label>
+                <p className="text-xs text-muted-foreground mb-2">This is the address clients will use to ship their purchases to.</p>
                 <Textarea 
                   id="address" 
                   name="address" 
@@ -760,7 +792,84 @@ export default function CompanySettingsPage() {
                   className="w-full min-h-[100px]"
                 />
               </div>
-              
+
+              <div className="space-y-2">
+                <Label htmlFor="shippingInfo">Shipping Information</Label>
+                <p className="text-xs text-muted-foreground mb-2">This is the address clients will use to ship their purchases to.</p>
+                <div className="border rounded-md p-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_address_line1">Address Line 1</Label>
+                      <Input 
+                        id="shipping_info_address_line1" 
+                        name="shipping_info.address_line1" 
+                        value={companyData.shipping_info?.address_line1 || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_address_line2">Address Line 2</Label>
+                      <Input 
+                        id="shipping_info_address_line2" 
+                        name="shipping_info.address_line2" 
+                        value={companyData.shipping_info?.address_line2 || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_city">City</Label>
+                      <Input 
+                        id="shipping_info_city" 
+                        name="shipping_info.city" 
+                        value={companyData.shipping_info?.city || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_state">State/Province</Label>
+                      <Input 
+                        id="shipping_info_state" 
+                        name="shipping_info.state" 
+                        value={companyData.shipping_info?.state || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_zip">ZIP/Postal Code</Label>
+                      <Input 
+                        id="shipping_info_zip" 
+                        name="shipping_info.zip" 
+                        value={companyData.shipping_info?.zip || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="shipping_info_country">Country</Label>
+                    <Input 
+                      id="shipping_info_country" 
+                      name="shipping_info.country" 
+                      value={companyData.shipping_info?.country || ''} 
+                      onChange={handleInputChange} 
+                      disabled={!isAdminL2}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="website">Website</Label>
                 <Input 

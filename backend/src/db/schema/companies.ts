@@ -6,6 +6,7 @@ export const companies = pgTable('companies', {
   subdomain: text('subdomain').notNull().unique(),
   images: jsonb('images').default({}),
   address: text('address'),
+  shipping_info: jsonb('shipping_info').default({}),
   phone: text('phone'),
   locations: text('locations').array(),
   email: text('email').notNull().unique(),

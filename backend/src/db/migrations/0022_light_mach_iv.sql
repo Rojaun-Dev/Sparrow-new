@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "shipping_info" jsonb DEFAULT '{}'::jsonb;
