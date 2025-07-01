@@ -29,6 +29,7 @@ import { AddPackageModal } from "@/components/packages/AddPackageModal";
 import { useGenerateInvoice } from '@/hooks/useInvoices';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { usePayAllInvoices } from '@/hooks/usePayments';
+import { QuickInvoiceDialog } from "@/components/invoices/QuickInvoiceDialog";
 import {
   Select,
   SelectContent,
@@ -134,10 +135,9 @@ export default function AdminCustomerViewPage() {
   // Add state for AddPackageModal
   const [addPackageOpen, setAddPackageOpen] = useState(false);
 
-  // Add state for Quick Invoice
+  // Quick Invoice
   const [quickInvoiceOpen, setQuickInvoiceOpen] = useState(false);
   const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
-  const generateInvoice = useGenerateInvoice();
 
   // Add state for Pay All Invoices modal
   const [payAllInvoicesOpen, setPayAllInvoicesOpen] = useState(false);
@@ -266,7 +266,19 @@ export default function AdminCustomerViewPage() {
   // Formatters
   const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString() : "-";
   const formatDateTime = (date?: string) => date ? new Date(date).toLocaleString() : "-";
-  const formatCurrency = (amount?: number) => typeof amount === "number" ? `$${amount.toFixed(2)}` : "-";
+  const formatCurrency = (amount?: number | string) => {
+    if (amount === null || amount === undefined) return "-";
+    const num = typeof amount === "number" ? amount : parseFloat(amount);
+    if (isNaN(num)) return "-";
+    return `$${num.toFixed(2)}`;
+  };
+  // Format payment method by removing underscores and capitalizing words
+  const formatPaymentMethod = (method?: string) => {
+    if (!method) return "-";
+    return method
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
 
   // Add a type guard for paginated API results
   function isPaginatedResult(obj: any): obj is { pagination: { page: number; pageSize: number; totalCount: number; totalPages: number } } {
@@ -356,7 +368,7 @@ export default function AdminCustomerViewPage() {
       <h1 className="text-3xl font-bold tracking-tight mb-6">Customer Details</h1>
       <Card className="border-2 border-gray-100">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -481,6 +493,10 @@ export default function AdminCustomerViewPage() {
                 <div>
                   <dt className="text-sm font-normal text-muted-foreground mb-1">Created</dt>
                   <dd className="text-sm">{formatDate(user.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Internal ID</dt>
+                  <dd className="text-sm font-mono">{user.prefId || 'N/A'}</dd>
                 </div>
               </dl>
             </div>
@@ -615,6 +631,7 @@ export default function AdminCustomerViewPage() {
                 loading={packagesLoading}
                 error={packagesError}
                 formatDate={formatDate}
+                onQuickInvoice={handleQuickInvoice}
                 {...(isPaginatedResult(packagesData) ? {
                   pagination: packagesData.pagination,
                   page: packagesPage,
@@ -732,7 +749,6 @@ export default function AdminCustomerViewPage() {
                   </select>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleMakePayment} variant="default">Make Payment</Button>
                   <Button onClick={handleGenerateInvoice} variant="default">Generate Invoice</Button>
                 </div> 
               </div>
@@ -773,51 +789,15 @@ export default function AdminCustomerViewPage() {
       />
 
       {/* Quick Invoice Dialog */}
-      <Dialog open={quickInvoiceOpen} onOpenChange={setQuickInvoiceOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Invoice for this Package?</DialogTitle>
-          </DialogHeader>
-          <div>
-            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
-            {generateInvoice.isError && (
-              <div className="text-red-600 mt-2 text-sm">{generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}</div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                if (!quickInvoicePackageId) return;
-                // Find the package to get the userId
-                const pkg = getArray(packagesData).find((p: any) => p.id === quickInvoicePackageId);
-                if (!pkg) return;
-                generateInvoice.mutate(
-                  { userId: pkg.userId, packageIds: [pkg.id] },
-                  {
-                    onSuccess: (invoice: any) => {
-                      setQuickInvoiceOpen(false);
-                      setQuickInvoicePackageId(null);
-                      toast({ title: 'Invoice created', description: 'The invoice was successfully created.' });
-                      if (invoice && invoice.id) {
-                        router.push(`/admin/invoices/${invoice.id}`);
-                      }
-                    },
-                    onError: (error: any) => {
-                      toast({ title: 'Error', description: error?.message || 'Failed to create invoice', variant: 'destructive' });
-                    },
-                  }
-                );
-              }}
-              disabled={generateInvoice.isPending}
-            >
-              {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
-            </Button>
-            <Button variant="outline" onClick={() => setQuickInvoiceOpen(false)} disabled={generateInvoice.isPending}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <QuickInvoiceDialog 
+        open={quickInvoiceOpen}
+        onOpenChange={setQuickInvoiceOpen}
+        packageId={quickInvoicePackageId}
+        userId={userId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+        }}
+      />
 
       {/* Pay All Invoices Dialog */}
       <Dialog open={payAllInvoicesOpen} onOpenChange={setPayAllInvoicesOpen}>
@@ -874,13 +854,21 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
   loading?: boolean,
   error?: any,
   formatDate?: (date?: string) => string,
-  formatCurrency?: (amount?: number) => string,
+  formatCurrency?: (amount?: number | string) => string,
   pagination?: { page: number, pageSize: number, totalCount: number, totalPages: number },
   page?: number,
   pageSize?: number,
   onPageChange?: (page: number) => void,
   onPageSizeChange?: (size: number) => void,
 }) {
+  // Format payment method by removing underscores and capitalizing words
+  const formatPaymentMethod = (method?: string) => {
+    if (!method) return "-";
+    return method
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  
   // Column definitions and renderers by type
   const columns = useMemo(() => {
     switch (type) {
@@ -900,18 +888,26 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
         ];
       case 'payment':
         return [
-          { key: 'amount', label: 'Amount', render: (row: any) => formatCurrency?.(row.amount) },
-          { key: 'paymentMethod', label: 'Method', render: (row: any) => row.paymentMethod },
+          { key: 'amount', label: 'Amount', render: (row: any) => {
+            return formatCurrency?.(row.amount || row.totalAmount);
+          }},
+          { key: 'paymentMethod', label: 'Method', render: (row: any) => {
+            if (!row.paymentMethod) return '-';
+            return row.paymentMethod
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (c: string) => c.toUpperCase());
+          }},
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="payment" /> },
-          { key: 'paymentDate', label: 'Date', render: (row: any) => formatDate?.(row.paymentDate) },
-          { key: 'id', label: 'Details', render: (row: any) => <Link className="text-primary underline" href={`/admin/payments/${row.id}`}>View</Link> },
+          { key: 'paymentDate', label: 'Date', render: (row: any) => formatDate?.(row.paymentDate || row.createdAt) },
         ];
       case 'invoice':
         return [
           { key: 'invoiceNumber', label: 'Invoice #', render: (row: any) => <Link className="text-primary underline" href={`/admin/invoices/${row.id}`}>{row.invoiceNumber}</Link> },
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="invoice" /> },
-          { key: 'totalAmount', label: 'Total', render: (row: any) => formatCurrency?.(row.totalAmount) },
-          { key: 'issueDate', label: 'Issued', render: (row: any) => formatDate?.(row.issueDate) },
+          { key: 'totalAmount', label: 'Total', render: (row: any) => {
+            return formatCurrency?.(row.totalAmount || row.amount);
+          }},
+          { key: 'issueDate', label: 'Issued', render: (row: any) => formatDate?.(row.issueDate || row.createdAt) },
         ];
       default:
         return [];
@@ -932,26 +928,60 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
       <span>No {type}s found for this customer.</span>
     </div>
   );
+  
+  // Mobile card view for small screens
+  const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+  
   return (
     <div>
-      <div className="overflow-x-auto rounded border mt-2">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr>
-              {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, i) => (
-              <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
-                {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+      {isMobileView ? (
+        // Mobile card view
+        <div className="space-y-4">
+          {data.map((row, i) => (
+            <Card key={row.id || i} className="overflow-hidden">
+              <CardHeader className="p-4 bg-muted/30">
+                <CardTitle className="text-sm font-medium">
+                  {type === 'package' && row.trackingNumber}
+                  {type === 'prealert' && row.trackingNumber}
+                  {type === 'payment' && `Payment #${row.id?.slice(0,8) || i}`}
+                  {type === 'invoice' && row.invoiceNumber}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid gap-1 pt-4">
+                  {columns.map(col => (
+                    <div key={col.key} className="grid grid-cols-2 text-sm">
+                      <span className="font-medium text-muted-foreground">{col.label}</span>
+                      <span>{col.render(row)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        // Desktop table view
+        <div className="overflow-x-auto rounded border mt-2">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr>
+                {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.map((row, i) => (
+                <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
+                  {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-2">
           <div className="text-sm text-muted-foreground">
             Page {pagination.page} of {pagination.totalPages} | {pagination.totalCount} total
           </div>
@@ -1008,7 +1038,19 @@ function formatStatusText(status: string): string {
 
 // EnhancedDataTableWithQuickInvoice: EnhancedDataTable with Quick Invoice button
 function EnhancedDataTableWithQuickInvoice(props: any) {
+  // Format payment method by removing underscores and capitalizing words
+  const formatPaymentMethod = (method?: string) => {
+    if (!method) return "-";
+    return method
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  
   if (props.type !== 'package') return <EnhancedDataTable {...props} />;
+  
+  // Mobile card view for small screens
+  const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+  
   const columns = [
     { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>{row.trackingNumber}</Link> },
     { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> },
@@ -1020,29 +1062,58 @@ function EnhancedDataTableWithQuickInvoice(props: any) {
       </Button>
     ) },
   ];
+  
   if (props.loading) return <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded" />)}</div>;
   if (props.error) return <div className="text-red-600 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Failed to load data.</div>;
   if (!props.data.length) return <div className="flex flex-col items-center py-8 text-muted-foreground"><span className="text-2xl mb-2">🗂️</span><span>No packages found for this customer.</span></div>;
+  
   return (
     <div>
-      <div className="overflow-x-auto rounded border mt-2">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr>
-              {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {props.data.map((row: any, i: number) => (
-              <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
-                {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+      {isMobileView ? (
+        // Mobile card view
+        <div className="space-y-4">
+          {props.data.map((row: any, i: number) => (
+            <Card key={row.id || i} className="overflow-hidden">
+              <CardHeader className="p-4 bg-muted/30">
+                <CardTitle className="text-sm font-medium">
+                  {row.trackingNumber}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid gap-1 pt-4">
+                  {columns.map(col => (
+                    <div key={col.key} className="grid grid-cols-2 text-sm">
+                      <span className="font-medium text-muted-foreground">{col.label}</span>
+                      <span>{col.render(row)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        // Desktop table view
+        <div className="overflow-x-auto rounded border mt-2">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr>
+                {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {props.data.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
+                  {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
       {props.pagination && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-2">
           <div className="text-sm text-muted-foreground">
             Page {props.pagination.page} of {props.pagination.totalPages} | {props.pagination.totalCount} total
           </div>
