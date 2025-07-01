@@ -144,13 +144,12 @@ export default function MatchPreAlertsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tracking #</TableHead>
-                    <TableHead>User</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {packagesLoading ? (
-                    <TableRow><TableCell colSpan={3}>Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2}>Loading...</TableCell></TableRow>
                   ) : packagesData?.data?.length ? (
                     packagesData.data.map((pkg: Package) => (
                       <TableRow
@@ -159,7 +158,6 @@ export default function MatchPreAlertsPage() {
                         onClick={() => setSelectedPackage(pkg)}
                       >
                         <TableCell>{pkg.trackingNumber}</TableCell>
-                        <TableCell>{pkg.userId}</TableCell>
                         <TableCell>
                           <Badge variant={
                             pkg.status === 'received' ? 'secondary'
@@ -175,7 +173,7 @@ export default function MatchPreAlertsPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={3}>No packages found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2}>No packages found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

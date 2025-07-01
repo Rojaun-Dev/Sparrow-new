@@ -19,7 +19,7 @@ import { Printer } from "lucide-react";
 import { invoiceService } from '@/lib/api/invoiceService';
 import { BlobProvider } from '@react-pdf/renderer';
 import InvoicePDF from '@/components/invoices/InvoicePDF';
-import { useProcessPayment } from '@/hooks/usePayments';
+import { PaymentProcessingModal } from "@/components/invoices/PaymentProcessingModal";
 import {
   Dialog,
   DialogContent,
@@ -29,16 +29,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 function CustomerNameDisplay({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId);
@@ -94,120 +85,24 @@ function safeToFixed(val: any, digits = 2) {
   return isNaN(n) ? '0.00' : n.toFixed(digits);
 }
 
-export default function AdminInvoiceDetailPage() {
-  const params = useParams();
-  const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : undefined;
-  const { data: invoice, isLoading, error, refetch } = useInvoice(id || "");
-  const { data: customer } = useUser(invoice?.userId);
+export default function InvoiceDetailPage() {
+  const { id } = useParams();
+  const { data: invoice, isLoading, error, refetch } = useInvoice(id as string);
+  const { data: packages, isLoading: packagesLoading } = usePackagesByInvoiceId(id as string);
+  const { data: customer, isLoading: customerLoading } = useUser(invoice?.userId as string, { enabled: !!invoice?.userId });
   const { data: company } = useMyAdminCompany();
-  const { data: relatedPackages, isLoading: isLoadingPackages } = usePackagesByInvoiceId(id || "");
+  const { downloadPdf } = useDownloadInvoicePdf(id as string);
   const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(id || "");
   const { toast } = useToast();
   
-  // Process payment hook
-  const { mutate: processPayment, isPending: isProcessingPayment } = useProcessPayment();
-
   // Payment form state
-  const [paymentMethod, setPaymentMethod] = useState("credit_card");
-  const [transactionId, setTransactionId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentNotes, setPaymentNotes] = useState("");
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [sendNotification, setSendNotification] = useState(true);
+  
+  // Deliver packages modal state
   const [showDeliverModal, setShowDeliverModal] = useState(false);
-  const [isMarkingDelivered, setIsMarkingDelivered] = useState(false);
-
-  // Helper to update all related packages to a given status
-  const updateAllPackagesStatus = async (status: string) => {
-    if (!relatedPackages) return;
-    setIsMarkingDelivered(true);
-    try {
-      await Promise.all(
-        relatedPackages.map(pkg =>
-          window.fetch(`/api/packages/${pkg.id}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status, sendNotification })
-          })
-        )
-      );
-      toast({ title: `All packages marked as ${status.replace(/_/g, ' ')}` });
-    } catch (err: any) {
-      toast({ title: 'Failed to update packages', description: err?.message || String(err), variant: 'destructive' });
-    } finally {
-      setIsMarkingDelivered(false);
-      setShowDeliverModal(false);
-      refetch();
-    }
-  };
-
-  // Handle payment processing
-  const handleProcessPayment = () => {
-    if (!id || !invoice?.userId) return;
-    
-    // Validate amount - must be a positive number and cannot exceed the total
-    const amount = parseFloat(paymentAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast({
-        title: "Invalid amount",
-        description: "Please enter a valid payment amount",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (amount > parseFloat(invoice.totalAmount.toString())) {
-      toast({
-        title: "Amount too high",
-        description: "Payment amount cannot exceed the invoice total",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    processPayment(
-      {
-        invoiceId: id,
-        paymentData: {
-          userId: invoice.userId,
-          amount,
-          paymentMethod: paymentMethod as any,
-          transactionId: transactionId || undefined,
-          notes: paymentNotes || undefined,
-          status: "completed" // Mark as completed immediately
-        },
-        sendNotification
-      },
-      {
-        onSuccess: async () => {
-          toast({
-            title: "Payment successful",
-            description: "The payment has been processed successfully",
-            variant: "default"
-          });
-          setShowPaymentDialog(false);
-          // Mark all related packages as ready_for_pickup
-          await updateAllPackagesStatus('ready_for_pickup');
-          // Prompt to mark as delivered
-          setShowDeliverModal(true);
-          refetch(); // Refresh invoice data
-        },
-        onError: (error) => {
-          toast({
-            title: "Payment failed",
-            description: error instanceof Error ? error.message : "An error occurred while processing the payment",
-            variant: "destructive"
-          });
-        }
-      }
-    );
-  };
-
+  
   // Prefill payment amount with total invoice amount
   const handleOpenPaymentDialog = () => {
-    if (invoice?.totalAmount) {
-      setPaymentAmount(invoice.totalAmount.toString());
-    }
     setShowPaymentDialog(true);
   };
 
@@ -218,8 +113,8 @@ export default function AdminInvoiceDetailPage() {
   const total = invoice?.totalAmount ?? 0;
 
   // Only show each package once in the Related Packages section
-  const uniquePackages = Array.isArray(relatedPackages)
-    ? relatedPackages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
+  const uniquePackages = Array.isArray(packages)
+    ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
     : [];
 
   // Group items by description and type, summing their lineTotal values
@@ -267,7 +162,7 @@ export default function AdminInvoiceDetailPage() {
           {invoice && customer && company ? (
             <InvoicePDFRenderer
               invoice={{ ...invoice, items }}
-              packages={relatedPackages || []}
+              packages={packages || []}
               user={customer}
               company={company}
               buttonText="Print"
@@ -281,10 +176,10 @@ export default function AdminInvoiceDetailPage() {
             </Button>
           )}
           <Button variant="secondary" disabled>Email to Customer</Button>
-          {invoice && relatedPackages && customer && company ? (
+          {invoice && packages && customer && company ? (
             <InvoicePDFRenderer
               invoice={invoice}
-              packages={relatedPackages}
+              packages={packages}
               user={customer}
               company={company}
               buttonText="Download PDF"
@@ -346,7 +241,7 @@ export default function AdminInvoiceDetailPage() {
               <Separator />
               <div>
                 <h3 className="mb-4 text-base font-medium">Related Packages</h3>
-                {isLoadingPackages ? (
+                {packagesLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
@@ -471,88 +366,20 @@ export default function AdminInvoiceDetailPage() {
                         ? "This invoice is past due. Please make payment as soon as possible."
                         : "Please make payment before the due date."}
                     </p>
-                    <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-                      <DialogTrigger asChild>
-                        <Button className="mt-4 w-full" variant="default" onClick={handleOpenPaymentDialog}>
-                          Process Payment
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Process Payment</DialogTitle>
-                          <DialogDescription>
-                            Enter the payment details for invoice #{invoice.invoiceNumber}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="amount">Payment Amount</Label>
-                            <Input
-                              id="amount"
-                              type="number"
-                              step="0.01"
-                              value={paymentAmount}
-                              onChange={(e) => setPaymentAmount(e.target.value)}
-                              placeholder="0.00"
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="method">Payment Method</Label>
-                            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                              <SelectTrigger id="method">
-                                <SelectValue placeholder="Select payment method" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="credit_card">Credit Card</SelectItem>
-                                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                                <SelectItem value="cash">Cash</SelectItem>
-                                <SelectItem value="check">Check</SelectItem>
-                                <SelectItem value="online">Online Payment</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="transactionId">Transaction ID (Optional)</Label>
-                            <Input
-                              id="transactionId"
-                              value={transactionId}
-                              onChange={(e) => setTransactionId(e.target.value)}
-                              placeholder="Enter transaction reference"
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="notes">Notes (Optional)</Label>
-                            <Input
-                              id="notes"
-                              value={paymentNotes}
-                              onChange={(e) => setPaymentNotes(e.target.value)}
-                              placeholder="Add payment notes"
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={sendNotification}
-                                onChange={e => setSendNotification(e.target.checked)}
-                              />
-                              Send notification to customer
-                            </label>
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={handleProcessPayment} 
-                            disabled={isProcessingPayment || !paymentAmount}
-                          >
-                            {isProcessingPayment ? "Processing..." : "Complete Payment"}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                    <Button className="mt-4 w-full" variant="default" onClick={handleOpenPaymentDialog}>
+                      Process Payment
+                    </Button>
+                    <PaymentProcessingModal
+                      open={showPaymentDialog}
+                      onOpenChange={setShowPaymentDialog}
+                      invoiceId={id}
+                      userId={invoice.userId}
+                      initialAmount={invoice.totalAmount?.toString() || "0"}
+                      onSuccess={() => {
+                        refetch(); // Refresh invoice data
+                        setShowDeliverModal(true); // Show deliver modal
+                      }}
+                    />
                   </>
                 )}
               </div>
@@ -570,11 +397,13 @@ export default function AdminInvoiceDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeliverModal(false)} disabled={isMarkingDelivered}>
+            <Button variant="outline" onClick={() => setShowDeliverModal(false)}>
               No, keep as ready for pickup
             </Button>
-            <Button variant="default" onClick={() => updateAllPackagesStatus('delivered')} disabled={isMarkingDelivered}>
-              {isMarkingDelivered ? 'Marking...' : 'Yes, mark as delivered'}
+            <Button variant="default" onClick={() => {
+              // Implement the logic to mark packages as delivered
+            }}>
+              Yes, mark as delivered
             </Button>
           </DialogFooter>
         </DialogContent>

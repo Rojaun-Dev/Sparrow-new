@@ -27,9 +27,11 @@ import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile';
 import { useQueryClient } from '@tanstack/react-query';
 import { AddPackageModal } from "@/components/packages/AddPackageModal";
 import { useGenerateInvoice } from '@/hooks/useInvoices';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { usePayAllInvoices } from '@/hooks/usePayments';
 import { QuickInvoiceDialog } from "@/components/invoices/QuickInvoiceDialog";
+import { PaymentProcessingModal } from "@/components/invoices/PaymentProcessingModal";
+import { MatchPreAlertModal } from "@/components/pre-alerts/MatchPreAlertModal";
 import {
   Select,
   SelectContent,
@@ -144,6 +146,15 @@ export default function AdminCustomerViewPage() {
   const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [paymentNotes, setPaymentNotes] = useState("");
   const payAllInvoicesMutation = usePayAllInvoices();
+  
+  // Add state for invoice payment modal
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+
+  // Add state for match prealert modal
+  const [matchPreAlertModalOpen, setMatchPreAlertModalOpen] = useState(false);
+  const [selectedPreAlert, setSelectedPreAlert] = useState<any>(null);
 
   // Handlers for action buttons
   const handleAddPackage = useCallback(() => {
@@ -160,6 +171,19 @@ export default function AdminCustomerViewPage() {
   const handleGenerateInvoice = useCallback(() => {
     router.push(`/admin/invoices/create?customerId=${userId}`);
   }, [router, userId]);
+  
+  // Handler for paying a specific invoice
+  const handlePayInvoice = (invoiceId: string, amount: string | number) => {
+    setSelectedInvoiceId(invoiceId);
+    setPaymentAmount(amount.toString());
+    setPaymentModalOpen(true);
+  };
+
+  // Handler for matching a prealert
+  const handleMatchPreAlert = (preAlert: any) => {
+    setSelectedPreAlert(preAlert);
+    setMatchPreAlertModalOpen(true);
+  };
 
   // Handle TRN edit
   const handleTrnEdit = () => {
@@ -362,6 +386,85 @@ export default function AdminCustomerViewPage() {
       <span>Could not determine company for this user.</span>
     </div>
   );
+
+  // Skeleton for the entire page when data is loading
+  if (userLoading || statsLoading) {
+    return (
+      <div className="py-8">
+        <h1 className="text-3xl font-bold tracking-tight mb-6">Customer Details</h1>
+        
+        {/* User info card skeleton */}
+        <Card className="border-2 border-gray-100 mb-8">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-14 w-14 rounded-full" />
+                  <div>
+                    <Skeleton className="h-7 w-48" />
+                    <Skeleton className="h-4 w-32 mt-2" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-8">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-muted-foreground mb-4">Personal Information</h3>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i}>
+                      <dt className="text-sm font-normal text-muted-foreground mb-1">Field</dt>
+                      <dd><Skeleton className="h-5 w-full" /></dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Statistics skeletons */}
+        <h2 className="text-xl font-semibold tracking-tight mt-10 mb-4">Customer Statistics</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="border-blue-200 bg-blue-50/50">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <Skeleton className="h-5 w-24" />
+                </div>
+                <Skeleton className="h-9 w-9 rounded-full" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-20 rounded" />
+                <Skeleton className="h-4 w-32 mt-1" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        {/* Tabs skeleton */}
+        <div className="mt-8">
+          <div className="flex gap-4 mb-4">
+            {["Packages", "Pre-alerts", "Payments", "Invoices"].map((tab, i) => (
+              <Skeleton key={i} className="h-8 w-24" />
+            ))}
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <Skeleton className="h-8 w-full max-w-md mb-4" />
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-8">
@@ -674,6 +777,7 @@ export default function AdminCustomerViewPage() {
                 loading={preAlertsLoading}
                 error={preAlertsError}
                 formatDate={formatDate}
+                onMatchPreAlert={handleMatchPreAlert}
                 {...(isPaginatedResult(preAlertsData) ? {
                   pagination: preAlertsData.pagination,
                   page: prealertsPage,
@@ -762,6 +866,7 @@ export default function AdminCustomerViewPage() {
                 error={invoicesError}
                 formatDate={formatDate}
                 formatCurrency={formatCurrency}
+                onPayInvoice={handlePayInvoice}
                 {...(isPaginatedResult(invoicesData) ? {
                   pagination: invoicesData.pagination,
                   page: invoicesPage,
@@ -843,12 +948,37 @@ export default function AdminCustomerViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Invoice Payment Dialog */}
+      <PaymentProcessingModal
+        open={paymentModalOpen}
+        onOpenChange={setPaymentModalOpen}
+        invoiceId={selectedInvoiceId}
+        userId={userId}
+        initialAmount={paymentAmount}
+        companyId={companyId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+        }}
+      />
+
+      {/* Match PreAlert Modal */}
+      <MatchPreAlertModal
+        open={matchPreAlertModalOpen}
+        onOpenChange={setMatchPreAlertModalOpen}
+        preAlert={selectedPreAlert}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin-user-prealerts', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+        }}
+      />
     </div>
   );
 }
 
 // EnhancedDataTable: Modern, type-aware, pretty table with links, badges, formatting, loading, and empty states
-function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurrency, pagination, page, pageSize, onPageChange, onPageSizeChange }: {
+function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurrency, pagination, page, pageSize, onPageChange, onPageSizeChange, onPayInvoice, onMatchPreAlert }: {
   type: 'package' | 'prealert' | 'payment' | 'invoice',
   data: any[],
   loading?: boolean,
@@ -860,6 +990,8 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
   pageSize?: number,
   onPageChange?: (page: number) => void,
   onPageSizeChange?: (size: number) => void,
+  onPayInvoice?: (invoiceId: string, amount: string | number) => void,
+  onMatchPreAlert?: (preAlert: any) => void,
 }) {
   // Format payment method by removing underscores and capitalizing words
   const formatPaymentMethod = (method?: string) => {
@@ -881,10 +1013,21 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
         ];
       case 'prealert':
         return [
-          { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => row.trackingNumber },
+          { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => (
+            <Link className="text-primary underline" href={`/admin/pre-alerts/${row.id}`}>
+              {row.trackingNumber}
+            </Link>
+          )},
           { key: 'courier', label: 'Courier', render: (row: any) => row.courier },
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="prealert" /> },
           { key: 'estimatedArrival', label: 'Est. Arrival', render: (row: any) => formatDate?.(row.estimatedArrival) },
+          { key: 'actions', label: 'Actions', render: (row: any) => 
+            row.status === 'pending' ? (
+              <Button size="sm" variant="outline" onClick={() => onMatchPreAlert && onMatchPreAlert(row)}>
+                Match
+              </Button>
+            ) : null
+          },
         ];
       case 'payment':
         return [
@@ -908,11 +1051,18 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
             return formatCurrency?.(row.totalAmount || row.amount);
           }},
           { key: 'issueDate', label: 'Issued', render: (row: any) => formatDate?.(row.issueDate || row.createdAt) },
+          { key: 'actions', label: 'Actions', render: (row: any) => 
+            row.status === 'issued' || row.status === 'overdue' ? (
+              <Button size="sm" variant="outline" onClick={() => onPayInvoice && onPayInvoice(row.id, row.totalAmount || row.amount)}>
+                Pay Invoice
+              </Button>
+            ) : null
+          },
         ];
       default:
         return [];
     }
-  }, [type, formatDate, formatCurrency]);
+  }, [type, formatDate, formatCurrency, onPayInvoice, onMatchPreAlert]);
 
   if (loading) return (
     <div className="space-y-2">
@@ -941,10 +1091,22 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
             <Card key={row.id || i} className="overflow-hidden">
               <CardHeader className="p-4 bg-muted/30">
                 <CardTitle className="text-sm font-medium">
-                  {type === 'package' && row.trackingNumber}
-                  {type === 'prealert' && row.trackingNumber}
+                  {type === 'package' && (
+                    <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>
+                      {row.trackingNumber}
+                    </Link>
+                  )}
+                  {type === 'prealert' && (
+                    <Link className="text-primary underline" href={`/admin/pre-alerts/${row.id}`}>
+                      {row.trackingNumber}
+                    </Link>
+                  )}
                   {type === 'payment' && `Payment #${row.id?.slice(0,8) || i}`}
-                  {type === 'invoice' && row.invoiceNumber}
+                  {type === 'invoice' && (
+                    <Link className="text-primary underline" href={`/admin/invoices/${row.id}`}>
+                      {row.invoiceNumber}
+                    </Link>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
