@@ -319,4 +319,58 @@ export class EmailService {
       // Don't throw here, this is not critical for the user flow
     }
   }
+
+  /**
+   * Send a notification when a payment is processed
+   */
+  async sendPaymentConfirmationEmail(
+    to: string,
+    firstName: string,
+    paymentData: {
+      invoiceNumber: string;
+      paymentMethod: string;
+      amount: string | number;
+      paymentDate: string;
+      transactionId?: string;
+      status: string;
+      companyName: string;
+      invoiceId: string;
+      paymentId: string;
+    }
+  ): Promise<void> {
+    try {
+      // Load the email template
+      const templatePath = path.join(__dirname, '../templates/payment-confirmation.html');
+      const templateSource = fs.readFileSync(templatePath, 'utf8');
+      
+      // Compile the template
+      const template = handlebars.compile(templateSource);
+      
+      // Replace variables in the template
+      const html = template({
+        firstName,
+        invoiceNumber: paymentData.invoiceNumber,
+        paymentMethod: paymentData.paymentMethod,
+        amount: paymentData.amount,
+        paymentDate: paymentData.paymentDate,
+        transactionId: paymentData.transactionId || 'N/A',
+        status: paymentData.status,
+        invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${paymentData.invoiceId}`,
+        receiptUrl: `${process.env.FRONTEND_URL}/payments/${paymentData.paymentId}`,
+        companyName: paymentData.companyName || 'Cautious Robot',
+        year: new Date().getFullYear()
+      });
+      
+      // Send the email
+      await this.transporter.sendMail({
+        from: `"${paymentData.companyName || 'Cautious Robot'}" <${this.fromEmail}>`,
+        to,
+        subject: 'Payment Confirmation',
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send payment confirmation email:', error);
+      // Don't throw here, this is not critical for the user flow
+    }
+  }
 } 

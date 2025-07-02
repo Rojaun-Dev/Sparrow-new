@@ -7,9 +7,11 @@ import { PassThrough } from 'stream';
 import { UsersService } from '../services/users-service';
 import { EmailService } from '../services/email-service';
 import { CompaniesService } from '../services/companies-service';
+import { AuditLogsService } from '../services/audit-logs-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
+  userId?: string;
 }
 
 export class PackagesController {
@@ -17,12 +19,14 @@ export class PackagesController {
   private usersService: UsersService;
   private emailService: EmailService;
   private companiesService: CompaniesService;
+  private auditLogsService: AuditLogsService;
 
   constructor() {
     this.service = new PackagesService();
     this.usersService = new UsersService();
     this.emailService = new EmailService();
     this.companiesService = new CompaniesService();
+    this.auditLogsService = new AuditLogsService();
   }
 
   /**
@@ -365,14 +369,34 @@ export class PackagesController {
   matchPreAlertToPackage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
       const { packageId } = req.params;
       const { preAlertId, sendNotification = false } = req.body;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
       if (!preAlertId) {
         return ApiResponse.validationError(res, { message: 'preAlertId is required' });
       }
       
       const result = await this.service.matchPreAlertToPackage(preAlertId, packageId, companyId);
+      
+      // Create audit log for pre-alert assignment
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'match_prealert_to_package',
+        entityType: 'package',
+        entityId: packageId,
+        details: {
+          packageId: packageId,
+          preAlertId: preAlertId,
+          packageTrackingNumber: result.package.trackingNumber,
+          preAlertTrackingNumber: result.preAlert.trackingNumber
+        },
+        ipAddress,
+        userAgent
+      });
       
       // Send notification if requested
       if (sendNotification && result.package && result.preAlert) {
@@ -444,12 +468,36 @@ export class PackagesController {
       const { id } = req.params;
       const { userId } = req.body;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
       if (!userId) {
         return ApiResponse.validationError(res, { message: 'userId is required' });
       }
 
+      // Get the package before update for audit log
+      const packageBefore = await this.service.getPackageById(id, companyId);
+      
       const pkg = await this.service.assignUserToPackage(id, userId, companyId);
+      
+      // Create audit log for customer assignment
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'assign_customer_to_package',
+        entityType: 'package',
+        entityId: id,
+        details: {
+          packageId: id,
+          customerId: userId,
+          trackingNumber: pkg.trackingNumber,
+          previousCustomerId: packageBefore.userId
+        },
+        ipAddress,
+        userAgent
+      });
+
       return ApiResponse.success(res, pkg, 'User assigned to package successfully');
     } catch (error) {
       next(error);

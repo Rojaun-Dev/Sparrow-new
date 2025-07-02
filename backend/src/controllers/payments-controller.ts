@@ -6,18 +6,31 @@ import { PassThrough } from 'stream';
 import { ApiResponse } from '../utils/response';
 import { UsersService } from '../services/users-service';
 import { createPaymentSchema, batchPaymentSchema } from '../validation/payment-schemas';
+import { AuditLogsService } from '../services/audit-logs-service';
+import { EmailService } from '../services/email-service';
+import { CompaniesService } from '../services/companies-service';
+import { InvoicesService } from '../services/invoices-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
+  userId?: string;
 }
 
 export class PaymentsController {
   private paymentsService: PaymentsService;
   private usersService: UsersService;
+  private auditLogsService: AuditLogsService;
+  private emailService: EmailService;
+  private companiesService: CompaniesService;
+  private invoicesService: InvoicesService;
 
   constructor() {
     this.paymentsService = new PaymentsService();
     this.usersService = new UsersService();
+    this.auditLogsService = new AuditLogsService();
+    this.emailService = new EmailService();
+    this.companiesService = new CompaniesService();
+    this.invoicesService = new InvoicesService();
   }
 
   /**
@@ -74,6 +87,9 @@ export class PaymentsController {
   createPayment = async (req: AuthRequest, res: Response) => {
     try {
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       const { sendNotification = false, ...paymentData } = req.body;
       
       // Validate payment data
@@ -89,6 +105,27 @@ export class PaymentsController {
       // Create the payment
       const payment = await this.paymentsService.createPayment(paymentData, companyId);
       
+      if (payment) {
+        // Create audit log for payment creation
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'payment_creation',
+          entityType: 'payment',
+          entityId: payment.id,
+          details: {
+            paymentId: payment.id,
+            amount: payment.amount,
+            paymentMethod: payment.paymentMethod,
+            status: payment.status,
+            invoiceId: payment.invoiceId,
+            customerId: payment.userId
+          },
+          ipAddress,
+          userAgent
+        });
+      }
+      
       // If payment status is completed, update the invoice
       if (payment && payment.status === 'completed') {
         await this.paymentsService.completePayment(payment.id, companyId);
@@ -102,14 +139,40 @@ export class PaymentsController {
           if (user && 
               user.email && 
               user.notificationPreferences?.email && 
-              user.notificationPreferences?.paymentConfirmations?.email) {
+              user.notificationPreferences?.billingUpdates?.email) {
+            
+            // Get invoice details for the email
+            const invoice = await this.invoicesService.getInvoiceById(payment.invoiceId, companyId);
+            
+            // Get company name
+            const company = await this.companiesService.getCompanyById(companyId);
+            const companyName = company ? company.name : 'Cautious Robot';
+            
+            // Format the payment date
+            const paymentDate = payment.paymentDate ? 
+              new Date(payment.paymentDate).toLocaleDateString() : 
+              new Date().toLocaleDateString();
             
             // Send payment confirmation email
-            // (You'll need to create this method in EmailService)
-            // await this.emailService.sendPaymentConfirmationEmail(...);
+            await this.emailService.sendPaymentConfirmationEmail(
+              user.email,
+              user.firstName,
+              {
+                invoiceNumber: invoice.invoiceNumber || '',
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                paymentDate: paymentDate,
+                transactionId: payment.transactionId || undefined,
+                status: payment.status,
+                companyName,
+                invoiceId: payment.invoiceId,
+                paymentId: payment.id
+              }
+            );
           }
         } catch (emailError) {
           console.error('Failed to send payment notification:', emailError);
+          // Don't fail the request if email sending fails
         }
       }
       
@@ -160,9 +223,51 @@ export class PaymentsController {
       // Send notification if requested and any payments were successful
       if (sendNotification && results.length > 0) {
         try {
-          // You may want to send notifications here
+          // Process notifications for each successful payment
+          for (const payment of results) {
+            if (payment && payment.userId) {
+              const user = await this.usersService.getUserById(payment.userId, companyId);
+              
+              // Only send if the user has email notifications enabled
+              if (user && 
+                  user.email && 
+                  user.notificationPreferences?.email && 
+                  user.notificationPreferences?.billingUpdates?.email) {
+                
+                // Get invoice details for the email
+                const invoice = await this.invoicesService.getInvoiceById(payment.invoiceId, companyId);
+                
+                // Get company name
+                const company = await this.companiesService.getCompanyById(companyId);
+                const companyName = company ? company.name : 'Cautious Robot';
+                
+                // Format the payment date
+                const paymentDate = payment.paymentDate ? 
+                  new Date(payment.paymentDate).toLocaleDateString() : 
+                  new Date().toLocaleDateString();
+                
+                // Send payment confirmation email
+                await this.emailService.sendPaymentConfirmationEmail(
+                  user.email,
+                  user.firstName,
+                  {
+                    invoiceNumber: invoice.invoiceNumber || '',
+                    paymentMethod: payment.paymentMethod,
+                    amount: payment.amount,
+                    paymentDate: paymentDate,
+                    transactionId: payment.transactionId || undefined,
+                    status: payment.status,
+                    companyName,
+                    invoiceId: payment.invoiceId,
+                    paymentId: payment.id
+                  }
+                );
+              }
+            }
+          }
         } catch (emailError) {
           console.error('Failed to send batch payment notification:', emailError);
+          // Don't fail the request if email sending fails
         }
       }
       
@@ -185,8 +290,43 @@ export class PaymentsController {
     try {
       const { id } = req.params;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      // Get payment before update for audit log
+      const paymentBefore = await this.paymentsService.getById(id, companyId);
       
       const payment = await this.paymentsService.updatePayment(id, req.body, companyId);
+      
+      if (payment && paymentBefore) {
+        // Create audit log for payment update
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'payment_update',
+          entityType: 'payment',
+          entityId: id,
+          details: {
+            paymentId: id,
+            previousStatus: paymentBefore.status,
+            newStatus: payment.status,
+            changes: Object.keys(req.body).reduce<Record<string, {from: any, to: any}>>((acc, key) => {
+              const k = key as keyof typeof paymentBefore;
+              if (paymentBefore[k] !== req.body[k]) {
+                acc[key] = {
+                  from: paymentBefore[k],
+                  to: req.body[k]
+                };
+              }
+              return acc;
+            }, {})
+          },
+          ipAddress,
+          userAgent
+        });
+      }
+      
       return ApiResponse.success(res, payment, 'Payment updated successfully');
     } catch (error: any) {
       console.error('Error updating payment:', error);
