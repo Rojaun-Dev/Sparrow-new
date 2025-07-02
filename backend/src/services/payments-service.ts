@@ -4,6 +4,7 @@ import { payments } from '../db/schema/payments';
 import { InvoicesService } from './invoices-service';
 import { z } from 'zod';
 import { CompanySettingsService } from './company-settings-service';
+import { PackagesService } from './packages-service';
 import axios from 'axios';
 // Import removed as it's not used
 
@@ -39,6 +40,7 @@ export class PaymentsService extends BaseService<typeof payments> {
   private invoicesService: InvoicesService;
   private paymentsRepository: PaymentsRepository;
   private companySettingsService: CompanySettingsService;
+  private packagesService: PackagesService;
 
   constructor() {
     const repository = new PaymentsRepository();
@@ -46,6 +48,7 @@ export class PaymentsService extends BaseService<typeof payments> {
     this.paymentsRepository = repository;
     this.invoicesService = new InvoicesService();
     this.companySettingsService = new CompanySettingsService();
+    this.packagesService = new PackagesService();
   }
 
   /**
@@ -127,6 +130,9 @@ export class PaymentsService extends BaseService<typeof payments> {
         status: 'paid',
       }, companyId);
     }
+    
+    // Update packages associated with the invoice
+    await this.packagesService.updatePackageStatusAfterPayment(payment.invoiceId, companyId);
     
     return updatedPayment;
   }

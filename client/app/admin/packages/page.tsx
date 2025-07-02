@@ -214,9 +214,9 @@ export default function PackagesPage() {
 
   // State for send notification checkboxes
   const [sendNotificationOnDelete, setSendNotificationOnDelete] = useState(true);
-  const [sendNotificationOnReady, setSendNotificationOnReady] = useState(true);
-  const [markReadyDialogOpen, setMarkReadyDialogOpen] = useState(false);
-  const [packageToMarkReady, setPackageToMarkReady] = useState<string | null>(null);
+  const [sendNotificationOnDelivered, setSendNotificationOnDelivered] = useState(true);
+  const [markDeliveredDialogOpen, setMarkDeliveredDialogOpen] = useState(false);
+  const [packageToMarkDelivered, setPackageToMarkDelivered] = useState<string | null>(null);
   const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
   const [quickInvoiceUserId, setQuickInvoiceUserId] = useState<string | null>(null);
   const [showQuickInvoiceDialog, setShowQuickInvoiceDialog] = useState(false);
@@ -641,16 +641,16 @@ export default function PackagesPage() {
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      if (pkg.status !== 'ready_for_pickup' && pkg.status !== 'delivered' && pkg.status !== 'returned') {
-                                        setPackageToMarkReady(pkg.id);
-                                        setSendNotificationOnReady(true);
-                                        setMarkReadyDialogOpen(true);
+                                      if (pkg.status !== 'delivered' && pkg.status !== 'returned') {
+                                        setPackageToMarkDelivered(pkg.id);
+                                        setSendNotificationOnDelivered(true);
+                                        setMarkDeliveredDialogOpen(true);
                                       }
                                     }}
-                                    disabled={updateStatusMutation.isPending || pkg.status === 'ready_for_pickup' || pkg.status === 'delivered' || pkg.status === 'returned'}
+                                    disabled={updateStatusMutation.isPending || pkg.status === 'delivered' || pkg.status === 'returned'}
                                   >
                                     <Truck className="mr-2 h-4 w-4" />
-                                    Mark as Ready
+                                    Mark as Delivered
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
@@ -749,32 +749,32 @@ export default function PackagesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={markReadyDialogOpen} onOpenChange={setMarkReadyDialogOpen}>
+      <Dialog open={markDeliveredDialogOpen} onOpenChange={setMarkDeliveredDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark as Ready</DialogTitle>
+            <DialogTitle>Mark as Delivered</DialogTitle>
             <DialogDescription>
-              Are you sure you want to mark this package as ready for pickup?
+              Are you sure you want to mark this package as delivered?
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 mt-2">
             <input
               type="checkbox"
-              id="send-notification-ready"
-              checked={sendNotificationOnReady}
-              onChange={e => setSendNotificationOnReady(e.target.checked)}
+              id="send-notification-delivered"
+              checked={sendNotificationOnDelivered}
+              onChange={e => setSendNotificationOnDelivered(e.target.checked)}
             />
-            <label htmlFor="send-notification-ready" className="text-sm">Send notification</label>
+            <label htmlFor="send-notification-delivered" className="text-sm">Send notification</label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMarkReadyDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setMarkDeliveredDialogOpen(false)}>
               Cancel
             </Button>
             <Button variant="default" onClick={() => {
-              if (packageToMarkReady) updateStatusMutation.mutate({ id: packageToMarkReady, status: 'ready_for_pickup', sendNotification: sendNotificationOnReady });
-              setMarkReadyDialogOpen(false);
+              if (packageToMarkDelivered) updateStatusMutation.mutate({ id: packageToMarkDelivered, status: 'delivered', sendNotification: sendNotificationOnDelivered });
+              setMarkDeliveredDialogOpen(false);
             }} disabled={updateStatusMutation.isPending}>
-              {updateStatusMutation.isPending ? 'Marking...' : 'Mark as Ready'}
+              {updateStatusMutation.isPending ? 'Marking...' : 'Mark as Delivered'}
             </Button>
           </DialogFooter>
         </DialogContent>
