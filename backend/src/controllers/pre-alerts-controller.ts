@@ -149,22 +149,24 @@ export class PreAlertsController {
       const preAlert = await this.service.createPreAlert(req.body, companyId);
       
       // Create audit log for pre-alert creation
-      await this.auditLogsService.createLog({
-        userId: creatorUserId,
-        companyId,
-        action: 'create_prealert',
-        entityType: 'pre_alert',
-        entityId: preAlert.id,
-        details: {
-          preAlertId: preAlert.id,
-          trackingNumber: preAlert.trackingNumber,
-          customerId: preAlert.userId,
-          courier: preAlert.courier,
-          estimatedArrival: preAlert.estimatedArrival
-        },
-        ipAddress,
-        userAgent
-      });
+      if (preAlert) {
+        await this.auditLogsService.createLog({
+          userId: creatorUserId,
+          companyId,
+          action: 'create_prealert',
+          entityType: 'pre_alert',
+          entityId: preAlert.id || '',
+          details: {
+            preAlertId: preAlert.id || '',
+            trackingNumber: preAlert.trackingNumber || '',
+            customerId: preAlert.userId || '',
+            courier: preAlert.courier || '',
+            estimatedArrival: preAlert.estimatedArrival
+          },
+          ipAddress,
+          userAgent
+        });
+      }
 
       return ApiResponse.success(res, preAlert, 'Pre-alert created successfully', 201);
     } catch (error) {

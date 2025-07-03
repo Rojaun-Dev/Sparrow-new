@@ -391,8 +391,8 @@ export class PackagesController {
         details: {
           packageId: packageId,
           preAlertId: preAlertId,
-          packageTrackingNumber: result.package.trackingNumber,
-          preAlertTrackingNumber: result.preAlert.trackingNumber
+          packageTrackingNumber: result.package?.trackingNumber || '',
+          preAlertTrackingNumber: result.preAlert?.trackingNumber || ''
         },
         ipAddress,
         userAgent
@@ -491,8 +491,8 @@ export class PackagesController {
         details: {
           packageId: id,
           customerId: userId,
-          trackingNumber: pkg.trackingNumber,
-          previousCustomerId: packageBefore.userId
+          trackingNumber: pkg?.trackingNumber || '',
+          previousCustomerId: packageBefore.userId || null
         },
         ipAddress,
         userAgent

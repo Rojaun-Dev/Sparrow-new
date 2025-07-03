@@ -63,23 +63,25 @@ export class BillingController {
       const invoice = await this.service.generateInvoice(invoiceData, companyId);
 
       // Create audit log for manual invoice creation
-      await this.auditLogsService.createLog({
-        userId: adminUserId,
-        companyId,
-        action: 'manual_invoice_creation',
-        entityType: 'invoice',
-        entityId: invoice.id,
-        details: {
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          customerId: invoice.userId,
-          amount: invoice.totalAmount,
-          packages: invoice.items?.filter((item: any) => item.packageId).map((item: any) => item.packageId) || [],
-          packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0
-        },
-        ipAddress,
-        userAgent
-      });
+      if (invoice) {
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'manual_invoice_creation',
+          entityType: 'invoice',
+          entityId: invoice.id || '',
+          details: {
+            invoiceId: invoice.id || '',
+            invoiceNumber: invoice.invoiceNumber || '',
+            customerId: invoice.userId || '',
+            amount: invoice.totalAmount || 0,
+            packages: invoice.items?.filter((item: any) => item.packageId).map((item: any) => item.packageId) || [],
+            packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0
+          },
+          ipAddress,
+          userAgent
+        });
+      }
 
       // Send notification if requested
       if (sendNotification && invoice && invoice.userId) {
@@ -141,23 +143,25 @@ export class BillingController {
       const invoice = await this.service.generateInvoiceForUser(userId, companyId);
 
       // Create audit log for quick invoice creation
-      await this.auditLogsService.createLog({
-        userId: adminUserId,
-        companyId,
-        action: 'quick_invoice_creation',
-        entityType: 'invoice',
-        entityId: invoice.id,
-        details: {
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          customerId: invoice.userId,
-          amount: invoice.totalAmount,
-          packages: invoice.items?.filter((item: any) => item.packageId).map((item: any) => item.packageId) || [],
-          packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0
-        },
-        ipAddress,
-        userAgent
-      });
+      if (invoice) {
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'quick_invoice_creation',
+          entityType: 'invoice',
+          entityId: invoice.id || '',
+          details: {
+            invoiceId: invoice.id || '',
+            invoiceNumber: invoice.invoiceNumber || '',
+            customerId: invoice.userId || '',
+            amount: invoice.totalAmount || 0,
+            packages: invoice.items?.filter((item: any) => item.packageId).map((item: any) => item.packageId) || [],
+            packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0
+          },
+          ipAddress,
+          userAgent
+        });
+      }
 
       // Send notification if requested
       if (sendNotification && invoice && invoice.userId) {

@@ -661,11 +661,16 @@ export class PackagesService {
     }
     
     // Update each package status to ready_for_pickup
-    const updatePromises = packages.map(pkg => 
-      this.packagesRepository.update(pkg.id, { 
-        status: 'ready_for_pickup'
-      }, companyId)
-    );
+    const updatePromises = packages.map(pkg => {
+      // Access the package id directly from the joined result
+      const packageId = pkg.packages?.id;
+      if (packageId) {
+        return this.packagesRepository.update(packageId, { 
+          status: 'ready_for_pickup'
+        }, companyId);
+      }
+      return Promise.resolve(null);
+    }).filter(promise => promise !== null);
     
     // Wait for all updates to complete
     const results = await Promise.all(updatePromises);
