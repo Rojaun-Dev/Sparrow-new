@@ -412,23 +412,23 @@ export class PackagesController {
             
             // Get company name
             const company = await this.companiesService.getCompanyById(companyId);
-            const companyName = company ? company.name : 'Cautious Robot';
+            const companyName = company && company.name ? company.name : 'Cautious Robot';
             
             // Format data for the email
             await this.emailService.sendPreAlertMatchedEmail(
               user.email,
               user.firstName,
               {
-                preAlertTrackingNumber: result.preAlert.trackingNumber,
-                packageTrackingNumber: result.package.trackingNumber,
+                preAlertTrackingNumber: result.preAlert.trackingNumber || '',
+                packageTrackingNumber: result.package.trackingNumber || '',
                 courier: result.preAlert.courier || '',
                 description: result.package.description || result.preAlert.description || '',
-                status: result.package.status,
+                status: result.package.status || 'received',
                 receivedDate: result.package.receivedDate ? 
                   new Date(result.package.receivedDate).toLocaleDateString() : 
                   new Date().toLocaleDateString(),
                 companyName,
-                packageId: result.package.id
+                packageId: result.package.id || ''
               }
             );
           }

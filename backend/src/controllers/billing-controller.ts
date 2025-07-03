@@ -97,7 +97,7 @@ export class BillingController {
             
             // Get company name
             const company = await this.companiesService.getCompanyById(companyId);
-            const companyName = company ? company.name : 'Cautious Robot';
+            const companyName = company && company.name ? company.name : 'Cautious Robot';
             
             // Format data for the email
             await this.emailService.sendInvoiceGeneratedEmail(
@@ -111,7 +111,7 @@ export class BillingController {
                 amount: invoice.totalAmount || 0,
                 packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0,
                 companyName,
-                invoiceId: invoice.id
+                invoiceId: invoice.id || ''
               }
             );
           }
@@ -177,7 +177,7 @@ export class BillingController {
             
             // Get company name
             const company = await this.companiesService.getCompanyById(companyId);
-            const companyName = company ? company.name : 'Cautious Robot';
+            const companyName = company && company.name ? company.name : 'Cautious Robot';
             
             // Format data for the email
             await this.emailService.sendInvoiceGeneratedEmail(
@@ -191,7 +191,7 @@ export class BillingController {
                 amount: invoice.totalAmount || 0,
                 packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0,
                 companyName,
-                invoiceId: invoice.id
+                invoiceId: invoice.id || ''
               }
             );
           }

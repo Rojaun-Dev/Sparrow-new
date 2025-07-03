@@ -385,8 +385,7 @@ export class PackagesService {
     // Update package status to pre_alert if it's in received or in_transit state
     if (existingPackage.status === 'received' || existingPackage.status === 'in_transit') {
       await this.packagesRepository.update(packageId, { 
-        status: 'pre_alert',
-        preAlertId // Add the preAlertId to the package
+        status: 'pre_alert'
       }, companyId);
       
       // Refresh the package data
