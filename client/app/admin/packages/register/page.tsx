@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { packageService } from "@/lib/api/packageService";
 import { usersService } from "@/lib/api/customerService";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
 
 const PREDEFINED_TAGS = [
   "fragile", "urgent", "oversized", "perishable", "high value", "documents", "general", "other"
@@ -133,161 +134,170 @@ export default function RegisterPackagePage() {
   };
 
   return (
-    <div className="bg-background py-8">
-      <div className="bg-white border border-gray-200 rounded-lg p-10 w-full max-w-4xl ">
-        <Button variant="outline" type="button" onClick={() => router.back()} className="mb-4 flex items-center gap-2">
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </Button>
-        <h1 className="text-2xl font-bold mb-6">Register Package</h1>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-2 text-sm">
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Customer</label>
-            <div className="relative">
-              <button
-                type="button"
-                className="w-full h-8 border rounded px-2 text-left bg-white"
-                onClick={() => setCustomerDropdownOpen(v => !v)}
-              >
-                {selectedCustomer
-                  ? `${selectedCustomer.firstName} ${selectedCustomer.lastName} (${selectedCustomer.email})`
-                  : customerLoading ? "Loading..." : "Search and select customer..."}
-              </button>
-              {customerDropdownOpen && (
-                <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search customer by name or email..."
-                      value={customerQuery}
-                      onValueChange={setCustomerQuery}
-                      autoFocus
-                    />
-                    <CommandList>
-                      {customerLoading && <div className="p-2 text-xs text-muted-foreground">Loading...</div>}
-                      <CommandEmpty>No customers found.</CommandEmpty>
-                      {filteredCustomers.map(u => (
-                        <CommandItem
-                          key={u.id}
-                          value={`${u.firstName} ${u.lastName} ${u.email}`}
-                          onSelect={() => {
-                            setValue("userId", u.id);
-                            setCustomerDropdownOpen(false);
-                          }}
-                        >
-                          {u.firstName} {u.lastName} <span className="text-muted-foreground ml-1">({u.email})</span>
-                        </CommandItem>
-                      ))}
-                    </CommandList>
-                  </Command>
-                </div>
-              )}
-            </div>
-            <input type="hidden" {...register("userId")}/>
-            {errors.userId && <div className="text-red-600 text-xs">{errors.userId.message}</div>}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="mx-auto px-4">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+          <Button variant="outline" type="button" onClick={() => router.back()} className="mb-6 flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
+          <h1 className="text-2xl font-bold mb-6">Register Package</h1>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
-              <label className="block text-xs font-medium mb-1">Tracking Number</label>
-              <Input {...register("trackingNumber")} className="h-8"/>
-              {errors.trackingNumber && <div className="text-red-600 text-xs">{errors.trackingNumber.message}</div>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Weight (kg)</label>
-              <Input type="number" step="0.01" min="0" {...register("weight") } className="h-8"/>
-              {errors.weight && <div className="text-red-600 text-xs">{errors.weight.message}</div>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Status</label>
-              <select {...register("status")} className="border rounded px-2 py-1 w-full h-8">
-                <option value="received">Received</option>
-                <option value="processed">Processed</option>
-                <option value="ready_for_pickup">Ready for Pickup</option>
-                <option value="delivered">Delivered</option>
-                <option value="returned">Returned</option>
-                <option value="pre_alert">Pre-Alert</option>
-              </select>
-              {errors.status && <div className="text-red-600 text-xs">{errors.status.message}</div>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Declared Value ($)</label>
-              <Input type="number" step="0.01" min="0" {...register("declaredValue")} className="h-8"/>
-              {errors.declaredValue && <div className="text-red-600 text-xs">{errors.declaredValue.message}</div>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Description</label>
-              <Input {...register("description")} className="h-8"/>
-              {errors.description && <div className="text-red-600 text-xs">{errors.description.message}</div>}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1">Dimensions (cm)</label>
-              <div className="flex gap-2">
-                <Input type="number" step="0.01" min="0" placeholder="Length" {...register("dimensions.length")} className="h-8 w-1/3"/>
-                <Input type="number" step="0.01" min="0" placeholder="Width" {...register("dimensions.width")} className="h-8 w-1/3"/>
-                <Input type="number" step="0.01" min="0" placeholder="Height" {...register("dimensions.height")} className="h-8 w-1/3"/>
+              <label className="block text-sm font-medium mb-2">Customer</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  className="w-full h-10 border border-gray-300 rounded-md px-3 text-left bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  onClick={() => setCustomerDropdownOpen(v => !v)}
+                >
+                  {selectedCustomer
+                    ? `${selectedCustomer.firstName} ${selectedCustomer.lastName} (${selectedCustomer.email})`
+                    : customerLoading ? "Loading..." : "Search and select customer..."}
+                </button>
+                {customerDropdownOpen && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search customer by name or email..."
+                        value={customerQuery}
+                        onValueChange={setCustomerQuery}
+                        autoFocus
+                      />
+                      <CommandList>
+                        {customerLoading && <div className="p-2 text-sm text-gray-500">Loading...</div>}
+                        <CommandEmpty>No customers found.</CommandEmpty>
+                        {filteredCustomers.map(u => (
+                          <CommandItem
+                            key={u.id}
+                            value={`${u.firstName} ${u.lastName} ${u.email}`}
+                            onSelect={() => {
+                              setValue("userId", u.id);
+                              setCustomerDropdownOpen(false);
+                            }}
+                          >
+                            {u.firstName} {u.lastName} <span className="text-gray-500 ml-1">({u.email})</span>
+                          </CommandItem>
+                        ))}
+                      </CommandList>
+                    </Command>
+                  </div>
+                )}
               </div>
-              {(errors.dimensions?.length || errors.dimensions?.width || errors.dimensions?.height) && (
-                <div className="text-red-600 text-xs">
-                  {errors.dimensions?.length?.message || errors.dimensions?.width?.message || errors.dimensions?.height?.message}
-                </div>
-              )}
+              <input type="hidden" {...register("userId")}/>
+              {errors.userId && <div className="text-red-600 text-sm mt-1">{errors.userId.message}</div>}
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Sender Info</label>
-              <div className="flex flex-col gap-2">
-                <Input placeholder="Name" {...register("senderInfo.name")} className="h-8"/>
-                <Input placeholder="Address" {...register("senderInfo.address")} className="h-8"/>
-                <Input placeholder="Phone" {...register("senderInfo.phone")} className="h-8"/>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium mb-2">Tracking Number</label>
+                <Input {...register("trackingNumber")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                {errors.trackingNumber && <div className="text-red-600 text-sm mt-1">{errors.trackingNumber.message}</div>}
               </div>
-              {(errors.senderInfo?.name || errors.senderInfo?.address || errors.senderInfo?.phone) && (
-                <div className="text-red-600 text-xs">
-                  {errors.senderInfo?.name?.message || errors.senderInfo?.address?.message || errors.senderInfo?.phone?.message}
+              <div>
+                <label className="block text-sm font-medium mb-2">Weight (kg)</label>
+                <Input type="number" step="0.01" min="0" {...register("weight")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                {errors.weight && <div className="text-red-600 text-sm mt-1">{errors.weight.message}</div>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Status</label>
+                <select {...register("status")} className="border border-gray-300 rounded-md px-3 py-2 w-full h-10 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                  <option value="received">Received</option>
+                  <option value="processed">Processed</option>
+                  <option value="ready_for_pickup">Ready for Pickup</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="returned">Returned</option>
+                  <option value="pre_alert">Pre-Alert</option>
+                </select>
+                {errors.status && <div className="text-red-600 text-sm mt-1">{errors.status.message}</div>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Declared Value ($)</label>
+                <Input type="number" step="0.01" min="0" {...register("declaredValue")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                {errors.declaredValue && <div className="text-red-600 text-sm mt-1">{errors.declaredValue.message}</div>}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Description</label>
+              <Input {...register("description")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+              {errors.description && <div className="text-red-600 text-sm mt-1">{errors.description.message}</div>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium mb-2">Dimensions (cm)</label>
+                <div className="flex gap-3">
+                  <Input type="number" step="0.01" min="0" placeholder="Length" {...register("dimensions.length")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                  <Input type="number" step="0.01" min="0" placeholder="Width" {...register("dimensions.width")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                  <Input type="number" step="0.01" min="0" placeholder="Height" {...register("dimensions.height")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
                 </div>
-              )}
+                {(errors.dimensions?.length || errors.dimensions?.width || errors.dimensions?.height) && (
+                  <div className="text-red-600 text-sm mt-1">
+                    {errors.dimensions?.length?.message || errors.dimensions?.width?.message || errors.dimensions?.height?.message}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Sender Info</label>
+                <div className="space-y-3">
+                  <Input placeholder="Name" {...register("senderInfo.name")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                  <Input placeholder="Address" {...register("senderInfo.address")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                  <Input placeholder="Phone" {...register("senderInfo.phone")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                </div>
+                {(errors.senderInfo?.name || errors.senderInfo?.address || errors.senderInfo?.phone) && (
+                  <div className="text-red-600 text-sm mt-1">
+                    {errors.senderInfo?.name?.message || errors.senderInfo?.address?.message || errors.senderInfo?.phone?.message}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          {/* Tags section */}
-          <div>
-            <label className="block text-xs font-medium mb-1">Tags</label>
-            <div className="flex flex-wrap gap-2 mb-1">
-              {selectedTags.map(tag => (
-                <Badge key={tag} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center gap-1">
-                  {tag}
-                  <button type="button" className="ml-1 text-xs text-red-500 hover:text-red-700" onClick={() => handleRemoveTag(tag)}>&times;</button>
-                </Badge>
-              ))}
-            </div>
-            <div className="flex gap-2 items-center">
-              <select onChange={handleTagSelect} className="border rounded px-2 py-1 h-8">
-                <option value="">Add tag...</option>
-                {PREDEFINED_TAGS.filter(tag => !selectedTags.includes(tag)).map(tag => (
-                  <option key={tag} value={tag}>{tag}</option>
+
+            {/* Tags section */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Tags</label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {selectedTags.map(tag => (
+                  <Badge key={tag} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center gap-2">
+                    {tag}
+                    <button type="button" className="ml-1 text-sm text-red-500 hover:text-red-700" onClick={() => handleRemoveTag(tag)}>&times;</button>
+                  </Badge>
                 ))}
-              </select>
-              <Input
-                placeholder="Custom tag"
-                value={customTag}
-                onChange={e => setCustomTag(e.target.value)}
-                className="h-8 w-32"
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleCustomTagAdd(); } }}
-              />
-              <Button type="button" size="sm" onClick={handleCustomTagAdd} className="h-8">Add</Button>
+              </div>
+              <div className="flex gap-3 items-center">
+                <select onChange={handleTagSelect} className="border border-gray-300 rounded-md px-3 py-2 h-10 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                  <option value="">Add tag...</option>
+                  {PREDEFINED_TAGS.filter(tag => !selectedTags.includes(tag)).map(tag => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+                <Input
+                  placeholder="Custom tag"
+                  value={customTag}
+                  onChange={e => setCustomTag(e.target.value)}
+                  className="h-10 w-40 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleCustomTagAdd(); } }}
+                />
+                <Button type="button" size="sm" onClick={handleCustomTagAdd} className="h-10 px-4">Add</Button>
+              </div>
             </div>
-          </div>
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-medium mb-1">Notes</label>
-            <Input {...register("notes")} className="h-8"/>
-            {errors.notes && <div className="text-red-600 text-xs">{errors.notes.message}</div>}
-          </div>
-          {mutation.isError && <div className="text-red-600 text-xs">{(mutation.error as any)?.message || "Failed to register package"}</div>}
-          <div className="flex justify-end gap-2 mt-4">
-            <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? "Registering..." : "Register Package"}
-            </Button>
-          </div>
-        </form>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Notes</label>
+              <Input {...register("notes")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+              {errors.notes && <div className="text-red-600 text-sm mt-1">{errors.notes.message}</div>}
+            </div>
+
+            {mutation.isError && <div className="text-red-600 text-sm">{(mutation.error as any)?.message || "Failed to register package"}</div>}
+            
+            <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+              <Button type="submit" disabled={isSubmitting || mutation.isPending} className="px-6">
+                {mutation.isPending ? "Registering..." : "Register Package"}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

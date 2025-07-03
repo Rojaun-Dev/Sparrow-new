@@ -279,7 +279,7 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
    * Find packages by invoice ID
    */
   async findByInvoiceId(invoiceId: string, companyId: string) {
-    return this.db
+    const results = await this.db
       .select()
       .from(this.table)
       .innerJoin(
@@ -291,6 +291,9 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       )
       .where(eq(this.table.companyId, companyId))
       .orderBy(desc(this.table.receivedDate));
+    
+    // Extract only the package data from the joined results
+    return results.map(result => result.packages);
   }
   
   /**

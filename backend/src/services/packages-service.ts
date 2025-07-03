@@ -145,11 +145,9 @@ export class PackagesService {
    */
   async getPackageById(id: string, companyId: string) {
     const pkg = await this.packagesRepository.findById(id, companyId);
-    
     if (!pkg) {
       throw AppError.notFound('Package not found');
     }
-    
     return pkg;
   }
 
