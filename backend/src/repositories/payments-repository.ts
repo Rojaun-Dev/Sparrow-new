@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { BaseRepository } from './base-repository';
 import { payments, paymentStatusEnum } from '../db/schema/payments';
 import { invoices } from '../db/schema/invoices';
+import { users } from '../db/schema/users';
 
 export class PaymentsRepository extends BaseRepository<typeof payments> {
   constructor() {
@@ -215,14 +216,29 @@ export class PaymentsRepository extends BaseRepository<typeof payments> {
     
     const totalCount = Number(countResult[0].count);
     
-    // Get paginated results
-    const results = await this.db
-      .select()
+    // Get paginated results including invoice number and customer name
+    const joinedResults = await this.db
+      .select({
+        payment: this.table, // all payment columns nested under 'payment'
+        invoiceNumber: invoices.invoiceNumber,
+        customerFirstName: users.firstName,
+        customerLastName: users.lastName,
+      })
       .from(this.table)
+      .leftJoin(invoices, eq(this.table.invoiceId, invoices.id))
+      .leftJoin(users, eq(this.table.userId, users.id))
       .where(and(...conditions))
       .orderBy(sql`${this.table[sortBy as keyof typeof this.table]} ${sortDirection}`)
       .limit(pageSize)
       .offset(offset);
+    
+    // Flatten the structure so that payment fields are top-level along with invoiceNumber and customer names
+    const results = joinedResults.map((row: any) => ({
+      ...row.payment,
+      invoiceNumber: row.invoiceNumber,
+      customerFirstName: row.customerFirstName,
+      customerLastName: row.customerLastName,
+    }));
     
     return {
       data: results,

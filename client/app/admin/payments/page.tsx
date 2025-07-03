@@ -173,14 +173,27 @@ export default function PaymentsPage() {
                 ) : (
                   payments.map((payment) => (
                     <TableRow key={payment.id}>
+                      {/* Invoice number */}
                       <TableCell>
                         <Link href={`/admin/invoices/${payment.invoiceId}`} className="text-primary hover:underline">
-                          {payment.invoiceId.substring(0, 8)}...
+                          {/* Prefer the human-readable invoice number if we have it */}
+                          {(
+                            (payment as any).invoiceNumber || // populated by backend join
+                            (payment as any).invoice_number || // fallback snake_case
+                            (payment.invoiceId ? `${payment.invoiceId.substring(0, 8)}...` : '—')
+                          )}
                         </Link>
                       </TableCell>
+                      {/* Customer name */}
                       <TableCell>
                         <Link href={`/admin/customers/${payment.userId}`} className="text-primary hover:underline">
-                          {payment.userId.substring(0, 8)}...
+                          {(
+                            ((payment as any).customerFirstName && (payment as any).customerLastName)
+                              ? `${(payment as any).customerFirstName} ${(payment as any).customerLastName}`
+                              : // Try generic user name property if the backend sends it
+                                (payment as any).customerName ||
+                                (payment.userId ? `${payment.userId.substring(0, 8)}...` : '—')
+                          )}
                         </Link>
                       </TableCell>
                       <TableCell>{formatDate(payment.paymentDate)}</TableCell>

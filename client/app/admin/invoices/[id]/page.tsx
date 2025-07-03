@@ -4,7 +4,7 @@ import { useInvoice, useDownloadInvoicePdf } from "@/hooks/useInvoices";
 import { useGenerateInvoicePdf } from "@/hooks/useGenerateInvoicePdf";
 import { useState } from "react";
 import Link from 'next/link';
-import { usePackages } from '@/hooks/usePackages';
+import { usePackages, useUpdatePackageStatus } from '@/hooks/usePackages';
 import { useUser } from '@/hooks/useUsers';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -87,13 +87,15 @@ function safeToFixed(val: any, digits = 2) {
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
-  const { data: invoice, isLoading, error, refetch } = useInvoice(id as string);
-  const { data: packages, isLoading: packagesLoading } = usePackagesByInvoiceId(id as string);
-  const { data: customer, isLoading: customerLoading } = useUser(invoice?.userId as string, { enabled: !!invoice?.userId });
+  const invoiceId = Array.isArray(id) ? id[0] : id;
+  const { data: invoice, isLoading, error, refetch } = useInvoice(invoiceId as string);
+  const { data: packages, isLoading: packagesLoading, refetch: refetchPackages } = usePackagesByInvoiceId(invoiceId as string);
+  const { data: customer, isLoading: customerLoading } = useUser(invoice?.userId as string);
   const { data: company } = useMyAdminCompany();
-  const { downloadPdf } = useDownloadInvoicePdf(id as string);
-  const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(id || "");
+  const downloadPdfMutation = useDownloadInvoicePdf();
+  const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(invoiceId || "");
   const { toast } = useToast();
+  const updatePackageStatus = useUpdatePackageStatus();
   
   // Payment form state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -117,6 +119,43 @@ export default function InvoiceDetailPage() {
     ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
     : [];
 
+  // Handle marking packages as delivered
+  const handleMarkAsDelivered = async () => {
+    if (!uniquePackages.length) return;
+    
+    try {
+      // Mark all packages as delivered
+      await Promise.all(
+        uniquePackages.map(pkg => 
+          updatePackageStatus.mutateAsync({
+            id: pkg.id,
+            status: 'delivered',
+            sendNotification: true
+          })
+        )
+      );
+      
+      // Refresh packages data
+      refetchPackages();
+      
+      // Close modal
+      setShowDeliverModal(false);
+      
+      // Show success message
+      toast({
+        title: "Packages marked as delivered",
+        description: `Successfully marked ${uniquePackages.length} package(s) as delivered.`,
+      });
+    } catch (error) {
+      console.error('Error marking packages as delivered:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark packages as delivered. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Group items by description and type, summing their lineTotal values
   const groupedItemsMap = new Map();
   for (const item of items) {
@@ -131,7 +170,7 @@ export default function InvoiceDetailPage() {
   }
   const groupedItems = Array.from(groupedItemsMap.values());
 
-  if (!id) {
+  if (!invoiceId) {
     return <div className="p-8 text-center text-gray-500">Invalid invoice ID.</div>;
   }
   if (isLoading) {
@@ -176,19 +215,6 @@ export default function InvoiceDetailPage() {
             </Button>
           )}
           <Button variant="secondary" disabled>Email to Customer</Button>
-          {invoice && packages && customer && company ? (
-            <InvoicePDFRenderer
-              invoice={invoice}
-              packages={packages}
-              user={customer}
-              company={company}
-              buttonText="Download PDF"
-            />
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Loading PDF...
-            </Button>
-          )}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-3">
@@ -372,7 +398,7 @@ export default function InvoiceDetailPage() {
                     <PaymentProcessingModal
                       open={showPaymentDialog}
                       onOpenChange={setShowPaymentDialog}
-                      invoiceId={id}
+                      invoiceId={invoiceId || ""}
                       userId={invoice.userId}
                       initialAmount={invoice.totalAmount?.toString() || "0"}
                       onSuccess={() => {
@@ -400,10 +426,12 @@ export default function InvoiceDetailPage() {
             <Button variant="outline" onClick={() => setShowDeliverModal(false)}>
               No, keep as ready for pickup
             </Button>
-            <Button variant="default" onClick={() => {
-              // Implement the logic to mark packages as delivered
-            }}>
-              Yes, mark as delivered
+            <Button 
+              variant="default" 
+              onClick={handleMarkAsDelivered}
+              disabled={updatePackageStatus.isPending}
+            >
+              {updatePackageStatus.isPending ? "Marking as delivered..." : "Yes, mark as delivered"}
             </Button>
           </DialogFooter>
         </DialogContent>

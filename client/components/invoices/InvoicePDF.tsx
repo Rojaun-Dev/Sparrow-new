@@ -220,7 +220,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, compan
   const totalTax = invoice?.taxAmount ?? 0;
   const total = invoice?.totalAmount ?? 0;
   // Use app base URL from env
-  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_APP_BASE_URL ? process.env.NEXT_PUBLIC_APP_BASE_URL : '';
+  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.APP_BASE_URL ? process.env.APP_BASE_URL : '';
   // Only show each package once in the Related Packages section
   const uniquePackages = Array.isArray(packages)
     ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
