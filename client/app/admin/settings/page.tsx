@@ -707,11 +707,12 @@ export default function CompanySettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full md:w-auto grid-cols-4 md:grid-cols-4 h-auto gap-2">
+        <TabsList className="grid w-full md:w-auto grid-cols-5 md:grid-cols-5 h-auto gap-2">
           <TabsTrigger className="px-3" value="general" onClick={() => setActiveTab("general")}>General</TabsTrigger>
           <TabsTrigger className="px-3" value="locations" onClick={() => setActiveTab("locations")}>Locations</TabsTrigger>
           <TabsTrigger className="px-3" value="branding" onClick={() => setActiveTab("branding")}>Branding</TabsTrigger>
           <TabsTrigger className="px-3" value="integrations" onClick={() => setActiveTab("integrations")}>Integrations</TabsTrigger>
+          <TabsTrigger className="px-3" value="payment" onClick={() => setActiveTab("payment")}>Payment</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
@@ -1702,7 +1703,131 @@ export default function CompanySettingsPage() {
           </Card>
         </TabsContent>
         
+        <TabsContent value="payment" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Settings</CardTitle>
+              <CardDescription>
+                Configure payment gateway options such as WiPay.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* WiPay configuration */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Enable WiPay</Label>
+                    <p className="text-sm text-muted-foreground">Allow customers to pay invoices online via WiPay.</p>
+                  </div>
+                  <Switch
+                    checked={companyData.paymentSettings?.wipay?.enabled || false}
+                    onCheckedChange={(value) => {
+                      setCompanyData((prev) => ({
+                        ...prev,
+                        paymentSettings: {
+                          ...prev.paymentSettings,
+                          wipay: {
+                            ...(prev.paymentSettings?.wipay || {}),
+                            enabled: value,
+                          },
+                        },
+                      }));
+                    }}
+                    disabled={!isAdminL2}
+                  />
+                </div>
 
+                {companyData.paymentSettings?.wipay?.enabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-account">Account Number</Label>
+                      <Input
+                        id="wipay-account"
+                        value={companyData.paymentSettings?.wipay?.accountNumber || ''}
+                        onChange={(e) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              accountNumber: e.target.value,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-api-key">API Key</Label>
+                      <Input
+                        id="wipay-api-key"
+                        value={companyData.paymentSettings?.wipay?.apiKey || ''}
+                        onChange={(e) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              apiKey: e.target.value,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-environment">Environment</Label>
+                      <Select
+                        value={companyData.paymentSettings?.wipay?.environment || 'sandbox'}
+                        onValueChange={(val) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              environment: val,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sandbox">Sandbox</SelectItem>
+                          <SelectItem value="live">Live</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-fee-structure">Fee Structure</Label>
+                      <Select
+                        value={companyData.paymentSettings?.wipay?.feeStructure || 'customer_pay'}
+                        onValueChange={(val) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              feeStructure: val,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="customer_pay">Customer Pays</SelectItem>
+                          <SelectItem value="merchant_absorb">Merchant Absorbs</SelectItem>
+                          <SelectItem value="split">Split</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </>
   )
