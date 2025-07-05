@@ -89,4 +89,5 @@ export const errorHandler = (
   
   // Send response
   res.status(statusCode).json(response);
+  return;
 }; 

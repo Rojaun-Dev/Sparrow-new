@@ -660,7 +660,7 @@ export class PackagesService {
     // Update each package status to ready_for_pickup
     const updatePromises = packages.map(pkg => {
       // Access the package id directly from the joined result
-      const packageId = pkg.packages?.id;
+      const packageId = pkg.id; // Access id directly since findByInvoiceId returns package objects
       if (packageId) {
         return this.packagesRepository.update(packageId, { 
           status: 'ready_for_pickup'
