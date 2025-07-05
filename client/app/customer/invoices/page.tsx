@@ -52,6 +52,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useUserInvoices } from "@/hooks/useInvoices"
 import { Invoice, InvoiceFilterParams } from "@/lib/api/types"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrency } from "@/hooks/useCurrency"
+import { CurrencySelector } from "@/components/ui/currency-selector"
 import { invoiceService } from "@/lib/api/invoiceService"
 import { packageService } from "@/lib/api/packageService"
 import { usersService } from "@/lib/api"
@@ -83,6 +85,9 @@ export default function InvoicesPage() {
     error,
     refetch
   } = useUserInvoices(filters);
+
+  // Currency handling
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
 
   // PDF Download state
   const [isDownloading, setIsDownloading] = useState(false);
@@ -247,12 +252,9 @@ export default function InvoicesPage() {
     });
   };
 
-  // Format currency
+  // Format currency using our currency conversion utility
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return convertAndFormat(amount);
   };
 
   // Get status badge color based on status
@@ -353,14 +355,24 @@ export default function InvoicesPage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Invoice List</CardTitle>
-          <CardDescription>
-            {isLoading 
-              ? 'Loading invoices...'
-              : `Showing ${invoicesData?.data?.length || 0} invoices`
-            }
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Invoice List</CardTitle>
+            <CardDescription>
+              {isLoading 
+                ? 'Loading invoices...'
+                : `Showing ${invoicesData?.data?.length || 0} invoices`
+              }
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Currency:</span>
+            <CurrencySelector
+              value={selectedCurrency}
+              onValueChange={setSelectedCurrency}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

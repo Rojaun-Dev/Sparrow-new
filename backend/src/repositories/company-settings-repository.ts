@@ -132,4 +132,24 @@ export class CompanySettingsRepository extends BaseRepository<typeof companySett
     
     return result.length > 0 ? result[0] : null;
   }
+
+  /**
+   * Update exchange rate settings for a company
+   */
+  async updateExchangeRateSettings(companyId: string, exchangeRateSettings: any) {
+    const settings = await this.findByCompanyId(companyId);
+    
+    if (!settings) {
+      // Create new settings with exchange rate settings
+      return this.create({
+        exchangeRateSettings,
+      }, companyId);
+    }
+    
+    // Update existing settings
+    return this.update(settings.id, {
+      exchangeRateSettings,
+      updatedAt: new Date(),
+    }, companyId);
+  }
 } 

@@ -20,6 +20,8 @@ import { useCompany, useMyAdminCompany } from '@/hooks/useCompanies';
 import { usePackagesByInvoiceId } from '@/hooks/usePackages';
 import { useUser } from '@/hooks/useUsers';
 import { useInvoice } from '@/hooks/useInvoices';
+import { useCurrency } from '@/hooks/useCurrency';
+import { CurrencySelector } from '@/components/ui/currency-selector';
 import type { InvoiceStatus } from '@/lib/api/types';
 
 export default function InvoicesPage() {
@@ -32,6 +34,7 @@ export default function InvoicesPage() {
   const { exportCsv } = useExportCsv();
   const { data: usersData } = useUsers();
   const usersMap = Array.isArray(usersData) ? usersData.reduce((acc, u) => { acc[u.id] = u; return acc; }, {}) : {};
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
 
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -119,6 +122,14 @@ export default function InvoicesPage() {
             <CardTitle>Invoices</CardTitle>
             <CardDescription>View and manage all invoices for your company</CardDescription>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Currency:</span>
+            <CurrencySelector
+              value={selectedCurrency}
+              onValueChange={setSelectedCurrency}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}
@@ -175,7 +186,7 @@ export default function InvoicesPage() {
                       <TableCell>{inv.status}</TableCell>
                       <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
                       <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
-                      <TableCell>{inv.totalAmount ? `$${Number(inv.totalAmount).toFixed(2)}` : "-"}</TableCell>
+                      <TableCell>{inv.totalAmount ? convertAndFormat(Number(inv.totalAmount)) : "-"}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Link href={`/admin/invoices/${inv.id}`} passHref legacyBehavior>

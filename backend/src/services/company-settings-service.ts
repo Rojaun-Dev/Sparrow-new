@@ -72,6 +72,15 @@ const integrationSettingsSchema = z.object({
   }).optional(),
 });
 
+// Define validation schema for exchange rate settings
+const exchangeRateSettingsSchema = z.object({
+  baseCurrency: z.enum(['USD', 'JMD']),
+  targetCurrency: z.enum(['USD', 'JMD']),
+  exchangeRate: z.number().positive(),
+  lastUpdated: z.string().optional(),
+  autoUpdate: z.boolean().default(false),
+});
+
 // Define validation schema for all settings
 const companySettingsSchema = z.object({
   internalPrefix: z.string().min(2).max(5).optional(),
@@ -79,6 +88,7 @@ const companySettingsSchema = z.object({
   themeSettings: themeSettingsSchema.optional(),
   paymentSettings: paymentSettingsSchema.optional(),
   integrationSettings: integrationSettingsSchema.optional(),
+  exchangeRateSettings: exchangeRateSettingsSchema.optional(),
 });
 
 export class CompanySettingsService extends BaseService<typeof companySettings> {
@@ -308,5 +318,21 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
       internalPrefix,
       updatedAt: new Date(),
     }, companyId);
+  }
+
+  /**
+   * Update exchange rate settings for a company
+   */
+  async updateExchangeRateSettings(companyId: string, exchangeRateSettings: any) {
+    // Validate exchange rate settings
+    const validatedData = exchangeRateSettingsSchema.parse(exchangeRateSettings);
+    
+    // Additional validation: base and target currencies must be different
+    if (validatedData.baseCurrency === validatedData.targetCurrency) {
+      throw new Error('Base currency and target currency must be different');
+    }
+    
+    // Update exchange rate settings
+    return this.companySettingsRepository.updateExchangeRateSettings(companyId, validatedData);
   }
 } 

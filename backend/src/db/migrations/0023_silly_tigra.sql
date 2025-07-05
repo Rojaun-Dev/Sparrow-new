@@ -1,0 +1,1 @@
+ALTER TABLE "company_settings" ADD COLUMN "exchange_rate_settings" jsonb DEFAULT '{"baseCurrency":"USD","targetCurrency":"JMD","exchangeRate":158.5,"lastUpdated":null,"autoUpdate":false}'::jsonb;
