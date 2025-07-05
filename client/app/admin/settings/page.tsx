@@ -804,11 +804,13 @@ export default function CompanySettingsPage() {
         
         <TabsContent value="general" className="space-y-4">
           <Card>
-            <CardHeader className="sm:flex-row sm:items-center">
-              <CardTitle>Company Information</CardTitle>
-              <CardDescription>
-                Manage your company's basic information
-              </CardDescription>
+            <CardHeader>
+              <div>
+                <CardTitle>Company Information</CardTitle>
+                <CardDescription className="mt-1">
+                  Manage your company's basic information
+                </CardDescription>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
