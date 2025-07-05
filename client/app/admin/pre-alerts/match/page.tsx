@@ -86,7 +86,40 @@ export default function MatchPreAlertsPage() {
               onChange={e => setPreAlertSearch(e.target.value)}
               className="mb-2"
             />
-            <div className="overflow-x-auto max-h-96">
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {preAlertsLoading ? (
+                <div className="p-2 text-sm text-gray-500">Loading...</div>
+              ) : preAlertsData?.data?.length ? (
+                preAlertsData.data.map((alert: PreAlert) => (
+                  <Card 
+                    key={alert.id} 
+                    className={`cursor-pointer ${selectedPreAlert?.id === alert.id ? "border-2 border-blue-500" : ""}`}
+                    onClick={() => setSelectedPreAlert(alert)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="font-semibold">{alert.trackingNumber}</div>
+                        <Badge variant={
+                          alert.status === 'pending' ? 'secondary'
+                          : alert.status === 'matched' ? 'success'
+                          : alert.status === 'cancelled' ? 'destructive'
+                          : 'outline'
+                        }>
+                          {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">User: {alert.userId}</div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center p-4 text-muted-foreground">No unmatched pre-alerts found.</div>
+              )}
+            </div>
+            
+            {/* Desktop View */}
+            <div className="overflow-x-auto max-h-96 hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -139,7 +172,41 @@ export default function MatchPreAlertsPage() {
               onChange={e => setPackageSearch(e.target.value)}
               className="mb-2"
             />
-            <div className="overflow-x-auto max-h-96">
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {packagesLoading ? (
+                <div className="p-2 text-sm text-gray-500">Loading...</div>
+              ) : packagesData?.data?.length ? (
+                packagesData.data.map((pkg: Package) => (
+                  <Card 
+                    key={pkg.id} 
+                    className={`cursor-pointer ${selectedPackage?.id === pkg.id ? "border-2 border-green-500" : ""}`}
+                    onClick={() => setSelectedPackage(pkg)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="font-semibold">{pkg.trackingNumber}</div>
+                        <Badge variant={
+                          pkg.status === 'received' ? 'secondary'
+                          : pkg.status === 'processed' ? 'success'
+                          : pkg.status === 'ready_for_pickup' ? 'outline'
+                          : pkg.status === 'delivered' ? 'success'
+                          : pkg.status === 'returned' ? 'destructive'
+                          : 'outline'
+                        }>
+                          {pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1).replace(/_/g, ' ')}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center p-4 text-muted-foreground">No packages found.</div>
+              )}
+            </div>
+            
+            {/* Desktop View */}
+            <div className="overflow-x-auto max-h-96 hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>

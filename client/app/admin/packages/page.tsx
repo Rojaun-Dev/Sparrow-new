@@ -540,7 +540,103 @@ export default function PackagesPage() {
               </div>
             </div>
 
-            <div className="rounded-md border">
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4 mt-4">
+              {packages.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No packages found. Try adjusting your search or filters.
+                </div>
+              ) : (
+                packages.map((pkg) => {
+                  const user = userMap[pkg.userId];
+                  const customerName = user ? `${user.firstName} ${user.lastName}` : pkg.userId;
+                  return (
+                    <Card key={pkg.id} className="overflow-hidden">
+                      <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{pkg.description || pkg.trackingNumber || pkg.id}</CardTitle>
+                          <CardDescription>{pkg.internalTrackingId}</CardDescription>
+                        </div>
+                        <Badge variant={STATUS_VARIANTS[pkg.status] as any}>
+                          {STATUS_LABELS[pkg.status]}
+                        </Badge>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-2 space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Customer:</span>
+                          <span className="text-sm">
+                            {user ? (
+                              <Link href={`/admin/customers/${pkg.userId}`} className="hover:underline">
+                                {customerName}
+                              </Link>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => handleAssignUser(pkg.id)}
+                                className="flex items-center gap-1"
+                              >
+                                <UserPlus className="h-3 w-3" />
+                                Assign Customer
+                              </Button>
+                            )}
+                          </span>
+                        </div>
+                        {pkg.weight && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Weight:</span>
+                            <span className="text-sm">{pkg.weight} lbs</span>
+                          </div>
+                        )}
+                        {pkg.dimensions && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Dimensions:</span>
+                            <span className="text-sm">{formatDimensions(pkg.dimensions)}</span>
+                          </div>
+                        )}
+                        {pkg.receivedDate && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Received Date:</span>
+                            <span className="text-sm">{formatDate(pkg.receivedDate)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-end gap-2 mt-4">
+                          <Button size="sm" asChild>
+                            <Link href={`/admin/packages/${pkg.id}`}>
+                              <Eye className="mr-1 h-3 w-3" />
+                              View
+                            </Link>
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              setQuickInvoicePackageId(pkg.id);
+                              setQuickInvoiceUserId(pkg.userId);
+                              setShowQuickInvoiceDialog(true);
+                            }}
+                          >
+                            <CircleDollarSign className="mr-1 h-3 w-3" />
+                            Invoice
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => openDeleteDialog(pkg.id)}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="rounded-md border hidden md:block">
               {isLoading || usersLoading ? (
                 <div className="py-8 text-center">Loading...</div>
               ) : error ? (
