@@ -35,6 +35,15 @@ import { usePayWiPay, usePaymentAvailability } from "@/hooks/usePayWiPay"
 import { useCompanySettings } from "@/hooks/useCompanySettings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/hooks/useAuth"
+import { useCurrency } from "@/hooks/useCurrency"
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { SupportedCurrency } from "@/lib/api/types"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -348,6 +357,9 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  // Add currency conversion support
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
+
   if (isLoading) {
     return <InvoiceDetailsSkeleton />
   }
@@ -436,6 +448,21 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             Print
           </Button>
           
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedCurrency}
+              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="JMD">JMD (J$)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
           {invoice && relatedPackages && user && company ? (
             <InvoicePDFRenderer
               invoice={invoice}
@@ -443,6 +470,8 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
               user={user}
               company={company}
               buttonText="Download PDF"
+              currency={selectedCurrency}
+              exchangeRateSettings={exchangeRateSettings || undefined}
             />
           ) : (
             <Button

@@ -107,7 +107,7 @@ export default function InvoiceDetailPage() {
   const updatePackageStatus = useUpdatePackageStatus();
   
   // Currency conversion
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert, exchangeRateSettings } = useCurrency();
   
   // Payment form state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -233,6 +233,8 @@ export default function InvoiceDetailPage() {
               buttonText="Print"
               buttonProps={{ className: 'print-pdf-btn' }}
               onDownloadComplete={() => {}}
+              currency={selectedCurrency}
+              exchangeRateSettings={exchangeRateSettings || undefined}
             />
           ) : (
             <Button variant="outline" size="sm" disabled>
@@ -464,4 +466,4 @@ export default function InvoiceDetailPage() {
       </Dialog>
     </div>
   );
-} 
+}

@@ -3,7 +3,7 @@ import { PDFDownloadLink, BlobProvider } from '@react-pdf/renderer';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import InvoicePDF from './InvoicePDF';
-import { Invoice } from '@/lib/api/types';
+import { Invoice, SupportedCurrency, ExchangeRateSettings } from '@/lib/api/types';
 
 interface InvoicePDFRendererProps {
   invoice: Invoice;
@@ -14,6 +14,8 @@ interface InvoicePDFRendererProps {
   buttonText?: string;
   fileName?: string;
   onDownloadComplete?: () => void;
+  currency?: SupportedCurrency;
+  exchangeRateSettings?: ExchangeRateSettings;
 }
 
 /**
@@ -27,7 +29,9 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
   buttonProps,
   buttonText = 'Download PDF',
   fileName = `invoice-${invoice?.invoiceNumber || invoice?.id}.pdf`,
-  onDownloadComplete
+  onDownloadComplete,
+  currency = 'USD',
+  exchangeRateSettings
 }) => {
   // Fallback for direct download without PDFDownloadLink
   const [isGenerating, setIsGenerating] = useState(false);
@@ -72,6 +76,8 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
           packages={packages}
           user={user}
           company={company}
+          currency={currency}
+          exchangeRateSettings={exchangeRateSettings}
         />
       }
     >

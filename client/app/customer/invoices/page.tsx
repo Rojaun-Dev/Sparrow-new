@@ -87,7 +87,7 @@ export default function InvoicesPage() {
   } = useUserInvoices(filters);
 
   // Currency handling
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
 
   // PDF Download state
   const [isDownloading, setIsDownloading] = useState(false);
@@ -183,6 +183,8 @@ export default function InvoicesPage() {
           packages={packages}
           user={user}
           company={company}
+          currency={selectedCurrency}
+          exchangeRateSettings={exchangeRateSettings || undefined}
         />
       );
       
