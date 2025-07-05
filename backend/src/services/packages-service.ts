@@ -316,6 +316,7 @@ export class PackagesService {
       sortOrder?: 'asc' | 'desc';
       page?: number;
       pageSize?: number;
+      search?: string;
     }
   ) {
     return this.packagesRepository.searchPackages(companyId, searchParams);

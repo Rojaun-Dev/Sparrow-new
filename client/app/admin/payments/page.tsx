@@ -4,9 +4,9 @@ import { paymentService, exportPaymentsCsv } from '@/lib/api/paymentService';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Download, Filter, Search, FileText, Check, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePayments } from '@/hooks/usePayments';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -31,6 +31,25 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're on mobile
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // Initial check
+    checkIfMobile();
+    
+    // Add event listener
+    window.addEventListener('resize', checkIfMobile);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', checkIfMobile);
+    };
+  }, []);
 
   // Fetch payments with filters
   const { data: paymentsResponse, isLoading, error } = usePayments({
@@ -85,6 +104,51 @@ export default function PaymentsPage() {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  // Render mobile payment card
+  const renderMobilePaymentCard = (payment: any) => {
+    return (
+      <Card key={payment.id} className="mb-4">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-center">
+            <Link href={`/admin/invoices/${payment.invoiceId}`} className="text-primary hover:underline">
+              <CardTitle className="text-base">
+                {(payment as any).invoiceNumber || (payment as any).invoice_number || 
+                 (payment.invoiceId ? `${payment.invoiceId.substring(0, 8)}...` : '—')}
+              </CardTitle>
+            </Link>
+            {getStatusBadge(payment.status)}
+          </div>
+          <CardDescription>
+            <Link href={`/admin/customers/${payment.userId}`} className="text-primary hover:underline">
+              {((payment as any).customerFirstName && (payment as any).customerLastName)
+                ? `${(payment as any).customerFirstName} ${(payment as any).customerLastName}`
+                : (payment as any).customerName ||
+                  (payment.userId ? `${payment.userId.substring(0, 8)}...` : '—')}
+            </Link>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-2 pt-0">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Amount</p>
+              <p className="font-medium">{formatCurrency(payment.amount)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Date</p>
+              <p>{formatDate(payment.paymentDate)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Method</p>
+              <Badge variant="outline" className="mt-1">
+                {payment.paymentMethod.replace('_', ' ')}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -143,35 +207,37 @@ export default function PaymentsPage() {
             </div>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            </div>
+          ) : payments.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No payments found. Try adjusting your search or filters.
+            </div>
+          ) : isMobile ? (
+            // Mobile view - cards
+            <div className="space-y-4">
+              {payments.map(payment => renderMobilePaymentCard(payment))}
+            </div>
+          ) : (
+            // Desktop view - table
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ) : payments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No payments found. Try adjusting your search or filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  payments.map((payment) => (
+                </TableHeader>
+                <TableBody>
+                  {payments.map((payment) => (
                     <TableRow key={payment.id}>
                       {/* Invoice number */}
                       <TableCell>
@@ -205,11 +271,11 @@ export default function PaymentsPage() {
                       </TableCell>
                       <TableCell>{getStatusBadge(payment.status)}</TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -250,21 +316,6 @@ export default function PaymentsPage() {
                 >
                   Last
                 </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>Rows per page:</span>
-                <select
-                  className="border rounded px-2 py-1"
-                  value={pageSize}
-                  onChange={e => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  {[10, 20, 50, 100].map(size => (
-                    <option key={size} value={size}>{size}</option>
-                  ))}
-                </select>
               </div>
             </div>
           )}

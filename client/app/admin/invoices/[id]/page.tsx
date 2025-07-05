@@ -30,6 +30,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
+import { SupportedCurrency } from "@/lib/api/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function CustomerNameDisplay({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId);
@@ -96,6 +105,9 @@ export default function InvoiceDetailPage() {
   const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(invoiceId || "");
   const { toast } = useToast();
   const updatePackageStatus = useUpdatePackageStatus();
+  
+  // Currency conversion
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert } = useCurrency();
   
   // Payment form state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -198,6 +210,20 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedCurrency}
+              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="JMD">JMD (J$)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {invoice && customer && company ? (
             <InvoicePDFRenderer
               invoice={{ ...invoice, items }}
@@ -329,8 +355,8 @@ export default function InvoiceDetailPage() {
                           <tr key={index}>
                             <td className="font-medium p-2">{item.description}</td>
                             <td className="p-2 text-right">{item.quantity}</td>
-                            <td className="p-2 text-right">${safeToFixed(item.unitPrice)}</td>
-                            <td className="p-2 text-right">${safeToFixed(item.lineTotal)}</td>
+                            <td className="p-2 text-right">{convertAndFormat(item.unitPrice)}</td>
+                            <td className="p-2 text-right">{convertAndFormat(item.lineTotal)}</td>
                           </tr>
                         ))
                       ) : (
@@ -343,17 +369,17 @@ export default function InvoiceDetailPage() {
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Subtotal</td>
-                        <td className="text-right">${safeToFixed(subtotal)}</td>
+                        <td className="text-right">{convertAndFormat(subtotal)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Tax</td>
-                        <td className="text-right">${safeToFixed(totalTax)}</td>
+                        <td className="text-right">{convertAndFormat(totalTax)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-bold">Total</td>
-                        <td className="text-right font-bold">${safeToFixed(total)}</td>
+                        <td className="text-right font-bold">{convertAndFormat(total)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -377,7 +403,7 @@ export default function InvoiceDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Due:</span>
                   <span className="font-bold text-lg">
-                    ${safeToFixed(total)}
+                    {convertAndFormat(total)}
                   </span>
                 </div>
                 <Separator />

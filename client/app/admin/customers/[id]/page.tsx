@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCurrency } from "@/hooks/useCurrency";
+import { SupportedCurrency } from "@/lib/api/types";
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -50,6 +52,9 @@ export default function AdminCustomerViewPage() {
   const userId = params.id as string;
   // companyId may be undefined if not in route
   const [companyId, setCompanyId] = useState<string | undefined>(params.companyId as string | undefined);
+
+  // Currency conversion
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert } = useCurrency();
 
   // Profile
   const { data: user, isLoading: userLoading, error: userError } = useUser(userId);
@@ -290,11 +295,18 @@ export default function AdminCustomerViewPage() {
   // Formatters
   const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString() : "-";
   const formatDateTime = (date?: string) => date ? new Date(date).toLocaleString() : "-";
-  const formatCurrency = (amount?: number | string) => {
-    if (amount === null || amount === undefined) return "-";
-    const num = typeof amount === "number" ? amount : parseFloat(amount);
-    if (isNaN(num)) return "-";
-    return `$${num.toFixed(2)}`;
+  // Format currency with the currency hook
+  const formatCurrency = (amount?: number | string, skipConversion = false) => {
+    if (amount === undefined || amount === null) return "-";
+    
+    // For payments, we don't want to convert the currency
+    if (skipConversion) {
+      const num = typeof amount === "number" ? amount : parseFloat(amount);
+      if (isNaN(num)) return "-";
+      return `$${num.toFixed(2)}`;
+    }
+    
+    return convertAndFormat(Number(amount));
   };
   // Format payment method by removing underscores and capitalizing words
   const formatPaymentMethod = (method?: string) => {
@@ -692,11 +704,49 @@ export default function AdminCustomerViewPage() {
       )}
 
       <div className="mt-8">
-        <div className="flex gap-4 mb-4">
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "packages" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("packages")}>Packages</button>
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "prealerts" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("prealerts")}>Pre-alerts</button>
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "payments" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("payments")}>Payments</button>
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "invoices" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("invoices")}>Invoices</button>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-4">
+            <Button
+              variant={tab === "packages" ? "default" : "outline"}
+              onClick={() => setTab("packages")}
+            >
+              Packages
+            </Button>
+            <Button
+              variant={tab === "prealerts" ? "default" : "outline"}
+              onClick={() => setTab("prealerts")}
+            >
+              Pre-alerts
+            </Button>
+            <Button
+              variant={tab === "payments" ? "default" : "outline"}
+              onClick={() => setTab("payments")}
+            >
+              Payments
+            </Button>
+            <Button
+              variant={tab === "invoices" ? "default" : "outline"}
+              onClick={() => setTab("invoices")}
+            >
+              Invoices
+            </Button>
+          </div>
+          {tab === "invoices" && (
+            <div className="flex items-center gap-2">
+              <Select
+                value={selectedCurrency}
+                onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+              >
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="Currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD ($)</SelectItem>
+                  <SelectItem value="JMD">JMD (J$)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <div className="rounded-lg border bg-background p-4 shadow-sm">
           {tab === "packages" && (
@@ -818,7 +868,7 @@ export default function AdminCustomerViewPage() {
                 loading={paymentsLoading}
                 error={paymentsError}
                 formatDate={formatDate}
-                formatCurrency={formatCurrency}
+                formatCurrency={(amount) => formatCurrency(amount, true)}
                 {...(isPaginatedResult(paymentsData) ? {
                   pagination: paymentsData.pagination,
                   page: paymentsPage,

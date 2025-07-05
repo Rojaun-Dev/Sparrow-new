@@ -252,6 +252,11 @@ export class PackagesController {
         searchParams.receivedDateTo = new Date(searchParams.receivedDateTo as string);
       }
       
+      // Prioritize tracking number search - if search param exists, use it for tracking number
+      if (searchParams.search && !searchParams.trackingNumber) {
+        searchParams.trackingNumber = searchParams.search;
+      }
+      
       const result = await this.service.searchPackages(companyId, searchParams);
       return ApiResponse.success(res, result);
     } catch (error) {

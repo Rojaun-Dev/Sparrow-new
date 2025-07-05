@@ -1969,7 +1969,7 @@ export default function CompanySettingsPage() {
                             },
                           },
                         }))}
-                        disabled={!isAdminL2}
+                        disabled={!isAdminL2 || companyData.paymentSettings?.wipay?.environment === 'live'}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>

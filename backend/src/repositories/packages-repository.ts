@@ -176,7 +176,8 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       sortBy = 'createdAt',
       sortOrder = 'desc',
       page = 1, 
-      pageSize = 10
+      pageSize = 10,
+      search
     }: {
       trackingNumber?: string;
       userId?: string;
@@ -187,6 +188,7 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
       sortOrder?: 'asc' | 'desc';
       page?: number;
       pageSize?: number;
+      search?: string;
     }
   ) {
     let conditions: SQL<unknown>[] = [eq(this.table.companyId, companyId)];
@@ -194,6 +196,19 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
     // Add filters
     if (trackingNumber) {
       conditions.push(like(this.table.trackingNumber, `%${trackingNumber}%`));
+    }
+    
+    // Add general search filter (prioritizing tracking number)
+    if (search) {
+      const searchConditions = [
+        like(this.table.trackingNumber, `%${search}%`),
+        like(this.table.description, `%${search}%`)
+      ].filter((condition): condition is SQL<unknown> => condition !== undefined);
+      
+      if (searchConditions.length > 0) {
+        const searchOrCondition = or(...searchConditions) as SQL<unknown>;
+        conditions.push(searchOrCondition);
+      }
     }
     
     if (userId) {

@@ -15,6 +15,15 @@ import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useCurrency } from '@/hooks/useCurrency';
+import { SupportedCurrency } from '@/lib/api/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Helper to safely convert to number
 function safeNumber(val: any) {
@@ -28,6 +37,9 @@ export default function CreateInvoicePage() {
   const companyId = company?.id;
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Currency conversion
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert } = useCurrency();
 
   // State for selected customer and packages
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -201,8 +213,20 @@ export default function CreateInvoicePage() {
       {/* Invoice Calculation Preview (now at the top) */}
       <div className="mb-6">
         <Card className="shadow-sm border rounded-lg">
-          <CardHeader className="py-3 px-6 border-b">
+          <CardHeader className="py-3 px-6 border-b flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-bold">Invoice Calculation Preview</CardTitle>
+            <Select
+              value={selectedCurrency}
+              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="JMD">JMD (J$)</SelectItem>
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent className="py-4 px-6">
             {previewInvoice.isPending ? (
@@ -213,11 +237,11 @@ export default function CreateInvoicePage() {
               <div className="space-y-1 text-base">
                 <div className="flex justify-between">
                   <span className="font-medium">Subtotal:</span>
-                  <span>${safeNumber(invoicePreview.subtotal).toFixed(2)}</span>
+                  <span>{convertAndFormat(safeNumber(invoicePreview.subtotal))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Tax:</span>
-                  <span>${safeNumber(invoicePreview.taxAmount).toFixed(2)}</span>
+                  <span>{convertAndFormat(safeNumber(invoicePreview.taxAmount))}</span>
                 </div>
                 {invoicePreview.feeBreakdown && Object.keys(invoicePreview.feeBreakdown).length > 0 && (
                   <div className="space-y-0.5">
@@ -225,14 +249,14 @@ export default function CreateInvoicePage() {
                     {Object.entries(invoicePreview.feeBreakdown).map(([fee, amount]: [string, any]) => (
                       <div className="flex justify-between text-sm pl-4" key={fee}>
                         <span>{fee}:</span>
-                        <span>${safeNumber(amount).toFixed(2)}</span>
+                        <span>{convertAndFormat(safeNumber(amount))}</span>
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg mt-2">
                   <span>Total:</span>
-                  <span>${(safeNumber(invoicePreview.subtotal) + safeNumber(invoicePreview.taxAmount)).toFixed(2)}</span>
+                  <span>{convertAndFormat(safeNumber(invoicePreview.subtotal) + safeNumber(invoicePreview.taxAmount))}</span>
                 </div>
               </div>
             ) : (
