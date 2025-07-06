@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD COLUMN "meta" jsonb DEFAULT '{}'::jsonb;

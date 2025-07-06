@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { paymentService } from '@/lib/api/paymentService';
 import { Payment, PaymentFilterParams } from '@/lib/api/types';
+import { useCurrency } from '@/hooks/useCurrency';
 
 // Key factory for payment queries
 const paymentKeys = {
@@ -89,9 +90,17 @@ export function useProcessPayment() {
 // Hook for processing batch payments
 export function useProcessBatchPayment() {
   const queryClient = useQueryClient();
+  const { selectedCurrency, exchangeRateSettings } = useCurrency();
   
   return useMutation({
-    mutationFn: (payments: any[]) => paymentService.processBatchPayment(payments),
+    mutationFn: (payments: any[]) => {
+      // Get currency and exchange rate
+      const currency = selectedCurrency;
+      const exchangeRate = currency === 'USD' ? 1 : 
+        (exchangeRateSettings?.exchangeRate || 150);
+      
+      return paymentService.processBatchPayment(payments, undefined, currency, exchangeRate);
+    },
     onSuccess: () => {
       // Update the invoice lists (since invoices were paid)
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -105,10 +114,17 @@ export function useProcessBatchPayment() {
 // Hook for paying all outstanding invoices for a user
 export function usePayAllInvoices() {
   const queryClient = useQueryClient();
+  const { selectedCurrency, exchangeRateSettings } = useCurrency();
   
   return useMutation({
-    mutationFn: ({ userId, paymentMethod, notes }: { userId: string; paymentMethod: string; notes?: string }) => 
-      paymentService.payAllInvoices(userId, paymentMethod, notes),
+    mutationFn: ({ userId, paymentMethod, notes }: { userId: string; paymentMethod: string; notes?: string }) => {
+      // Get currency and exchange rate
+      const currency = selectedCurrency;
+      const exchangeRate = currency === 'USD' ? 1 : 
+        (exchangeRateSettings?.exchangeRate || 150);
+      
+      return paymentService.payAllInvoices(userId, paymentMethod, notes, undefined, currency, exchangeRate);
+    },
     onSuccess: () => {
       // Update the invoice lists (since invoices were paid)
       queryClient.invalidateQueries({ queryKey: ['invoices'] });

@@ -190,6 +190,14 @@ export interface Payment extends BaseEntity {
   transactionId?: string;
   paymentDate: string;
   notes?: string;
+  meta?: {
+    currency?: SupportedCurrency;
+    exchangeRate?: number;
+    wiPayRequestPayload?: any;
+    wiPayCallback?: any;
+    transactionTimestamp?: string;
+    [key: string]: any;
+  };
 }
 
 // Fee related types

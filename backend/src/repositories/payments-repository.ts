@@ -3,6 +3,7 @@ import { BaseRepository } from './base-repository';
 import { payments, paymentStatusEnum } from '../db/schema/payments';
 import { invoices } from '../db/schema/invoices';
 import { users } from '../db/schema/users';
+import { gte, lte, desc } from 'drizzle-orm';
 
 export class PaymentsRepository extends BaseRepository<typeof payments> {
   constructor() {
@@ -252,23 +253,113 @@ export class PaymentsRepository extends BaseRepository<typeof payments> {
   }
 
   async findAllForExport(companyId: string, filters: any = {}) {
-    let conditions = [eq(this.table.companyId, companyId)];
-    if (filters.status) {
-      conditions.push(eq(this.table.status, filters.status));
+    try {
+      let query = this.db
+        .select({
+          id: payments.id,
+          invoiceNumber: invoices.invoiceNumber,
+          customerName: sql`concat(${users.firstName}, ' ', ${users.lastName})`,
+          amount: payments.amount,
+          paymentMethod: payments.paymentMethod,
+          status: payments.status,
+          transactionId: payments.transactionId,
+          paymentDate: payments.paymentDate,
+          notes: payments.notes,
+          meta: payments.meta,
+          createdAt: payments.createdAt
+        })
+        .from(payments)
+        .innerJoin(invoices, eq(payments.invoiceId, invoices.id))
+        .innerJoin(users, eq(payments.userId, users.id))
+        .where(eq(payments.companyId, companyId));
+      
+      // Apply filters
+      if (filters.status) {
+        query = query.where(eq(payments.status, filters.status));
+      }
+      
+      if (filters.paymentMethod) {
+        query = query.where(eq(payments.paymentMethod, filters.paymentMethod));
+      }
+      
+      if (filters.dateFrom) {
+        const fromDate = new Date(filters.dateFrom);
+        query = query.where(gte(payments.paymentDate, fromDate));
+      }
+      
+      if (filters.dateTo) {
+        const toDate = new Date(filters.dateTo);
+        query = query.where(lte(payments.paymentDate, toDate));
+      }
+      
+      const results = await query.orderBy(desc(payments.createdAt));
+      
+      // Format for CSV export
+      return results.map(payment => {
+        // Extract currency info from meta if available
+        const meta = payment.meta as Record<string, any> | null;
+        const currency = meta?.currency || 'USD';
+        const exchangeRate = meta?.exchangeRate || null;
+        
+        return {
+          ID: payment.id,
+          'Invoice Number': payment.invoiceNumber,
+          'Customer Name': payment.customerName,
+          'Amount': payment.amount,
+          'Currency': currency,
+          'Exchange Rate': exchangeRate,
+          'Payment Method': payment.paymentMethod,
+          'Status': payment.status,
+          'Transaction ID': payment.transactionId || 'N/A',
+          'Payment Date': payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : 'N/A',
+          'Notes': payment.notes || '',
+          'Created At': new Date(payment.createdAt).toLocaleString()
+        };
+      });
+    } catch (error) {
+      console.error('Error exporting payments:', error);
+      throw new Error('Failed to export payments data');
     }
-    if (filters.search) {
-      conditions.push(sql`${this.table.transactionId} LIKE ${`%${filters.search}%`}`);
+  }
+
+  /**
+   * Update a payment with special handling for payment dates
+   */
+  async update(id: string, data: any, companyId: string) {
+    // Handle payment date specifically for payments
+    const processedData = { ...data };
+    
+    // Special handling for paymentDate
+    if ('paymentDate' in processedData) {
+      // Ensure paymentDate is a proper Date object
+      if (processedData.paymentDate === null) {
+        // If null, remove it from the update
+        delete processedData.paymentDate;
+      } else if (!(processedData.paymentDate instanceof Date)) {
+        try {
+          // Try to convert to Date
+          const dateValue = new Date(processedData.paymentDate);
+          
+          // Check if the date is valid (not Dec 31 1969 or Jan 1 1970)
+          if (dateValue.getFullYear() < 1971) {
+            console.warn(`Invalid payment date detected: ${dateValue}, using current date instead`);
+            processedData.paymentDate = new Date(); // Use current date as fallback
+          } else {
+            processedData.paymentDate = dateValue;
+          }
+        } catch (e) {
+          console.error('Error converting payment date:', e);
+          // Use current date as fallback
+          processedData.paymentDate = new Date();
+        }
+      }
+      
+      // Log the final payment date being used
+      console.log(`Final payment date for update: ${processedData.paymentDate instanceof Date ? 
+        processedData.paymentDate.toISOString() : processedData.paymentDate}`);
     }
-    if (filters.dateFrom) {
-      conditions.push(sql`${this.table.paymentDate} >= ${filters.dateFrom}`);
-    }
-    if (filters.dateTo) {
-      conditions.push(sql`${this.table.paymentDate} <= ${filters.dateTo}`);
-    }
-    // Add more filters as needed
-    return this.db
-      .select()
-      .from(this.table)
-      .where(and(...conditions));
+    
+    // Use the parent update method with the processed data
+    return super.update(id, processedData, companyId);
   }
 } 

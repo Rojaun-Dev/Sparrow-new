@@ -127,6 +127,17 @@ export function PaymentProcessingModal({
       return;
     }
 
+    // Prepare meta data with currency information
+    const meta = {
+      currency: selectedCurrency,
+      displayAmount: parseFloat(paymentAmount),
+      exchangeRate: selectedCurrency === 'USD' ? 1 : convert(1),
+      originalAmount: parseFloat(paymentAmount),
+      convertedAmount: amount,
+      baseCurrency: 'USD',
+      paymentProcessedAt: new Date().toISOString()
+    };
+
     processPayment(
       {
         invoiceId,
@@ -136,7 +147,9 @@ export function PaymentProcessingModal({
           paymentMethod: paymentMethod as any,
           transactionId: transactionId || undefined,
           notes: paymentNotes || undefined,
-          status: "completed" // Mark as completed immediately
+          status: "completed", // Mark as completed immediately
+          meta: meta // Include meta data with currency information
+          // Don't set paymentDate, let backend handle it as a Date object
         },
         sendNotification
       },

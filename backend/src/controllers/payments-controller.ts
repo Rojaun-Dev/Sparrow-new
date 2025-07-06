@@ -90,7 +90,7 @@ export class PaymentsController {
       const adminUserId = req.userId as string;
       const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
-      const { sendNotification = false, ...paymentData } = req.body;
+      const { sendNotification = false, currency = 'USD', exchangeRate = 1, ...paymentData } = req.body;
       
       // Validate payment data
       try {
@@ -101,6 +101,23 @@ export class PaymentsController {
         }
         throw error;
       }
+      
+      // Ensure payment has proper currency metadata
+      if (!paymentData.meta) {
+        paymentData.meta = {};
+      }
+      
+      // Add currency information to metadata
+      paymentData.meta = {
+        ...paymentData.meta,
+        currency: currency || 'USD',
+        exchangeRate: exchangeRate || 1,
+        // Calculate amounts if applicable
+        originalAmount: paymentData.amount,
+        convertedAmount: currency !== 'USD' && exchangeRate !== 1 
+          ? paymentData.amount / exchangeRate 
+          : paymentData.amount
+      };
       
       // Create the payment
       const payment = await this.paymentsService.createPayment(paymentData, companyId);
@@ -119,7 +136,8 @@ export class PaymentsController {
             paymentMethod: payment.paymentMethod,
             status: payment.status,
             invoiceId: payment.invoiceId,
-            customerId: payment.userId
+            customerId: payment.userId,
+            meta: payment.meta // Include meta information in audit logs
           },
           ipAddress,
           userAgent
@@ -153,6 +171,13 @@ export class PaymentsController {
               new Date(payment.paymentDate).toLocaleDateString() : 
               new Date().toLocaleDateString();
             
+            // Get currency information from meta if available
+            const meta = payment.meta as Record<string, any> | undefined;
+            const currencyInfo = meta && meta.currency ? {
+              currency: meta.currency as string,
+              exchangeRate: meta.exchangeRate as number | undefined
+            } : undefined;
+            
             // Send payment confirmation email
             await this.emailService.sendPaymentConfirmationEmail(
               user.email,
@@ -166,7 +191,8 @@ export class PaymentsController {
                 status: payment.status,
                 companyName,
                 invoiceId: payment.invoiceId,
-                paymentId: payment.id
+                paymentId: payment.id,
+                currencyInfo
               }
             );
           }
@@ -246,6 +272,13 @@ export class PaymentsController {
                   new Date(payment.paymentDate).toLocaleDateString() : 
                   new Date().toLocaleDateString();
                 
+                // Get currency information from meta if available
+                const meta = payment.meta as Record<string, any> | undefined;
+                const currencyInfo = meta && meta.currency ? {
+                  currency: meta.currency as string,
+                  exchangeRate: meta.exchangeRate as number | undefined
+                } : undefined;
+                
                 // Send payment confirmation email
                 await this.emailService.sendPaymentConfirmationEmail(
                   user.email,
@@ -259,7 +292,8 @@ export class PaymentsController {
                     status: payment.status,
                     companyName,
                     invoiceId: payment.invoiceId,
-                    paymentId: payment.id
+                    paymentId: payment.id,
+                    currencyInfo
                   }
                 );
               }
@@ -479,18 +513,41 @@ export class PaymentsController {
   createWiPayRequest = async (req: AuthRequest, res: Response) => {
     try {
       const companyId = req.companyId as string;
-      const { invoiceId, responseUrl, origin } = req.body;
+      const userId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
-      // Validate required fields
-      if (!invoiceId || !responseUrl || !origin) {
-        return ApiResponse.badRequest(res, 'Missing required fields: invoiceId, responseUrl, or origin');
+      // Validate request data using the schema
+      let validatedData;
+      try {
+        const { wiPayRequestSchema } = require('../validation/payment-schemas');
+        validatedData = wiPayRequestSchema.parse(req.body);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return ApiResponse.validationError(res, error);
+        }
+        throw error;
       }
       
-      const paymentRequest = await this.paymentsService.createWiPayRequest({
-        invoiceId,
-        responseUrl,
-        origin
-      }, companyId);
+      const paymentRequest = await this.paymentsService.createWiPayRequest(validatedData, companyId);
+      
+      // Create audit log for payment request creation
+      await this.auditLogsService.createLog({
+        userId: userId,
+        companyId,
+        action: 'wipay_payment_request',
+        entityType: 'payment',
+        entityId: paymentRequest.paymentId,
+        details: {
+          invoiceId: validatedData.invoiceId,
+          currency: validatedData.currency,
+          amount: paymentRequest.amount,
+          convertedAmount: paymentRequest.convertedAmount,
+          meta: paymentRequest.meta
+        },
+        ipAddress,
+        userAgent
+      });
       
       return ApiResponse.success(res, paymentRequest, 'WiPay payment request created');
     } catch (error: any) {
@@ -511,12 +568,102 @@ export class PaymentsController {
       const companyId = req.companyId as string;
       const callbackData = req.body;
       
+      console.log('Received WiPay callback:', JSON.stringify(callbackData, null, 2));
+      console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+      
       // Process callback data
       const result = await this.paymentsService.handleWiPayCallback(callbackData, companyId);
       
-      if (result.success) {
+      if (result.success && result.payment) {
+        // Create audit log for the payment update
+        const payment = result.payment;
+        const meta = payment.meta as Record<string, any> | undefined;
+        
+        // Log the transaction with detailed currency information
+        await this.auditLogsService.createLog({
+          userId: payment.userId || 'system',
+          companyId,
+          action: 'payment_processed',
+          entityType: 'payment',
+          entityId: payment.id,
+          details: {
+            paymentId: payment.id,
+            amount: payment.amount,
+            paymentMethod: payment.paymentMethod,
+            status: payment.status,
+            invoiceId: payment.invoiceId,
+            transactionId: payment.transactionId,
+            paymentDate: payment.paymentDate,
+            // Include currency and exchange rate information
+            currency: meta?.currency || 'USD',
+            originalAmount: meta?.originalAmount,
+            convertedAmount: meta?.convertedAmount,
+            exchangeRate: meta?.exchangeRate,
+            baseCurrency: meta?.baseCurrency,
+            wiPayCallbackReceived: new Date().toISOString()
+          },
+          ipAddress: req.ip || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        });
+        
+        // If payment was successful, send confirmation email
+        if (payment.status === 'completed' && payment.userId) {
+          try {
+            const user = await this.usersService.getUserById(payment.userId, companyId);
+            
+            if (user && 
+                user.email && 
+                user.notificationPreferences?.email && 
+                user.notificationPreferences?.billingUpdates?.email) {
+              
+              // Get invoice details for the email
+              const invoice = await this.invoicesService.getInvoiceById(payment.invoiceId, companyId);
+              
+              // Get company name
+              const company = await this.companiesService.getCompanyById(companyId);
+              const companyName = company ? company.name : 'Cautious Robot';
+              
+              // Format the payment date
+              const paymentDate = payment.paymentDate ? 
+                new Date(payment.paymentDate).toLocaleDateString() : 
+                new Date().toLocaleDateString();
+              
+              // Get currency information from meta if available
+              const currencyInfo = meta ? {
+                currency: meta.currency as string || 'USD',
+                exchangeRate: meta.exchangeRate as number | undefined,
+                originalAmount: meta.originalAmount as number | undefined,
+                convertedAmount: meta.convertedAmount as number | undefined,
+                baseCurrency: meta.baseCurrency as string || 'USD'
+              } : undefined;
+              
+              // Send payment confirmation email
+              await this.emailService.sendPaymentConfirmationEmail(
+                user.email,
+                user.firstName,
+                {
+                  invoiceNumber: invoice.invoiceNumber || '',
+                  paymentMethod: payment.paymentMethod,
+                  amount: payment.amount,
+                  paymentDate: paymentDate,
+                  transactionId: payment.transactionId || undefined,
+                  status: payment.status,
+                  companyName,
+                  invoiceId: payment.invoiceId,
+                  paymentId: payment.id,
+                  currencyInfo
+                }
+              );
+            }
+          } catch (emailError) {
+            console.error('Failed to send payment confirmation email:', emailError);
+            // Don't fail the request if email sending fails
+          }
+        }
+        
         return ApiResponse.success(res, result.payment, result.message);
       } else {
+        console.warn('WiPay callback processing failed:', result.message);
         return ApiResponse.badRequest(res, result.message);
       }
     } catch (error: any) {

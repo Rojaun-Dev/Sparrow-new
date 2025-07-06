@@ -2,16 +2,23 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { ApiClient } from '@/lib/api/apiClient';
+import { SupportedCurrency } from '@/lib/api/types';
 
 interface WiPayPaymentProps {
   invoiceId: string;
   origin?: string;
+  currency?: SupportedCurrency;
 }
 
 interface WiPayResponse {
   paymentId: string;
   redirectUrl: string;
   transactionId?: string;
+  currency?: SupportedCurrency;
+  meta?: {
+    currency?: SupportedCurrency;
+    exchangeRate?: number;
+  };
 }
 
 interface PaymentSettings {
@@ -61,7 +68,7 @@ export function usePayWiPay() {
   const queryClient = useQueryClient();
   const apiClient = new ApiClient();
   
-  const initiate = async ({ invoiceId, origin = 'SparrowX-Client' }: WiPayPaymentProps) => {
+  const initiate = async ({ invoiceId, origin = 'SparrowX-Client', currency = 'USD' }: WiPayPaymentProps) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -73,6 +80,9 @@ export function usePayWiPay() {
         sessionStorage.setItem('wipay_auth_token', token);
       }
       
+      // Store the selected currency in session storage for after payment return
+      sessionStorage.setItem('wipay_currency', currency);
+      
       // Construct the response URL to point to our payment result page
       // Include the customer role in the return URL to help with authentication
       const returnUrl = `${window.location.origin}/customer/invoices/${invoiceId}`;
@@ -81,7 +91,8 @@ export function usePayWiPay() {
       const response = await apiClient.post<WiPayResponse>('/companies/current/payments/wipay/request', {
         invoiceId,
         responseUrl: returnUrl,
-        origin
+        origin,
+        currency
       });
       
       // Redirect to payment page

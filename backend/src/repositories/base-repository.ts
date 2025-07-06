@@ -52,8 +52,32 @@ export class BaseRepository<T extends PgTable<any> & TableWithCompanyId> {
    * Create a new record with company ID
    */
   async create(data: any, companyId: string) {
+    // Process date fields to ensure they're proper Date objects
+    const processedData = { ...data };
+    
+    // Handle date fields to avoid Unix epoch issues
+    Object.keys(processedData).forEach(key => {
+      if (key.toLowerCase().includes('date') && processedData[key] !== null) {
+        // If it's a date field but not a proper Date object, convert it
+        if (!(processedData[key] instanceof Date) && processedData[key] !== undefined) {
+          try {
+            processedData[key] = new Date(processedData[key]);
+            // Check if the date is valid (not Dec 31 1969 or Jan 1 1970)
+            if (processedData[key].getFullYear() < 1971) {
+              console.warn(`Invalid date detected for field ${key}: ${processedData[key]}, using current date instead`);
+              processedData[key] = new Date();
+            }
+          } catch (e) {
+            console.error(`Error converting date for field ${key}:`, e);
+            // Use current date as fallback if needed
+            processedData[key] = new Date();
+          }
+        }
+      }
+    });
+    
     const dataWithCompany = {
-      ...data,
+      ...processedData,
       companyId,
     };
     
@@ -65,10 +89,34 @@ export class BaseRepository<T extends PgTable<any> & TableWithCompanyId> {
    * Update a record by ID with company isolation
    */
   async update(id: string, data: any, companyId: string) {
+    // Process date fields to ensure they're proper Date objects
+    const processedData = { ...data };
+    
+    // Handle date fields to avoid Unix epoch issues
+    Object.keys(processedData).forEach(key => {
+      if (key.toLowerCase().includes('date') && processedData[key] !== null) {
+        // If it's a date field but not a proper Date object, convert it
+        if (!(processedData[key] instanceof Date) && processedData[key] !== undefined) {
+          try {
+            processedData[key] = new Date(processedData[key]);
+            // Check if the date is valid (not Dec 31 1969 or Jan 1 1970)
+            if (processedData[key].getFullYear() < 1971) {
+              console.warn(`Invalid date detected for field ${key}: ${processedData[key]}, using current date instead`);
+              processedData[key] = new Date();
+            }
+          } catch (e) {
+            console.error(`Error converting date for field ${key}:`, e);
+            // Use current date as fallback
+            processedData[key] = new Date();
+          }
+        }
+      }
+    });
+    
     const result = await this.db
       .update(this.table)
       .set({
-        ...data,
+        ...processedData,
         updatedAt: new Date(),
       })
       .where(

@@ -57,6 +57,13 @@
     th {
       background-color: #f2f2f2;
     }
+    .currency-info {
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 15px 0;
+      border-left: 4px solid #4f46e5;
+    }
   </style>
 </head>
 <body>
@@ -95,6 +102,33 @@
           <td>{{status}}</td>
         </tr>
       </table>
+      
+      {{#if currencyConverted}}
+      <div class="currency-info">
+        <h3>Currency Information</h3>
+        <p>This payment was processed in {{displayCurrency}}.</p>
+        <table>
+          <tr>
+            <th>Currency Detail</th>
+            <th>Value</th>
+          </tr>
+          <tr>
+            <td>Original Amount ({{baseCurrency}})</td>
+            <td>{{originalAmount}}</td>
+          </tr>
+          <tr>
+            <td>Converted Amount ({{displayCurrency}})</td>
+            <td>{{convertedAmount}}</td>
+          </tr>
+          <tr>
+            <td>Exchange Rate ({{baseCurrency}} to {{displayCurrency}})</td>
+            <td>{{exchangeRate}}</td>
+          </tr>
+        </table>
+      </div>
+      {{else}}
+      <p>Payment processed in {{displayCurrency}}.</p>
+      {{/if}}
       
       <p>You can view your invoice details by clicking the button below:</p>
       

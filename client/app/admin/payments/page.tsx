@@ -63,19 +63,72 @@ export default function PaymentsPage() {
   const totalPages = paymentsResponse?.pagination?.totalPages || 0;
 
   // Format handlers
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string | null | undefined, payment?: any) => {
+    // First try using the payment metadata for WiPay transactions
+    if (payment && payment.meta) {
+      // Look for transactionTimestamp or paymentProcessedAt in metadata
+      const metaDate = payment.meta.transactionTimestamp || 
+                       payment.meta.paymentProcessedAt || 
+                       payment.meta.wiPayCallback?.timestamp || 
+                       payment.meta.wiPayCallback?.date;
+      
+      if (metaDate) {
+        const date = new Date(metaDate);
+        if (!isNaN(date.getTime()) && date.getFullYear() > 1971) {
+          console.log('Using date from metadata:', metaDate);
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        }
+      }
+    }
+    
+    // Fall back to regular date processing
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    // Check if the date is valid
+    if (isNaN(date.getTime())) return 'N/A';
+    
+    // Check if it's the Unix epoch default (1970-01-01 or close to it)
+    if (date.getFullYear() < 1971) {
+      console.log(`Invalid date detected: ${dateString}`);
+      return 'N/A';
+    }
+    
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+  // Format currency with exchange rate info
+  const formatCurrencyWithRate = (payment: any) => {
+    // Get currency from payment meta data or default to USD
+    const currency = payment.meta?.currency || 'USD';
+    const amount = payment.amount;
+    const exchangeRate = payment.meta?.exchangeRate;
+    
+    const formattedAmount = new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: currency,
     }).format(amount);
+    
+    if (currency !== 'USD' && exchangeRate && exchangeRate !== 1) {
+      return (
+        <>
+          {formattedAmount}
+          <span className="text-xs text-muted-foreground ml-1">
+            (rate: {exchangeRate})
+          </span>
+        </>
+      );
+    }
+    
+    return formattedAmount;
   };
 
   // Export handler
@@ -133,11 +186,11 @@ export default function PaymentsPage() {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-sm text-muted-foreground">Amount</p>
-              <p className="font-medium">{formatCurrency(payment.amount)}</p>
+              <p className="font-medium">{formatCurrencyWithRate(payment)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Date</p>
-              <p>{formatDate(payment.paymentDate)}</p>
+              <p>{formatDate(payment.paymentDate, payment)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Method</p>
@@ -262,8 +315,8 @@ export default function PaymentsPage() {
                           )}
                         </Link>
                       </TableCell>
-                      <TableCell>{formatDate(payment.paymentDate)}</TableCell>
-                      <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                      <TableCell>{formatDate(payment.paymentDate, payment)}</TableCell>
+                      <TableCell>{formatCurrencyWithRate(payment)}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
                           {payment.paymentMethod.replace('_', ' ')}
