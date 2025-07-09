@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProcessPayment } from '@/hooks/usePayments';
 import { useToast } from "@/components/ui/use-toast";
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCurrency } from "@/hooks/useCurrency";
+import { SupportedCurrency } from "@/lib/api/types";
 
 interface PaymentProcessingModalProps {
   open: boolean;
@@ -43,26 +45,79 @@ export function PaymentProcessingModal({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { mutate: processPayment, isPending: isProcessingPayment } = useProcessPayment();
+  const { selectedCurrency, setSelectedCurrency, convert, convertAndFormat } = useCurrency();
 
   // Form state
   const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [paymentAmount, setPaymentAmount] = useState(initialAmount);
+  const [originalAmountUSD, setOriginalAmountUSD] = useState<number | null>(null);
   const [transactionId, setTransactionId] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [sendNotification, setSendNotification] = useState(true);
 
   // Reset form when modal opens with new data
-  React.useEffect(() => {
+  useEffect(() => {
     if (open && initialAmount) {
+      const parsedAmount = parseFloat(initialAmount);
       setPaymentAmount(initialAmount);
+      
+      // Store the original USD amount for currency conversions
+      if (!isNaN(parsedAmount)) {
+        setOriginalAmountUSD(parsedAmount);
+      }
     }
   }, [open, initialAmount]);
+
+  // Update payment amount when currency changes
+  useEffect(() => {
+    if (originalAmountUSD !== null) {
+      if (selectedCurrency === 'USD') {
+        setPaymentAmount(originalAmountUSD.toFixed(2));
+      } else {
+        // Convert from USD to JMD
+        const convertedAmount = convert(originalAmountUSD);
+        setPaymentAmount(convertedAmount.toFixed(2));
+      }
+    }
+  }, [selectedCurrency, originalAmountUSD, convert]);
+
+  // Handle currency change
+  const handleCurrencyChange = (currency: SupportedCurrency) => {
+    // Store current amount in USD before changing currency
+    const currentAmount = parseFloat(paymentAmount);
+    if (!isNaN(currentAmount) && originalAmountUSD === null) {
+      // If this is the first currency change, store the original amount
+      if (selectedCurrency === 'USD') {
+        setOriginalAmountUSD(currentAmount);
+      } else {
+        // Convert current JMD amount to USD for storage
+        const usdAmount = convert(currentAmount, selectedCurrency);
+        setOriginalAmountUSD(usdAmount);
+      }
+    }
+    
+    setSelectedCurrency(currency);
+  };
+
+  // Convert amount back to USD when processing payment
+  const getUSDAmount = () => {
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount)) return 0;
+    
+    // If currency is already USD, no conversion needed
+    if (selectedCurrency === 'USD') return amount;
+    
+    // Convert from JMD to USD
+    return convert(amount, selectedCurrency);
+  };
 
   const handleProcessPayment = () => {
     if (!invoiceId || !userId) return;
     
+    // Get amount in USD for processing
+    const amount = getUSDAmount();
+    
     // Validate amount - must be a positive number
-    const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
       toast({
         title: "Invalid amount",
@@ -71,6 +126,17 @@ export function PaymentProcessingModal({
       });
       return;
     }
+
+    // Prepare meta data with currency information
+    const meta = {
+      currency: selectedCurrency,
+      displayAmount: parseFloat(paymentAmount),
+      exchangeRate: selectedCurrency === 'USD' ? 1 : convert(1),
+      originalAmount: parseFloat(paymentAmount),
+      convertedAmount: amount,
+      baseCurrency: 'USD',
+      paymentProcessedAt: new Date().toISOString()
+    };
 
     processPayment(
       {
@@ -81,7 +147,9 @@ export function PaymentProcessingModal({
           paymentMethod: paymentMethod as any,
           transactionId: transactionId || undefined,
           notes: paymentNotes || undefined,
-          status: "completed" // Mark as completed immediately
+          status: "completed", // Mark as completed immediately
+          meta: meta // Include meta data with currency information
+          // Don't set paymentDate, let backend handle it as a Date object
         },
         sendNotification
       },
@@ -98,6 +166,7 @@ export function PaymentProcessingModal({
           setPaymentAmount(initialAmount);
           setTransactionId("");
           setPaymentNotes("");
+          setOriginalAmountUSD(null);
           
           // Invalidate relevant queries if companyId is provided
           if (companyId) {
@@ -132,13 +201,28 @@ export function PaymentProcessingModal({
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="amount">Amount</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="amount">Amount</Label>
+              <Select
+                value={selectedCurrency}
+                onValueChange={handleCurrencyChange}
+              >
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="Currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD ($)</SelectItem>
+                  <SelectItem value="JMD">JMD (J$)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Input
               id="amount"
               type="number"
               step="0.01"
               value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
+              readOnly
+              className="bg-gray-50"
               placeholder="0.00"
             />
           </div>

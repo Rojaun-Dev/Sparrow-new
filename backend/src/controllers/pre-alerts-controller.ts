@@ -2,9 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { PreAlertsService, createPreAlertSchema, updatePreAlertSchema } from '../services/pre-alerts-service';
 import { ApiResponse } from '../utils/response';
 import { UploadedFile } from 'express-fileupload';
+import { AuditLogsService } from '../services/audit-logs-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
+  userId?: string;
   files?: {
     documents?: UploadedFile | UploadedFile[];
   };
@@ -12,9 +14,11 @@ interface AuthRequest extends Request {
 
 export class PreAlertsController {
   private service: PreAlertsService;
+  private auditLogsService: AuditLogsService;
 
   constructor() {
     this.service = new PreAlertsService();
+    this.auditLogsService = new AuditLogsService();
   }
 
   /**
@@ -131,6 +135,9 @@ export class PreAlertsController {
   createPreAlert = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
+      const creatorUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
       // Validate request body
       try {
@@ -140,6 +147,27 @@ export class PreAlertsController {
       }
 
       const preAlert = await this.service.createPreAlert(req.body, companyId);
+      
+      // Create audit log for pre-alert creation
+      if (preAlert) {
+        await this.auditLogsService.createLog({
+          userId: creatorUserId,
+          companyId,
+          action: 'create_prealert',
+          entityType: 'pre_alert',
+          entityId: preAlert.id || '',
+          details: {
+            preAlertId: preAlert.id || '',
+            trackingNumber: preAlert.trackingNumber || '',
+            customerId: preAlert.userId || '',
+            courier: preAlert.courier || '',
+            estimatedArrival: preAlert.estimatedArrival
+          },
+          ipAddress,
+          userAgent
+        });
+      }
+
       return ApiResponse.success(res, preAlert, 'Pre-alert created successfully', 201);
     } catch (error) {
       next(error);

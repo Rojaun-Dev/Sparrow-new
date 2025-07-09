@@ -58,6 +58,27 @@ export default function PaymentDetailsPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  // Format currency
+  const formatCurrency = (amount: number, currency = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  };
+
+  // Get currency symbol
+  const getCurrencySymbol = (currency = 'USD') => {
+    const symbols: Record<string, string> = {
+      'USD': '$',
+      'JMD': 'J$'
+    };
+    return symbols[currency] || '$';
+  };
+
+  // Get payment currency
+  const paymentCurrency = payment.meta?.currency || 'USD';
+  const currencySymbol = getCurrencySymbol(paymentCurrency);
+
   if (isLoading) {
     return <PaymentDetailsSkeleton />
   }
@@ -86,9 +107,44 @@ export default function PaymentDetailsPage({ params }: { params: Promise<{ id: s
     )
   }
 
-  // Format date for display
-  const formattedDate = payment.createdAt ? new Date(payment.createdAt).toLocaleDateString() : "N/A";
-  const formattedTime = payment.createdAt ? new Date(payment.createdAt).toLocaleTimeString() : "";
+  // Format date for display - check metadata first, then use paymentDate, fall back to createdAt
+  let dateToUse;
+  
+  // First try using metadata if available (especially for WiPay payments)
+  if (payment?.meta) {
+    const metaDate = payment.meta.transactionTimestamp || 
+                     payment.meta.paymentProcessedAt || 
+                     payment.meta.wiPayCallback?.timestamp || 
+                     payment.meta.wiPayCallback?.date;
+    
+    if (metaDate) {
+      const date = new Date(metaDate);
+      if (!isNaN(date.getTime()) && date.getFullYear() > 1971) {
+        dateToUse = metaDate;
+        console.log('Using date from payment metadata:', metaDate);
+      }
+    }
+  }
+  
+  // Fall back to payment date or creation date
+  if (!dateToUse) {
+    dateToUse = payment?.paymentDate || payment?.createdAt;
+  }
+  
+  // Format the date and time
+  let formattedDate = "N/A";
+  let formattedTime = "";
+  
+  if (dateToUse) {
+    const date = new Date(dateToUse);
+    // Check if the date is valid and not from 1970
+    if (!isNaN(date.getTime()) && date.getFullYear() > 1971) {
+      formattedDate = date.toLocaleDateString();
+      formattedTime = date.toLocaleTimeString();
+    } else {
+      console.log('Invalid payment date detected:', dateToUse);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -186,21 +242,26 @@ export default function PaymentDetailsPage({ params }: { params: Promise<{ id: s
                     payment.items.map((item, index) => (
                       <div key={index} className="flex justify-between text-sm">
                         <span>{item.description}</span>
-                        <span>${item.amount}</span>
+                        <span>{formatCurrency(item.amount, paymentCurrency)}</span>
                       </div>
                     ))
                   ) : (
                     <div className="flex justify-between text-sm">
                       <span>Invoice Payment</span>
-                      <span>${payment.amount}</span>
+                      <span>{formatCurrency(payment.amount, paymentCurrency)}</span>
                     </div>
                   )}
                 </div>
                 <Separator className="my-4" />
                 <div className="flex justify-between text-base font-medium">
                   <span>Total</span>
-                  <span>${payment.amount}</span>
+                  <span>{formatCurrency(payment.amount, paymentCurrency)}</span>
                 </div>
+                {payment.meta?.exchangeRate && payment.meta?.exchangeRate !== 1 && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Exchange rate: $1 USD = {getCurrencySymbol(paymentCurrency)}{payment.meta.exchangeRate} {paymentCurrency}
+                  </div>
+                )}
               </div>
             </div>
           </div>

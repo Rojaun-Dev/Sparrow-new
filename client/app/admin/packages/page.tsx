@@ -214,9 +214,9 @@ export default function PackagesPage() {
 
   // State for send notification checkboxes
   const [sendNotificationOnDelete, setSendNotificationOnDelete] = useState(true);
-  const [sendNotificationOnReady, setSendNotificationOnReady] = useState(true);
-  const [markReadyDialogOpen, setMarkReadyDialogOpen] = useState(false);
-  const [packageToMarkReady, setPackageToMarkReady] = useState<string | null>(null);
+  const [sendNotificationOnDelivered, setSendNotificationOnDelivered] = useState(true);
+  const [markDeliveredDialogOpen, setMarkDeliveredDialogOpen] = useState(false);
+  const [packageToMarkDelivered, setPackageToMarkDelivered] = useState<string | null>(null);
   const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
   const [quickInvoiceUserId, setQuickInvoiceUserId] = useState<string | null>(null);
   const [showQuickInvoiceDialog, setShowQuickInvoiceDialog] = useState(false);
@@ -540,7 +540,103 @@ export default function PackagesPage() {
               </div>
             </div>
 
-            <div className="rounded-md border">
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4 mt-4">
+              {packages.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No packages found. Try adjusting your search or filters.
+                </div>
+              ) : (
+                packages.map((pkg) => {
+                  const user = userMap[pkg.userId];
+                  const customerName = user ? `${user.firstName} ${user.lastName}` : pkg.userId;
+                  return (
+                    <Card key={pkg.id} className="overflow-hidden">
+                      <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{pkg.description || pkg.trackingNumber || pkg.id}</CardTitle>
+                          <CardDescription>{pkg.internalTrackingId}</CardDescription>
+                        </div>
+                        <Badge variant={STATUS_VARIANTS[pkg.status] as any}>
+                          {STATUS_LABELS[pkg.status]}
+                        </Badge>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-2 space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Customer:</span>
+                          <span className="text-sm">
+                            {user ? (
+                              <Link href={`/admin/customers/${pkg.userId}`} className="hover:underline">
+                                {customerName}
+                              </Link>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => handleAssignUser(pkg.id)}
+                                className="flex items-center gap-1"
+                              >
+                                <UserPlus className="h-3 w-3" />
+                                Assign Customer
+                              </Button>
+                            )}
+                          </span>
+                        </div>
+                        {pkg.weight && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Weight:</span>
+                            <span className="text-sm">{pkg.weight} lbs</span>
+                          </div>
+                        )}
+                        {pkg.dimensions && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Dimensions:</span>
+                            <span className="text-sm">{formatDimensions(pkg.dimensions)}</span>
+                          </div>
+                        )}
+                        {pkg.receivedDate && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Received Date:</span>
+                            <span className="text-sm">{formatDate(pkg.receivedDate)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-end gap-2 mt-4">
+                          <Button size="sm" asChild>
+                            <Link href={`/admin/packages/${pkg.id}`}>
+                              <Eye className="mr-1 h-3 w-3" />
+                              View
+                            </Link>
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              setQuickInvoicePackageId(pkg.id);
+                              setQuickInvoiceUserId(pkg.userId);
+                              setShowQuickInvoiceDialog(true);
+                            }}
+                          >
+                            <CircleDollarSign className="mr-1 h-3 w-3" />
+                            Invoice
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => openDeleteDialog(pkg.id)}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="rounded-md border hidden md:block">
               {isLoading || usersLoading ? (
                 <div className="py-8 text-center">Loading...</div>
               ) : error ? (
@@ -641,16 +737,16 @@ export default function PackagesPage() {
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      if (pkg.status !== 'ready_for_pickup' && pkg.status !== 'delivered' && pkg.status !== 'returned') {
-                                        setPackageToMarkReady(pkg.id);
-                                        setSendNotificationOnReady(true);
-                                        setMarkReadyDialogOpen(true);
+                                      if (pkg.status !== 'delivered' && pkg.status !== 'returned') {
+                                        setPackageToMarkDelivered(pkg.id);
+                                        setSendNotificationOnDelivered(true);
+                                        setMarkDeliveredDialogOpen(true);
                                       }
                                     }}
-                                    disabled={updateStatusMutation.isPending || pkg.status === 'ready_for_pickup' || pkg.status === 'delivered' || pkg.status === 'returned'}
+                                    disabled={updateStatusMutation.isPending || pkg.status === 'delivered' || pkg.status === 'returned'}
                                   >
                                     <Truck className="mr-2 h-4 w-4" />
-                                    Mark as Ready
+                                    Mark as Delivered
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
@@ -749,32 +845,32 @@ export default function PackagesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={markReadyDialogOpen} onOpenChange={setMarkReadyDialogOpen}>
+      <Dialog open={markDeliveredDialogOpen} onOpenChange={setMarkDeliveredDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark as Ready</DialogTitle>
+            <DialogTitle>Mark as Delivered</DialogTitle>
             <DialogDescription>
-              Are you sure you want to mark this package as ready for pickup?
+              Are you sure you want to mark this package as delivered?
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 mt-2">
             <input
               type="checkbox"
-              id="send-notification-ready"
-              checked={sendNotificationOnReady}
-              onChange={e => setSendNotificationOnReady(e.target.checked)}
+              id="send-notification-delivered"
+              checked={sendNotificationOnDelivered}
+              onChange={e => setSendNotificationOnDelivered(e.target.checked)}
             />
-            <label htmlFor="send-notification-ready" className="text-sm">Send notification</label>
+            <label htmlFor="send-notification-delivered" className="text-sm">Send notification</label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMarkReadyDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setMarkDeliveredDialogOpen(false)}>
               Cancel
             </Button>
             <Button variant="default" onClick={() => {
-              if (packageToMarkReady) updateStatusMutation.mutate({ id: packageToMarkReady, status: 'ready_for_pickup', sendNotification: sendNotificationOnReady });
-              setMarkReadyDialogOpen(false);
+              if (packageToMarkDelivered) updateStatusMutation.mutate({ id: packageToMarkDelivered, status: 'delivered', sendNotification: sendNotificationOnDelivered });
+              setMarkDeliveredDialogOpen(false);
             }} disabled={updateStatusMutation.isPending}>
-              {updateStatusMutation.isPending ? 'Marking...' : 'Mark as Ready'}
+              {updateStatusMutation.isPending ? 'Marking...' : 'Mark as Delivered'}
             </Button>
           </DialogFooter>
         </DialogContent>

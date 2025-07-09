@@ -85,4 +85,11 @@ router.put(
   companySettingsController.updateInternalPrefix
 );
 
+// Update exchange rate settings
+router.put(
+  '/exchange-rate',
+  /*checkRole(['admin_l2']),*/
+  companySettingsController.updateExchangeRateSettings
+);
+
 export default router; 

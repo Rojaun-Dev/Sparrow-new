@@ -1,144 +1,101 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/apiClient';
-import { useToast } from './use-toast';
-import { useMyAdminCompany } from './useCompanies';
+import { ExchangeRateSettings, Company } from '@/lib/api/types';
+import { useCompanyContext } from './useCompanyContext';
 
-// Define the company settings type
-interface CompanySettings {
-  id?: string;
-  companyId?: string;
-  internalPrefix?: string;
-  notificationSettings?: Record<string, any>;
-  themeSettings?: Record<string, any>;
-  paymentSettings?: Record<string, any>;
-  integrationSettings?: Record<string, any>;
-  createdAt?: string;
-  updatedAt?: string;
+interface Settings {
+  id: string;
+  companyId: string;
+  internalPrefix: string;
+  notificationSettings?: any;
+  themeSettings?: any;
+  paymentSettings?: any;
+  integrationSettings?: any;
+  exchangeRateSettings?: ExchangeRateSettings;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function useCompanySettings() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { companyId } = useCompanyContext();
   
-  // Use the existing company data query
-  const companyQuery = useMyAdminCompany();
+  // Fallback for testing - remove in production
+  const effectiveCompanyId = companyId;  // Hardcoded for testing
   
-  // Get company settings
-  const settingsQuery = useQuery<CompanySettings>({
-    queryKey: ['companySettings'],
-    queryFn: async () => {
-      return apiClient.get('/company-settings');
-    },
-    enabled: !!companyQuery.data?.id,
-  });
-  
-  // Update integration settings
-  const updateIntegrationSettings = useMutation({
-    mutationFn: async (integrationSettings: any) => {
-      console.log("Saving integration settings:", integrationSettings);
-      return apiClient.put('/company-settings/integration', integrationSettings);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Integration settings updated",
-        description: "Integration settings have been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ['companySettings'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update integration settings",
-        variant: "destructive",
-      });
-      console.error("Error updating integration settings:", error);
-    }
-  });
-  
-  // Update internal prefix
-  const updateInternalPrefix = useMutation({
-    mutationFn: async (internalPrefix: string) => {
-      return apiClient.put('/company-settings/internal-prefix', { internalPrefix });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Internal prefix updated",
-        description: "Company internal prefix has been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ['companySettings'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update internal prefix",
-        variant: "destructive",
-      });
-      console.error("Error updating internal prefix:", error);
-    }
-  });
-  
-  // Update company general information
-  const updateCompany = useMutation({
-    mutationFn: async (data: any) => {
-      const companyId = companyQuery.data?.id;
-      if (!companyId) throw new Error("Company ID not found");
-      
-      // Check if we're updating payment settings
-      if (data.paymentSettings) {
-        // Use the dedicated payment settings endpoint
-        return apiClient.put(`/company-settings/payment`, data.paymentSettings);
-      }
-      
-      // Otherwise use the regular company update endpoint
-      return apiClient.put(`/companies/${companyId}`, data);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Company updated",
-        description: "Company information has been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ['myAdminCompany'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update company information",
-        variant: "destructive",
-      });
-    }
-  });
-  
-  // Update company locations
-  const updateLocations = useMutation({
-    mutationFn: async (locations: string[]) => {
-      const companyId = companyQuery.data?.id;
-      if (!companyId) throw new Error("Company ID not found");
-      return apiClient.put(`/companies/${companyId}`, { locations });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Locations updated",
-        description: "Pickup locations have been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ['myAdminCompany'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update locations",
-        variant: "destructive",
-      });
-    }
+  // Fetch company settings
+  const { data: settings, isLoading: isSettingsLoading, error } = useQuery<Settings>({
+    queryKey: ['company-settings', effectiveCompanyId],
+    queryFn: () => apiClient.get('/company-settings'),
+    enabled: true, // Always try to fetch
   });
 
+  // Debug logs
+  console.log("useCompanySettings - companyId:", companyId);
+  console.log("useCompanySettings - settings loading:", isSettingsLoading);
+  console.log("useCompanySettings - settings error:", error);
+
+  const updateCompany = useMutation({
+    mutationFn: (data: any) => apiClient.put(`/companies/${data.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['company', effectiveCompanyId] });
+    },
+  });
+
+  const updateLocations = useMutation({
+    mutationFn: (locations: string[]) => apiClient.put(`/companies/current`, { locations }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['company', effectiveCompanyId] });
+    },
+  });
+
+  const updateIntegrationSettings = useMutation({
+    mutationFn: (data: any) => apiClient.put('/company-settings/integration', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+    },
+  });
+
+  const updateInternalPrefix = useMutation({
+    mutationFn: (prefix: string) => apiClient.put('/company-settings/internal-prefix', { internalPrefix: prefix }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+    },
+  });
+
+  const updateExchangeRateSettings = useMutation({
+    mutationFn: (data: ExchangeRateSettings) => apiClient.put('/company-settings/exchange-rate', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+    },
+  });
+
+  // Fetch full company details (name, subdomain, etc.)
+  const { data: company, isLoading: isCompanyLoading } = useQuery<Company>({
+    queryKey: ['company', effectiveCompanyId],
+    queryFn: () => apiClient.get('/companies/admin/me'),
+    enabled: true, // Always try to fetch
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Debug company data fetch
+  console.log("useCompanySettings - company loading:", isCompanyLoading);
+  console.log("useCompanySettings - company data:", company);
+
+  // Combined loading flag for convenience
+  const isLoading = isSettingsLoading || isCompanyLoading;
+
   return {
-    company: companyQuery.data,
-    settings: settingsQuery.data as CompanySettings,
-    isLoading: companyQuery.isLoading || settingsQuery.isLoading,
-    error: companyQuery.error || settingsQuery.error,
+    company,
+    settings,
+    isLoading,
+    error,
     updateCompany,
     updateLocations,
     updateIntegrationSettings,
-    updateInternalPrefix
+    updateInternalPrefix,
+    updateExchangeRateSettings,
   };
 } 

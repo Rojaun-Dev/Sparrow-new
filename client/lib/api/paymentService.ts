@@ -139,11 +139,24 @@ class PaymentService {
    */
   async processBatchPayment(
     payments: any[],
-    companyId?: string
+    companyId?: string,
+    currency: string = 'USD',
+    exchangeRate: number = 1
   ): Promise<any> {
     const cId = companyId || await this.getCompanyId();
+    
+    // Add meta data with currency information to each payment
+    const paymentsWithMeta = payments.map(payment => ({
+      ...payment,
+      meta: {
+        ...payment.meta,
+        currency,
+        exchangeRate
+      }
+    }));
+    
     return apiClient.post<any>(`${this.baseUrl}/${cId}/payments/batch`, {
-      payments,
+      payments: paymentsWithMeta,
       sendNotification: true
     });
   }
@@ -155,7 +168,9 @@ class PaymentService {
     userId: string,
     paymentMethod: string,
     notes?: string,
-    companyId?: string
+    companyId?: string,
+    currency: string = 'USD',
+    exchangeRate: number = 1
   ): Promise<any> {
     const cId = companyId || await this.getCompanyId();
     
@@ -186,13 +201,20 @@ class PaymentService {
       amount: typeof invoice.totalAmount === 'string' ? parseFloat(invoice.totalAmount) : invoice.totalAmount,
       paymentMethod,
       notes,
-      status: 'completed'
+      status: 'completed',
+      meta: {
+        currency,
+        exchangeRate,
+        originalAmount: invoice.totalAmount
+      }
     }));
     
     // Process batch payment
     return this.processBatchPayment(
       payments,
-      cId
+      cId,
+      currency,
+      exchangeRate
     );
   }
 

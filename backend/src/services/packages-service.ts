@@ -145,11 +145,9 @@ export class PackagesService {
    */
   async getPackageById(id: string, companyId: string) {
     const pkg = await this.packagesRepository.findById(id, companyId);
-    
     if (!pkg) {
       throw AppError.notFound('Package not found');
     }
-    
     return pkg;
   }
 
@@ -229,6 +227,8 @@ export class PackagesService {
       const packageData: any = {
         ...validatedData,
         companyId, // Ensure companyId is explicitly set here
+        // Set default status to "received" if not specified
+        status: validatedData.status || 'received',
       };
       
       // Debug logging for final package data
@@ -316,6 +316,7 @@ export class PackagesService {
       sortOrder?: 'asc' | 'desc';
       page?: number;
       pageSize?: number;
+      search?: string;
     }
   ) {
     return this.packagesRepository.searchPackages(companyId, searchParams);
@@ -378,8 +379,21 @@ export class PackagesService {
     }
     
     // Update ONLY the pre-alert to link it to the package
-    // Do NOT update the package as there's no pre_alert_id column in the packages table
     const updatedPreAlert = await this.preAlertsRepository.matchToPackage(preAlertId, packageId, companyId);
+    
+    // Update package status to pre_alert if it's in received or in_transit state
+    if (existingPackage.status === 'received' || existingPackage.status === 'in_transit') {
+      await this.packagesRepository.update(packageId, { 
+        status: 'pre_alert'
+      }, companyId);
+      
+      // Refresh the package data
+      const updatedPackage = await this.packagesRepository.findById(packageId, companyId);
+      return {
+        package: updatedPackage,
+        preAlert: updatedPreAlert
+      };
+    }
     
     return {
       package: existingPackage,
@@ -629,5 +643,37 @@ export class PackagesService {
         totalPages: Math.ceil(totalCount / limit)
       }
     };
+  }
+
+  /**
+   * Update package status to ready_for_pickup after payment
+   * This method is called from the payments service when a payment is completed
+   */
+  async updatePackageStatusAfterPayment(invoiceId: string, companyId: string) {
+    // Get all packages associated with this invoice
+    const packages = await this.getPackagesByInvoiceId(invoiceId, companyId);
+    
+    if (!packages || packages.length === 0) {
+      console.log(`No packages found for invoice ${invoiceId}`);
+      return;
+    }
+    
+    // Update each package status to ready_for_pickup
+    const updatePromises = packages.map(pkg => {
+      // Access the package id directly from the joined result
+      const packageId = pkg.id; // Access id directly since findByInvoiceId returns package objects
+      if (packageId) {
+        return this.packagesRepository.update(packageId, { 
+          status: 'ready_for_pickup'
+        }, companyId);
+      }
+      return Promise.resolve(null);
+    }).filter(promise => promise !== null);
+    
+    // Wait for all updates to complete
+    const results = await Promise.all(updatePromises);
+    console.log(`Updated ${results.length} packages to ready_for_pickup status for invoice ${invoiceId}`);
+    
+    return results;
   }
 } 

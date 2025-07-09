@@ -65,6 +65,9 @@ export class UsersController {
   createUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       const { password, ...userData } = req.body;
       
       // Validate request body
@@ -84,6 +87,25 @@ export class UsersController {
         ...userData,
         ...(passwordHash && { passwordHash })
       }, companyId);
+
+      // Audit log for user registration
+      if (user) {
+        await this.auditLogsService.createLog({
+          userId: adminUserId || user.id, // If no admin creating the user, use the new user's ID
+          companyId,
+          action: 'user_registration',
+          entityType: 'user',
+          entityId: user.id,
+          details: {
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role
+          },
+          ipAddress,
+          userAgent
+        });
+      }
       
       return ApiResponse.success(res, user, 'User created successfully', 201);
     } catch (error) {

@@ -472,4 +472,63 @@ export class CompanySettingsController {
       }
     }
   };
+
+  /**
+   * Update exchange rate settings
+   */
+  updateExchangeRateSettings = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+    try {
+      const companyId = req.companyId;
+      if (!companyId) {
+        return res.status(400).json({ error: 'Company ID is required' });
+      }
+
+      // Check if user has admin_l2 role
+      if (req.userRole !== 'admin_l2' && req.userRole !== 'super_admin') {
+        return res.status(403).json({ 
+          error: 'Unauthorized', 
+          message: 'Only admin_l2 users can update exchange rate settings' 
+        });
+      }
+      
+      const { baseCurrency, targetCurrency, exchangeRate, autoUpdate } = req.body;
+      
+      // Validation
+      if (!baseCurrency || !targetCurrency || !exchangeRate) {
+        return res.status(400).json({ error: 'Base currency, target currency, and exchange rate are required' });
+      }
+      
+      if (!['USD', 'JMD'].includes(baseCurrency) || !['USD', 'JMD'].includes(targetCurrency)) {
+        return res.status(400).json({ error: 'Only USD and JMD currencies are supported' });
+      }
+      
+      if (baseCurrency === targetCurrency) {
+        return res.status(400).json({ error: 'Base currency and target currency must be different' });
+      }
+      
+      if (isNaN(exchangeRate) || exchangeRate <= 0) {
+        return res.status(400).json({ error: 'Exchange rate must be a positive number' });
+      }
+      
+      const exchangeRateSettings = {
+        baseCurrency,
+        targetCurrency,
+        exchangeRate: parseFloat(exchangeRate),
+        lastUpdated: new Date().toISOString(),
+        autoUpdate: Boolean(autoUpdate)
+      };
+      
+      const settings = await this.companySettingsService.updateExchangeRateSettings(companyId, exchangeRateSettings);
+      return res.json(settings);
+    } catch (error) {
+      console.error('Error updating exchange rate settings:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid data', details: error.errors });
+      } else if (error instanceof Error) {
+        return res.status(400).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: 'Failed to update exchange rate settings' });
+      }
+    }
+  };
 } 

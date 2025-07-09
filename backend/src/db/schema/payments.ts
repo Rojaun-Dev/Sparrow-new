@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, pgEnum, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, pgEnum, decimal, jsonb } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 import { invoices } from './invoices';
 import { users } from './users';
@@ -36,6 +36,7 @@ export const payments = pgTable('payments', {
   status: paymentStatusEnum('status').notNull().default('pending'),
   transactionId: text('transaction_id'),
   paymentDate: timestamp('payment_date', { withTimezone: true }),
+  meta: jsonb('meta').default({}),
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

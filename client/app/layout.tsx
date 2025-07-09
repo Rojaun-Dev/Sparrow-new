@@ -12,6 +12,7 @@ import { QueryProvider } from "@/lib/providers/QueryProvider"
 import type { Metadata } from "next"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { CompanyProvider } from "@/hooks/useCompanyContext"
+import { CurrencyProvider } from "@/components/providers/CurrencyProvider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -35,9 +36,11 @@ export default function RootLayout({
           <QueryProvider>
             <AuthProvider>
               <CompanyProvider>
-                <TooltipProvider>
-                  <FeedbackProvider>{children}</FeedbackProvider>
-                </TooltipProvider>
+                <CurrencyProvider>
+                  <TooltipProvider>
+                    <FeedbackProvider>{children}</FeedbackProvider>
+                  </TooltipProvider>
+                </CurrencyProvider>
               </CompanyProvider>
             </AuthProvider>
           </QueryProvider>

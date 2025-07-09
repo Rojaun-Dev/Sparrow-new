@@ -1,147 +1,92 @@
 import { apiClient } from './apiClient';
 import { User, NotificationPreferences, PasswordChangeRequest } from './types';
 
-class ProfileService {
-  private baseUrl = '/auth';
+export interface ProfileResponse {
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+}
 
-  /**
-   * Get current user profile
-   */
-  async getCurrentUser(): Promise<User> {
-    const response = await apiClient.get<{ user: User }>(`${this.baseUrl}/me`);
-    return response.user;
-  }
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+}
 
-  /**
-   * Update user profile
-   */
-  async updateProfile(userData: Partial<User>): Promise<User> {
-    const response = await apiClient.put<{ user: User }>(`${this.baseUrl}/profile`, userData);
-    return response.user;
-  }
-
-  /**
-   * Update user password
-   */
-  async updatePassword(passwordData: PasswordChangeRequest): Promise<void> {
-    return apiClient.put<void>(`${this.baseUrl}/change-password`, passwordData);
-  }
-
-  /**
-   * Get user notification preferences
-   */
-  async getNotificationPreferences(): Promise<NotificationPreferences> {
-    const response = await apiClient.get<{ preferences: NotificationPreferences }>(`${this.baseUrl}/me/notifications`);
-    return response.preferences || {
-      email: true,
-      sms: false,
-      push: false,
-      pickupLocationId: null,
-      packageUpdates: { email: true, sms: false, push: false },
-      billingUpdates: { email: true, sms: false, push: false },
-      marketingUpdates: { email: false, sms: false, push: false }
-    };
-  }
-
-  /**
-   * Update user notification preferences
-   */
-  async updateNotificationPreferences(preferences: NotificationPreferences): Promise<NotificationPreferences> {
-    const response = await apiClient.put<{ preferences: NotificationPreferences }>(`${this.baseUrl}/me/notifications`, { preferences });
-    return response.preferences;
-  }
-
-  /**
-   * Get company pickup locations
-   */
-  async getPickupLocations(): Promise<string[]> {
+export const profileService = {
+  async getProfile() {
     try {
-      // Use the original path since we've added support for it in the backend
-      const response = await apiClient.get<{ locations: string[], success: boolean }>(`/company-settings/pickup-locations`);
-      return response.locations || [];
+      const response = await apiClient.get<ApiResponse<ProfileResponse>>('/auth/profile');
+      return response.data;
     } catch (error) {
-      console.error('Error fetching pickup locations:', error);
-      // Return empty array instead of throwing
-      return [];
+      console.error('Error fetching profile:', error);
+      throw error;
     }
-  }
+  },
 
-  /**
-   * Update user pickup location
-   */
-  async updatePickupLocation(pickupLocationId: string): Promise<NotificationPreferences> {
-    // Get current notification preferences
-    const currentPrefs = await this.getNotificationPreferences();
-    
-    // Update pickup location in preferences
-    const updatedPrefs = {
-      ...currentPrefs,
-      pickupLocationId
-    };
-    
-    // Save updated preferences
-    return this.updateNotificationPreferences(updatedPrefs);
-  }
-
-  /**
-   * Get user statistics (package counts, invoices, etc.) based on role
-   * The backend will handle access control based on the user's role
-   */
-  async getUserStatistics(): Promise<any> {
+  async updateProfile(data: any) {
     try {
-      // First get the user's profile to check role
-      const user = await this.getCurrentUser();
-      
-      let endpoint;
-      // Determine which statistics endpoint to call based on role
-      if (user.role === 'super_admin') {
-        endpoint = `/statistics/superadmin`;
-      } else if (user.role === 'admin_l1' || user.role === 'admin_l2') {
-        endpoint = `/statistics/admin`;
-      } else {
-        // Default to customer statistics for regular users
-        endpoint = `/statistics/customer/`;
-      }
-      
-      const response = await apiClient.get<any>(endpoint);
-      
-      // Ensure we have a valid response object
-      if (!response) {
-        return { data: {}, success: true };
-      }
-      
+      const response = await apiClient.put<ApiResponse<ProfileResponse>>('/auth/profile', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      throw error;
+    }
+  },
+
+  async getUserStatistics(currency: 'USD' | 'JMD' = 'USD') {
+    try {
+      // Update the endpoint to match the backend route
+      const response = await apiClient.get<ApiResponse<any>>(`/statistics/admin?currency=${currency}`);
+      console.log('Statistics API response:', response);
       return response;
     } catch (error) {
       console.error('Error fetching user statistics:', error);
-      // Return default statistics object instead of throwing
-      return { 
-        data: {
-          totalPackages: "0",
-          packagesByStatus: {},
-          pendingPreAlerts: "0",
-          outstandingInvoices: {
-            count: "0",
-            amount: 0
-          },
-          monthlyTrend: [],
-          recentPayments: []
-        },
-        success: true
-      };
+      throw error;
+    }
+  },
+
+  async getAdminMetrics() {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>('/admin/metrics');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching admin metrics:', error);
+      throw error;
+    }
+  },
+
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    try {
+      const response = await apiClient.get<ApiResponse<NotificationPreferences>>('/auth/notification-preferences');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+      throw error;
+    }
+  },
+
+  async updateNotificationPreferences(preferences: NotificationPreferences) {
+    try {
+      const response = await apiClient.put<ApiResponse<any>>('/auth/notification-preferences', preferences);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating notification preferences:', error);
+      throw error;
+    }
+  },
+
+  async changePassword(data: PasswordChangeRequest) {
+    try {
+      const response = await apiClient.post<ApiResponse<any>>('/auth/change-password', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw error;
     }
   }
-
-  /**
-   * Get statistics for a specific user as an admin
-   */
-  async getCustomerStatisticsForAdmin(userId: string, companyId: string): Promise<any> {
-    const endpoint = `/statistics/customer/${userId}`;
-    // Pass companyId in header if needed for multi-tenancy
-    return apiClient.get<any>(endpoint, {
-      headers: { 'X-Company-ID': companyId }
-    });
-  }
-}
-
-// Export as singleton
-export const profileService = new ProfileService(); 
+} 

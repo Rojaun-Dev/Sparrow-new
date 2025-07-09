@@ -29,7 +29,8 @@ export const users = pgTable('users', {
   isVerified: boolean('is_verified').notNull().default(false),
   verificationToken: text('verification_token'),
   verificationTokenExpires: timestamp('verification_token_expires', { withTimezone: true }),
-  notificationPreferences: jsonb('notification_preferences').default({
+  notificationPreferences: jsonb('notification_preferences').default({ // this really doesn't store notification settings exclusively. It stores all settings really.
+    // TODO: change field name to metadata, metadata should hold another jsonb object with notification settings.
     email: true,
     sms: false,
     push: false,

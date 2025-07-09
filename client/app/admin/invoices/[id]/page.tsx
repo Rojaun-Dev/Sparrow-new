@@ -4,7 +4,7 @@ import { useInvoice, useDownloadInvoicePdf } from "@/hooks/useInvoices";
 import { useGenerateInvoicePdf } from "@/hooks/useGenerateInvoicePdf";
 import { useState } from "react";
 import Link from 'next/link';
-import { usePackages } from '@/hooks/usePackages';
+import { usePackages, useUpdatePackageStatus } from '@/hooks/usePackages';
 import { useUser } from '@/hooks/useUsers';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -30,6 +30,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
+import { SupportedCurrency } from "@/lib/api/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function CustomerNameDisplay({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId);
@@ -87,13 +96,18 @@ function safeToFixed(val: any, digits = 2) {
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
-  const { data: invoice, isLoading, error, refetch } = useInvoice(id as string);
-  const { data: packages, isLoading: packagesLoading } = usePackagesByInvoiceId(id as string);
-  const { data: customer, isLoading: customerLoading } = useUser(invoice?.userId as string, { enabled: !!invoice?.userId });
+  const invoiceId = Array.isArray(id) ? id[0] : id;
+  const { data: invoice, isLoading, error, refetch } = useInvoice(invoiceId as string);
+  const { data: packages, isLoading: packagesLoading, refetch: refetchPackages } = usePackagesByInvoiceId(invoiceId as string);
+  const { data: customer, isLoading: customerLoading } = useUser(invoice?.userId as string);
   const { data: company } = useMyAdminCompany();
-  const { downloadPdf } = useDownloadInvoicePdf(id as string);
-  const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(id || "");
+  const downloadPdfMutation = useDownloadInvoicePdf();
+  const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(invoiceId || "");
   const { toast } = useToast();
+  const updatePackageStatus = useUpdatePackageStatus();
+  
+  // Currency conversion
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert, exchangeRateSettings } = useCurrency();
   
   // Payment form state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -117,6 +131,43 @@ export default function InvoiceDetailPage() {
     ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
     : [];
 
+  // Handle marking packages as delivered
+  const handleMarkAsDelivered = async () => {
+    if (!uniquePackages.length) return;
+    
+    try {
+      // Mark all packages as delivered
+      await Promise.all(
+        uniquePackages.map(pkg => 
+          updatePackageStatus.mutateAsync({
+            id: pkg.id,
+            status: 'delivered',
+            sendNotification: true
+          })
+        )
+      );
+      
+      // Refresh packages data
+      refetchPackages();
+      
+      // Close modal
+      setShowDeliverModal(false);
+      
+      // Show success message
+      toast({
+        title: "Packages marked as delivered",
+        description: `Successfully marked ${uniquePackages.length} package(s) as delivered.`,
+      });
+    } catch (error) {
+      console.error('Error marking packages as delivered:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark packages as delivered. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Group items by description and type, summing their lineTotal values
   const groupedItemsMap = new Map();
   for (const item of items) {
@@ -131,7 +182,7 @@ export default function InvoiceDetailPage() {
   }
   const groupedItems = Array.from(groupedItemsMap.values());
 
-  if (!id) {
+  if (!invoiceId) {
     return <div className="p-8 text-center text-gray-500">Invalid invoice ID.</div>;
   }
   if (isLoading) {
@@ -159,6 +210,20 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedCurrency}
+              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="JMD">JMD (J$)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {invoice && customer && company ? (
             <InvoicePDFRenderer
               invoice={{ ...invoice, items }}
@@ -168,6 +233,8 @@ export default function InvoiceDetailPage() {
               buttonText="Print"
               buttonProps={{ className: 'print-pdf-btn' }}
               onDownloadComplete={() => {}}
+              currency={selectedCurrency}
+              exchangeRateSettings={exchangeRateSettings || undefined}
             />
           ) : (
             <Button variant="outline" size="sm" disabled>
@@ -176,19 +243,6 @@ export default function InvoiceDetailPage() {
             </Button>
           )}
           <Button variant="secondary" disabled>Email to Customer</Button>
-          {invoice && packages && customer && company ? (
-            <InvoicePDFRenderer
-              invoice={invoice}
-              packages={packages}
-              user={customer}
-              company={company}
-              buttonText="Download PDF"
-            />
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Loading PDF...
-            </Button>
-          )}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-3">
@@ -303,8 +357,8 @@ export default function InvoiceDetailPage() {
                           <tr key={index}>
                             <td className="font-medium p-2">{item.description}</td>
                             <td className="p-2 text-right">{item.quantity}</td>
-                            <td className="p-2 text-right">${safeToFixed(item.unitPrice)}</td>
-                            <td className="p-2 text-right">${safeToFixed(item.lineTotal)}</td>
+                            <td className="p-2 text-right">{convertAndFormat(item.unitPrice)}</td>
+                            <td className="p-2 text-right">{convertAndFormat(item.lineTotal)}</td>
                           </tr>
                         ))
                       ) : (
@@ -317,17 +371,17 @@ export default function InvoiceDetailPage() {
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Subtotal</td>
-                        <td className="text-right">${safeToFixed(subtotal)}</td>
+                        <td className="text-right">{convertAndFormat(subtotal)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-medium">Tax</td>
-                        <td className="text-right">${safeToFixed(totalTax)}</td>
+                        <td className="text-right">{convertAndFormat(totalTax)}</td>
                       </tr>
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-bold">Total</td>
-                        <td className="text-right font-bold">${safeToFixed(total)}</td>
+                        <td className="text-right font-bold">{convertAndFormat(total)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -351,7 +405,7 @@ export default function InvoiceDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Due:</span>
                   <span className="font-bold text-lg">
-                    ${safeToFixed(total)}
+                    {convertAndFormat(total)}
                   </span>
                 </div>
                 <Separator />
@@ -372,7 +426,7 @@ export default function InvoiceDetailPage() {
                     <PaymentProcessingModal
                       open={showPaymentDialog}
                       onOpenChange={setShowPaymentDialog}
-                      invoiceId={id}
+                      invoiceId={invoiceId || ""}
                       userId={invoice.userId}
                       initialAmount={invoice.totalAmount?.toString() || "0"}
                       onSuccess={() => {
@@ -400,14 +454,16 @@ export default function InvoiceDetailPage() {
             <Button variant="outline" onClick={() => setShowDeliverModal(false)}>
               No, keep as ready for pickup
             </Button>
-            <Button variant="default" onClick={() => {
-              // Implement the logic to mark packages as delivered
-            }}>
-              Yes, mark as delivered
+            <Button 
+              variant="default" 
+              onClick={handleMarkAsDelivered}
+              disabled={updatePackageStatus.isPending}
+            >
+              {updatePackageStatus.isPending ? "Marking as delivered..." : "Yes, mark as delivered"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
-} 
+}

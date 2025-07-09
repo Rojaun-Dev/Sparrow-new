@@ -4,9 +4,11 @@ import { ApiResponse } from '../utils/response';
 import { UsersService } from '../services/users-service';
 import { EmailService } from '../services/email-service';
 import { CompaniesService } from '../services/companies-service';
+import { AuditLogsService } from '../services/audit-logs-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
+  userId?: string;
 }
 
 export class BillingController {
@@ -14,12 +16,14 @@ export class BillingController {
   private usersService: UsersService;
   private emailService: EmailService;
   private companiesService: CompaniesService;
+  private auditLogsService: AuditLogsService;
 
   constructor() {
     this.service = new BillingService();
     this.usersService = new UsersService();
     this.emailService = new EmailService();
     this.companiesService = new CompaniesService();
+    this.auditLogsService = new AuditLogsService();
   }
 
   /**
@@ -44,6 +48,9 @@ export class BillingController {
   generateInvoice = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       const { sendNotification = false, ...invoiceData } = req.body;
       
       // Validate request body
@@ -54,6 +61,27 @@ export class BillingController {
       }
 
       const invoice = await this.service.generateInvoice(invoiceData, companyId);
+
+      // Create audit log for manual invoice creation
+      if (invoice) {
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'manual_invoice_creation',
+          entityType: 'invoice',
+          entityId: invoice.id || '',
+          details: {
+            invoiceId: invoice.id || '',
+            invoiceNumber: invoice.invoiceNumber || '',
+            customerId: invoice.userId || '',
+            amount: invoice.totalAmount || 0,
+            packages: invoice.items?.filter((item: any) => item.packageId).map((item: any) => item.packageId) || [],
+            packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0
+          },
+          ipAddress,
+          userAgent
+        });
+      }
 
       // Send notification if requested
       if (sendNotification && invoice && invoice.userId) {
@@ -69,7 +97,7 @@ export class BillingController {
             
             // Get company name
             const company = await this.companiesService.getCompanyById(companyId);
-            const companyName = company ? company.name : 'Cautious Robot';
+            const companyName = company && company.name ? company.name : 'Cautious Robot';
             
             // Format data for the email
             await this.emailService.sendInvoiceGeneratedEmail(
@@ -83,7 +111,7 @@ export class BillingController {
                 amount: invoice.totalAmount || 0,
                 packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0,
                 companyName,
-                invoiceId: invoice.id
+                invoiceId: invoice.id || ''
               }
             );
           }
@@ -107,9 +135,33 @@ export class BillingController {
     try {
       const { userId } = req.params;
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       const { sendNotification = false } = req.body;
 
       const invoice = await this.service.generateInvoiceForUser(userId, companyId);
+
+      // Create audit log for quick invoice creation
+      if (invoice) {
+        await this.auditLogsService.createLog({
+          userId: adminUserId,
+          companyId,
+          action: 'quick_invoice_creation',
+          entityType: 'invoice',
+          entityId: invoice.id || '',
+          details: {
+            invoiceId: invoice.id || '',
+            invoiceNumber: invoice.invoiceNumber || '',
+            customerId: invoice.userId || '',
+            amount: invoice.totalAmount || 0,
+            packages: invoice.items?.filter((item: any) => item.packageId).map((item: any) => item.packageId) || [],
+            packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0
+          },
+          ipAddress,
+          userAgent
+        });
+      }
 
       // Send notification if requested
       if (sendNotification && invoice && invoice.userId) {
@@ -125,7 +177,7 @@ export class BillingController {
             
             // Get company name
             const company = await this.companiesService.getCompanyById(companyId);
-            const companyName = company ? company.name : 'Cautious Robot';
+            const companyName = company && company.name ? company.name : 'Cautious Robot';
             
             // Format data for the email
             await this.emailService.sendInvoiceGeneratedEmail(
@@ -139,7 +191,7 @@ export class BillingController {
                 amount: invoice.totalAmount || 0,
                 packageCount: invoice.items?.filter((item: any) => item.packageId).length || 0,
                 companyName,
-                invoiceId: invoice.id
+                invoiceId: invoice.id || ''
               }
             );
           }

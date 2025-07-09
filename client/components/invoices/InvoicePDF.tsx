@@ -7,7 +7,8 @@ import {
   Image,
   Link
 } from '@react-pdf/renderer';
-import { Invoice } from '@/lib/api/types';
+import { Invoice, SupportedCurrency, ExchangeRateSettings } from '@/lib/api/types';
+import { convertCurrency, formatCurrency as formatCurrencyUtil } from '@/lib/utils/currency';
 
 // Create styles
 const styles = StyleSheet.create({
@@ -169,10 +170,34 @@ const styles = StyleSheet.create({
 });
 
 // Format currency
-const formatCurrency = (amount: number | string | null | undefined) => {
+const formatCurrency = (
+  amount: number | string | null | undefined,
+  currency: SupportedCurrency = 'USD',
+  exchangeRateSettings?: ExchangeRateSettings
+) => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (numAmount === null || numAmount === undefined || isNaN(numAmount)) return '$0.00';
-  return `$${numAmount.toFixed(2)}`;
+  
+  // If currency is USD or no exchange rate settings, use simple formatting
+  if (currency === 'USD' || !exchangeRateSettings || !exchangeRateSettings.exchangeRate) {
+    return `$${numAmount.toFixed(2)}`;
+  }
+  
+  // Convert from USD to the target currency
+  const convertedAmount = convertCurrency(
+    numAmount,
+    'USD',
+    currency,
+    exchangeRateSettings
+  );
+  
+  // Format with the appropriate currency symbol
+  const symbols = {
+    USD: '$',
+    JMD: 'J$'
+  };
+  
+  return `${symbols[currency]}${convertedAmount.toFixed(2)}`;
 };
 
 // Format date
@@ -211,16 +236,31 @@ interface InvoicePDFProps {
   packages: any[];
   user: any;
   company: any;
+  currency?: SupportedCurrency;
+  exchangeRateSettings?: ExchangeRateSettings;
 }
 
-const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, company }) => {
+const InvoicePDF: React.FC<InvoicePDFProps> = ({ 
+  invoice, 
+  packages, 
+  user, 
+  company,
+  currency = 'USD',
+  exchangeRateSettings
+}) => {
   // Remove deduplication and recalculation logic
   const items = invoice?.items || [];
   const subtotal = invoice?.subtotal ?? 0;
   const totalTax = invoice?.taxAmount ?? 0;
   const total = invoice?.totalAmount ?? 0;
+  
+  // Format currency with the provided currency and exchange rate settings
+  const formatWithCurrency = (amount: number | string | null | undefined) => {
+    return formatCurrency(amount, currency, exchangeRateSettings);
+  };
+  
   // Use app base URL from env
-  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_APP_BASE_URL ? process.env.NEXT_PUBLIC_APP_BASE_URL : '';
+  const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.APP_BASE_URL ? process.env.APP_BASE_URL : '';
   // Only show each package once in the Related Packages section
   const uniquePackages = Array.isArray(packages)
     ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
@@ -302,7 +342,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, compan
             groupedItems.map((item: any, index: number) => (
               <View key={`item-${index}`} style={styles.tableRow}>
                 <Text style={styles.description}>{item.description}</Text>
-                <Text style={styles.amount}>{formatCurrency(item.lineTotal)}</Text>
+                <Text style={styles.amount}>{formatWithCurrency(item.lineTotal)}</Text>
               </View>
             ))
           ) : (
@@ -315,15 +355,15 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, packages, user, compan
           {/* Subtotal and Total Rows */}
           <View style={styles.tableRow}>
             <Text style={styles.description}>Subtotal</Text>
-            <Text style={styles.amount}>{formatCurrency(subtotal)}</Text>
+            <Text style={styles.amount}>{formatWithCurrency(subtotal)}</Text>
           </View>
           <View style={styles.tableRow}>
             <Text style={styles.description}>Tax</Text>
-            <Text style={styles.amount}>{formatCurrency(totalTax)}</Text>
+            <Text style={styles.amount}>{formatWithCurrency(totalTax)}</Text>
           </View>
           <View style={styles.tableRow}>
             <Text style={styles.description}>Total</Text>
-            <Text style={styles.amount}>{formatCurrency(total)}</Text>
+            <Text style={styles.amount}>{formatWithCurrency(total)}</Text>
           </View>
         </View>
 

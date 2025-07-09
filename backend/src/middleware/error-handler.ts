@@ -9,6 +9,42 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
+  // Handle database constraint errors
+  if (err.message && err.message.includes('duplicate key value violates unique constraint')) {
+    if (err.message.includes('packages_tracking_number_unique')) {
+      const appError = new AppError('A package with this tracking number already exists', 400);
+      const response = {
+        success: false,
+        message: appError.message,
+        ...(server.isDev && { stack: appError.stack }),
+      };
+      
+      logger.info({
+        statusCode: 400,
+        message: appError.message,
+        path: req.path,
+      }, 'Duplicate tracking number error');
+      
+      return res.status(400).json(response);
+    }
+    
+    // Handle other unique constraint violations
+    const appError = new AppError('This record already exists', 400);
+    const response = {
+      success: false,
+      message: appError.message,
+      ...(server.isDev && { stack: appError.stack }),
+    };
+    
+    logger.info({
+      statusCode: 400,
+      message: appError.message,
+      path: req.path,
+    }, 'Duplicate record error');
+    
+    return res.status(400).json(response);
+  }
+
   // Convert to AppError if not already
   const appError = err instanceof AppError
     ? err
@@ -53,4 +89,5 @@ export const errorHandler = (
   
   // Send response
   res.status(statusCode).json(response);
+  return;
 }; 
