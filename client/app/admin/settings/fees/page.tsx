@@ -19,9 +19,9 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/comp
 
 const FEE_TYPES: FeeType[] = ["tax", "service", "shipping", "handling", "customs", "other", "threshold"];
 const CALC_METHODS: CalculationMethod[] = [
-  "fixed", "percentage", "per_weight", "per_item", "dimensional", "tiered", "threshold", "timed"
+  "fixed", "percentage", "per_weight", "per_item", "threshold", "timed" // TODO: Add dimensional and tiered when functionality is implemented.
 ];
-const PERCENTAGE_BASES = ["subtotal", "shipping", "customs", "handling", "other"];
+const PERCENTAGE_BASES = ["subtotal", "customs", "handling", "other"]; // TODO: Add shipping when functionality is implemented. 
 const PACKAGE_TAGS = [
   "general", "fragile", "urgent", "oversized", "perishable", "high value", "documents", "other"
 ];
