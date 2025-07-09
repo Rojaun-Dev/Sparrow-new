@@ -17,6 +17,7 @@ const createPaymentSchema = z.object({
   transactionId: z.string().optional(),
   paymentDate: z.date().optional(),
   notes: z.string().optional(),
+  meta: z.record(z.any()).optional(), // Add meta field as optional record
 });
 
 // Define validation schema for payment update
@@ -71,16 +72,63 @@ export class PaymentsService extends BaseService<typeof payments> {
       throw new Error('Cannot process payment for an invoice that is not issued or overdue');
     }
     
+    // Process payment metadata
+    let paymentMetadata = validatedData.meta || {};
+    
+    // Get company settings for currency information
+    const companySettings = await this.companySettingsService.getCompanySettings(companyId);
+    const exchangeRateSettings = companySettings && typeof companySettings === 'object' && 'exchangeRateSettings' in companySettings 
+      ? companySettings.exchangeRateSettings as { baseCurrency: string; targetCurrency: string; exchangeRate: number; lastUpdated: string }
+      : {
+        baseCurrency: 'USD',
+        targetCurrency: 'JMD',
+        exchangeRate: 150,
+        lastUpdated: new Date().toISOString()
+      };
+    
+    // Only add company defaults if NO currency information was provided from frontend
+    if (!paymentMetadata.currency) {
+      paymentMetadata = {
+        ...paymentMetadata,
+        currency: exchangeRateSettings.baseCurrency,
+        baseCurrency: exchangeRateSettings.baseCurrency,
+        exchangeRate: exchangeRateSettings.exchangeRate,
+        paymentCreatedAt: new Date().toISOString(),
+        originalAmount: validatedData.amount // Default to amount as USD if no currency info
+      };
+    } else {
+      // Frontend provided currency info, preserve it entirely and only add missing fields
+      let originalAmount = validatedData.amount;
+      if (paymentMetadata.currency === 'JMD') {
+        // Convert to USD
+        const rate = paymentMetadata.exchangeRate || exchangeRateSettings.exchangeRate;
+        originalAmount = validatedData.amount / rate;
+      }
+      paymentMetadata = {
+        ...paymentMetadata,
+        // Only add paymentCreatedAt if not already provided
+        paymentCreatedAt: paymentMetadata.paymentCreatedAt || new Date().toISOString(),
+        // Only add baseCurrency if not provided
+        baseCurrency: paymentMetadata.baseCurrency || paymentMetadata.currency,
+        // Only add exchangeRate if not provided
+        exchangeRate: paymentMetadata.exchangeRate || (paymentMetadata.currency === 'USD' ? 1 : exchangeRateSettings.exchangeRate),
+        // Always set originalAmount as USD value
+        originalAmount
+      };
+    }
+    
     // Create the payment record
     const payment = await this.paymentsRepository.create({
       ...validatedData,
       status: 'pending',
       paymentDate: validatedData.paymentDate || new Date(),
+      meta: paymentMetadata
     }, companyId);
     
     // If payment is marked as completed immediately, update the invoice status
     if (payment && data.status && data.status === 'completed') {
-      await this.completePayment(payment.id, companyId);
+      const completedPayment = await this.completePayment(payment.id, companyId);
+      return completedPayment;
     }
     
     return payment;
@@ -120,6 +168,17 @@ export class PaymentsService extends BaseService<typeof payments> {
     // Create a current date for the payment if needed
     const currentDate = new Date();
     
+    // Get company settings for currency information (used throughout the function)
+    const companySettings = await this.companySettingsService.getCompanySettings(companyId);
+    const exchangeRateSettings = companySettings && typeof companySettings === 'object' && 'exchangeRateSettings' in companySettings 
+      ? companySettings.exchangeRateSettings as { baseCurrency: string; targetCurrency: string; exchangeRate: number; lastUpdated: string }
+      : {
+        baseCurrency: 'USD',
+        targetCurrency: 'JMD',
+        exchangeRate: 150,
+        lastUpdated: new Date().toISOString()
+      };
+    
     // Update payment status to completed if not already
     if (payment.status !== 'completed') {
       // Ensure we have a valid payment date
@@ -132,18 +191,40 @@ export class PaymentsService extends BaseService<typeof payments> {
       
       console.log(`Setting payment date to: ${validPaymentDate.toISOString()}`);
       
+      // Preserve existing metadata and add completion timestamp
+      const existingMeta = payment.meta || {};
+      
+      const updatedMeta = {
+        ...existingMeta,
+        completedAt: new Date().toISOString(),
+        // Only add company currency info if NO currency info exists at all
+        ...((!existingMeta.currency) ? {
+          currency: exchangeRateSettings.baseCurrency,
+          baseCurrency: exchangeRateSettings.baseCurrency,
+          exchangeRate: exchangeRateSettings.exchangeRate,
+          paymentProcessedAt: validPaymentDate.toISOString()
+        } : {
+          // Preserve existing currency info and only add missing fields
+          paymentProcessedAt: existingMeta.paymentProcessedAt || validPaymentDate.toISOString()
+        })
+      };
+      
       const updatedPayment = await this.update(id, {
         status: 'completed',
-        paymentDate: validPaymentDate
+        paymentDate: validPaymentDate,
+        meta: updatedMeta
       }, companyId);
       
-      console.log(`Payment updated: ${JSON.stringify({
-        id: updatedPayment.id,
-        status: updatedPayment.status,
-        paymentDate: updatedPayment.paymentDate instanceof Date 
-          ? updatedPayment.paymentDate.toISOString() 
-          : new Date(updatedPayment.paymentDate).toISOString()
-      })}`);
+      if (updatedPayment) {
+        console.log(`Payment updated: ${JSON.stringify({
+          id: updatedPayment.id,
+          status: updatedPayment.status,
+          paymentDate: updatedPayment.paymentDate instanceof Date 
+            ? updatedPayment.paymentDate.toISOString() 
+            : (updatedPayment.paymentDate ? new Date(updatedPayment.paymentDate).toISOString() : null),
+          meta: updatedPayment.meta
+        })}`);
+      }
     }
     
     // Get the invoice
@@ -154,17 +235,6 @@ export class PaymentsService extends BaseService<typeof payments> {
       console.error(`Invoice not found for payment ${id}`);
       return payment;
     }
-    
-    // Get company settings for currency conversion
-    const companySettings = await this.companySettingsService.getCompanySettings(companyId);
-    const exchangeRateSettings = companySettings && typeof companySettings === 'object' && 'exchangeRateSettings' in companySettings 
-      ? companySettings.exchangeRateSettings as { baseCurrency: string; targetCurrency: string; exchangeRate: number; lastUpdated: string }
-      : {
-        baseCurrency: 'USD',
-        targetCurrency: 'JMD',
-        exchangeRate: 150,
-        lastUpdated: new Date().toISOString()
-      };
     
     // Calculate total paid for this invoice
     const allPayments = await this.paymentsRepository.findByInvoiceId(payment.invoiceId, companyId);

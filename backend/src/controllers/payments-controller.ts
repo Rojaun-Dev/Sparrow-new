@@ -90,7 +90,7 @@ export class PaymentsController {
       const adminUserId = req.userId as string;
       const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
-      const { sendNotification = false, currency = 'USD', exchangeRate = 1, ...paymentData } = req.body;
+      const { sendNotification = false, ...paymentData } = req.body;
       
       // Validate payment data
       try {
@@ -102,22 +102,8 @@ export class PaymentsController {
         throw error;
       }
       
-      // Ensure payment has proper currency metadata
-      if (!paymentData.meta) {
-        paymentData.meta = {};
-      }
-      
-      // Add currency information to metadata
-      paymentData.meta = {
-        ...paymentData.meta,
-        currency: currency || 'USD',
-        exchangeRate: exchangeRate || 1,
-        // Calculate amounts if applicable
-        originalAmount: paymentData.amount,
-        convertedAmount: currency !== 'USD' && exchangeRate !== 1 
-          ? paymentData.amount / exchangeRate 
-          : paymentData.amount
-      };
+      // The meta object should be preserved as-is from the frontend
+      // The service will handle metadata processing properly
       
       // Create the payment
       const payment = await this.paymentsService.createPayment(paymentData, companyId);
@@ -144,10 +130,8 @@ export class PaymentsController {
         });
       }
       
-      // If payment status is completed, update the invoice
-      if (payment && payment.status === 'completed') {
-        await this.paymentsService.completePayment(payment.id, companyId);
-      }
+      // Payment completion is now handled internally by the service
+      // No need to call completePayment again here
       
       // Send notification if requested
       if (sendNotification && payment && payment.userId) {
@@ -234,9 +218,7 @@ export class PaymentsController {
       for (const paymentData of payments) {
         try {
           const payment = await this.paymentsService.createPayment(paymentData, companyId);
-          if (payment && payment.status === 'completed') {
-            await this.paymentsService.completePayment(payment.id, companyId);
-          }
+          // Payment completion is now handled internally by the service
           results.push(payment);
         } catch (error: any) {
           errors.push({
