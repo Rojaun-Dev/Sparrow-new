@@ -2,13 +2,13 @@ import { Request, Response } from 'express';
 import { StatisticsRepository } from '../repositories/statistics-repository';
 import { db } from '../db';
 
-// Extended request type to include userId and companyId
+// Define extended request with userId and companyId
 interface ExtendedRequest extends Request {
   userId?: string;
   companyId?: string;
 }
 
-// Initialize repository
+// Create repository instance
 const statisticsRepository = new StatisticsRepository(db);
 
 /**
@@ -16,8 +16,8 @@ const statisticsRepository = new StatisticsRepository(db);
  */
 export const getCustomerStatistics = async (req: ExtendedRequest, res: Response) => {
   try {
-    const { userId } = req;
-    const { companyId } = req;
+    const { userId, companyId } = req;
+    const { currency = 'USD' } = req.query as { currency?: 'USD' | 'JMD' };
 
     if (!userId || !companyId) {
       return res.status(400).json({
@@ -26,7 +26,7 @@ export const getCustomerStatistics = async (req: ExtendedRequest, res: Response)
       });
     }
 
-    const statistics = await statisticsRepository.getCustomerStatistics(userId, companyId);
+    const statistics = await statisticsRepository.getCustomerStatistics(userId, companyId, currency);
 
     return res.status(200).json({
       success: true,
@@ -48,6 +48,7 @@ export const getCustomerStatistics = async (req: ExtendedRequest, res: Response)
 export const getAdminStatistics = async (req: ExtendedRequest, res: Response) => {
   try {
     const { companyId } = req;
+    const { currency = 'USD' } = req.query as { currency?: 'USD' | 'JMD' };
 
     if (!companyId) {
       return res.status(400).json({
@@ -56,7 +57,7 @@ export const getAdminStatistics = async (req: ExtendedRequest, res: Response) =>
       });
     }
 
-    const statistics = await statisticsRepository.getAdminStatistics(companyId);
+    const statistics = await statisticsRepository.getAdminStatistics(companyId, currency);
 
     return res.status(200).json({
       success: true,
@@ -77,7 +78,9 @@ export const getAdminStatistics = async (req: ExtendedRequest, res: Response) =>
  */
 export const getSuperAdminStatistics = async (_req: Request, res: Response) => {
   try {
-    const statistics = await statisticsRepository.getSuperAdminStatistics();
+    const { currency = 'USD' } = _req.query as { currency?: 'USD' | 'JMD' };
+    
+    const statistics = await statisticsRepository.getSuperAdminStatistics(currency);
 
     return res.status(200).json({
       success: true,

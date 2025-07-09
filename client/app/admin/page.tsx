@@ -44,7 +44,9 @@ import {
 
   FileText,
 
-  CreditCard
+  CreditCard,
+
+  Repeat
 
 } from "lucide-react"
 
@@ -76,11 +78,25 @@ import {
 
 import { Skeleton } from "@/components/ui/skeleton"
 
+import { 
+
+  Select,
+
+  SelectContent,
+
+  SelectItem,
+
+  SelectTrigger,
+
+  SelectValue,
+
+} from "@/components/ui/select"
+
 
 
 export default function AdminDashboard() {
 
-  const { statistics, loading, fetchStatistics } = useAdminStatistics();
+  const { statistics, loading, fetchStatistics, selectedCurrency, setSelectedCurrency } = useAdminStatistics();
 
   const { user } = useAuth();
 
@@ -120,6 +136,38 @@ export default function AdminDashboard() {
     returned: { color: "#f97316" },
 
   }
+
+
+
+  // Handle currency selection change
+
+  const handleCurrencyChange = (value: string) => {
+
+    if (value === 'USD' || value === 'JMD') {
+
+      setSelectedCurrency(value);
+
+    }
+
+  };
+
+
+
+  // Format currency values
+
+  const formatCurrency = (amount: number) => {
+
+    if (selectedCurrency === 'USD') {
+
+      return `$${amount.toFixed(2)}`;
+
+    } else {
+
+      return `J$${amount.toFixed(2)}`;
+
+    }
+
+  };
 
 
 
@@ -234,7 +282,24 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-between mb-6">
 
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-
+        
+        {isAdminL2 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Currency:</span>
+            <Select
+              value={selectedCurrency}
+              onValueChange={handleCurrencyChange}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="JMD">JMD (J$)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
 
@@ -341,7 +406,21 @@ export default function AdminDashboard() {
 
             <CardContent>
 
-              <div className="text-2xl font-bold">${(statistics?.revenue?.current || 0).toFixed(2)}</div>
+              <div className="text-2xl font-bold">
+
+                {formatCurrency(statistics?.revenue?.current || 0)}
+
+                {statistics?.currency && (
+
+                  <span className="text-xs ml-1 text-muted-foreground">
+
+                    {statistics.currency}
+
+                  </span>
+
+                )}
+
+              </div>
 
               <p className="text-xs text-muted-foreground flex items-center mt-1">
 
@@ -379,7 +458,21 @@ export default function AdminDashboard() {
 
               <CardTitle>Revenue Overview</CardTitle>
 
-              <CardDescription>Monthly revenue trend</CardDescription>
+              <CardDescription>
+
+                Monthly revenue trend ({selectedCurrency})
+
+                {statistics?.exchangeRate && (
+
+                  <span className="ml-2 text-xs text-muted-foreground">
+
+                    Exchange Rate: 1 USD = {statistics.exchangeRate.toFixed(2)} JMD
+
+                  </span>
+
+                )}
+
+              </CardDescription>
 
             </CardHeader>
 
@@ -393,9 +486,31 @@ export default function AdminDashboard() {
 
                   <XAxis dataKey="month" />
 
-                  <YAxis />
+                  <YAxis
 
-                  <ChartTooltip />
+                    tickFormatter={(value) => 
+
+                      selectedCurrency === 'USD' 
+
+                        ? `$${value}`
+
+                        : `J$${value}`
+
+                    }
+
+                  />
+
+                  <ChartTooltip 
+
+                    formatter={(value: number) => [
+
+                      formatCurrency(value),
+
+                      'Revenue'
+
+                    ]} 
+
+                  />
 
                   <Line type="monotone" dataKey="revenue" stroke="#3b82f6" activeDot={{ r: 8 }} />
 
