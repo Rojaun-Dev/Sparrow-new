@@ -615,17 +615,11 @@ export class PaymentsService extends BaseService<typeof payments> {
       // Extract transaction ID from callback data
       const transactionId = callbackData.transaction_id || callbackData.id || '';
       
-      // Determine payment status from callback data - explicitly handle failed status
+      // Determine payment status from callback data
       const isSuccess = 
         callbackData.status === 'success' || 
         callbackData.status === 'completed' || 
         callbackData.status === 'approved';
-      
-      const isFailed = 
-        callbackData.status === 'failed' || 
-        callbackData.status === 'cancelled' || 
-        callbackData.status === 'rejected' ||
-        callbackData.status === 'error';
       
       // Default to failed if not explicitly successful
       const finalStatus = isSuccess ? 'completed' : 'failed';
@@ -692,7 +686,7 @@ export class PaymentsService extends BaseService<typeof payments> {
       // This ensures we record when the payment attempt was made/completed
       updateData.paymentDate = paymentDate;
       
-      console.log('Update data:', JSON.stringify(updateData, (key, value) => {
+      console.log('Update data:', JSON.stringify(updateData, (_, value) => {
         if (value instanceof Date) {
           return `Date(${value.toISOString()})`;
         }
