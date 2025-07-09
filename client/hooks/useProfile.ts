@@ -9,14 +9,13 @@ const profileKeys = {
   settings: () => [...profileKeys.all, 'settings'] as const,
   statistics: () => [...profileKeys.all, 'statistics'] as const,
   notifications: () => [...profileKeys.all, 'notifications'] as const,
-  pickupLocations: () => [...profileKeys.all, 'pickupLocations'] as const,
 };
 
 // Hook for fetching current user profile
 export function useCurrentUser() {
   return useQuery({
     queryKey: profileKeys.user(),
-    queryFn: () => profileService.getCurrentUser(),
+    queryFn: () => profileService.getProfile(),
   });
 }
 
@@ -26,9 +25,9 @@ export function useUpdateProfile() {
   
   return useMutation({
     mutationFn: (userData: Partial<User>) => profileService.updateProfile(userData),
-    onSuccess: (updatedUser: User) => {
-      // Update the user in the cache
-      queryClient.setQueryData(profileKeys.user(), updatedUser);
+    onSuccess: () => {
+      // Invalidate user queries
+      queryClient.invalidateQueries({ queryKey: profileKeys.user() });
     },
   });
 }
@@ -40,7 +39,7 @@ export function useUpdatePassword() {
       currentPassword: string; 
       newPassword: string; 
       confirmPassword: string; 
-    }) => profileService.updatePassword(passwordData),
+    }) => profileService.changePassword(passwordData),
   });
 }
 
@@ -58,9 +57,9 @@ export function useUpdateNotificationPreferences() {
   
   return useMutation({
     mutationFn: (preferences: NotificationPreferences) => profileService.updateNotificationPreferences(preferences),
-    onSuccess: (updatedPreferences: NotificationPreferences) => {
-      // Update the preferences in the cache
-      queryClient.setQueryData(profileKeys.notifications(), updatedPreferences);
+    onSuccess: () => {
+      // Invalidate notifications queries
+      queryClient.invalidateQueries({ queryKey: profileKeys.notifications() });
       
       // Also fetch the user again to update any dependent data
       queryClient.invalidateQueries({ queryKey: profileKeys.user() });
@@ -68,43 +67,23 @@ export function useUpdateNotificationPreferences() {
   });
 }
 
-// Hook for fetching pickup locations
-export function usePickupLocations() {
-  return useQuery({
-    queryKey: profileKeys.pickupLocations(),
-    queryFn: () => profileService.getPickupLocations(),
-  });
-}
-
-// Hook for updating pickup location
-export function useUpdatePickupLocation() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: (pickupLocationId: string) => profileService.updatePickupLocation(pickupLocationId),
-    onSuccess: (updatedPreferences: NotificationPreferences) => {
-      // Update the notification preferences in the cache
-      queryClient.setQueryData(profileKeys.notifications(), updatedPreferences);
-      
-      // Also invalidate the user query to ensure consistency
-      queryClient.invalidateQueries({ queryKey: profileKeys.user() });
-    },
-  });
-}
-
 // Hook for fetching user statistics
-export function useUserStatistics() {
+export function useUserStatistics(currency: 'USD' | 'JMD' = 'USD') {
   return useQuery({
-    queryKey: profileKeys.statistics(),
-    queryFn: () => profileService.getUserStatistics(),
+    queryKey: [...profileKeys.statistics(), currency],
+    queryFn: () => profileService.getUserStatistics(currency),
   });
 }
 
 // Hook for fetching statistics for a specific user as an admin
-export function useCustomerStatisticsForAdmin(userId: string, companyId: string) {
+export function useCustomerStatisticsForAdmin(userId: string, companyId: string, currency: 'USD' | 'JMD' = 'USD') {
   return useQuery({
-    queryKey: ['customer-statistics', userId, companyId],
-    queryFn: () => profileService.getCustomerStatisticsForAdmin(userId, companyId),
+    queryKey: ['customer-statistics', userId, companyId, currency],
+    queryFn: async () => {
+      const response = await profileService.getCustomerStatisticsForAdmin(userId, companyId, currency);
+      // Return the data property from the response
+      return response && response.data ? response.data : response;
+    },
     enabled: !!userId && !!companyId,
   });
 } 
