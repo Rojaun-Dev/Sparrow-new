@@ -27,8 +27,11 @@ import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile';
 import { useQueryClient } from '@tanstack/react-query';
 import { AddPackageModal } from "@/components/packages/AddPackageModal";
 import { useGenerateInvoice } from '@/hooks/useInvoices';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { usePayAllInvoices } from '@/hooks/usePayments';
+import { QuickInvoiceDialog } from "@/components/invoices/QuickInvoiceDialog";
+import { PaymentProcessingModal } from "@/components/invoices/PaymentProcessingModal";
+import { MatchPreAlertModal } from "@/components/pre-alerts/MatchPreAlertModal";
 import {
   Select,
   SelectContent,
@@ -38,6 +41,8 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCurrency } from "@/hooks/useCurrency";
+import { SupportedCurrency } from "@/lib/api/types";
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -47,6 +52,9 @@ export default function AdminCustomerViewPage() {
   const userId = params.id as string;
   // companyId may be undefined if not in route
   const [companyId, setCompanyId] = useState<string | undefined>(params.companyId as string | undefined);
+
+  // Currency conversion
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert } = useCurrency();
 
   // Profile
   const { data: user, isLoading: userLoading, error: userError } = useUser(userId);
@@ -134,16 +142,24 @@ export default function AdminCustomerViewPage() {
   // Add state for AddPackageModal
   const [addPackageOpen, setAddPackageOpen] = useState(false);
 
-  // Add state for Quick Invoice
+  // Quick Invoice
   const [quickInvoiceOpen, setQuickInvoiceOpen] = useState(false);
   const [quickInvoicePackageId, setQuickInvoicePackageId] = useState<string | null>(null);
-  const generateInvoice = useGenerateInvoice();
 
   // Add state for Pay All Invoices modal
   const [payAllInvoicesOpen, setPayAllInvoicesOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [paymentNotes, setPaymentNotes] = useState("");
   const payAllInvoicesMutation = usePayAllInvoices();
+  
+  // Add state for invoice payment modal
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+
+  // Add state for match prealert modal
+  const [matchPreAlertModalOpen, setMatchPreAlertModalOpen] = useState(false);
+  const [selectedPreAlert, setSelectedPreAlert] = useState<any>(null);
 
   // Handlers for action buttons
   const handleAddPackage = useCallback(() => {
@@ -160,6 +176,19 @@ export default function AdminCustomerViewPage() {
   const handleGenerateInvoice = useCallback(() => {
     router.push(`/admin/invoices/create?customerId=${userId}`);
   }, [router, userId]);
+  
+  // Handler for paying a specific invoice
+  const handlePayInvoice = (invoiceId: string, amount: string | number) => {
+    setSelectedInvoiceId(invoiceId);
+    setPaymentAmount(amount.toString());
+    setPaymentModalOpen(true);
+  };
+
+  // Handler for matching a prealert
+  const handleMatchPreAlert = (preAlert: any) => {
+    setSelectedPreAlert(preAlert);
+    setMatchPreAlertModalOpen(true);
+  };
 
   // Handle TRN edit
   const handleTrnEdit = () => {
@@ -266,7 +295,26 @@ export default function AdminCustomerViewPage() {
   // Formatters
   const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString() : "-";
   const formatDateTime = (date?: string) => date ? new Date(date).toLocaleString() : "-";
-  const formatCurrency = (amount?: number) => typeof amount === "number" ? `$${amount.toFixed(2)}` : "-";
+  // Format currency with the currency hook
+  const formatCurrency = (amount?: number | string, skipConversion = false) => {
+    if (amount === undefined || amount === null) return "-";
+    
+    // For payments, we don't want to convert the currency
+    if (skipConversion) {
+      const num = typeof amount === "number" ? amount : parseFloat(amount);
+      if (isNaN(num)) return "-";
+      return `$${num.toFixed(2)}`;
+    }
+    
+    return convertAndFormat(Number(amount));
+  };
+  // Format payment method by removing underscores and capitalizing words
+  const formatPaymentMethod = (method?: string) => {
+    if (!method) return "-";
+    return method
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
 
   // Add a type guard for paginated API results
   function isPaginatedResult(obj: any): obj is { pagination: { page: number; pageSize: number; totalCount: number; totalPages: number } } {
@@ -351,12 +399,91 @@ export default function AdminCustomerViewPage() {
     </div>
   );
 
+  // Skeleton for the entire page when data is loading
+  if (userLoading || statsLoading) {
+    return (
+      <div className="py-8">
+        <h1 className="text-3xl font-bold tracking-tight mb-6">Customer Details</h1>
+        
+        {/* User info card skeleton */}
+        <Card className="border-2 border-gray-100 mb-8">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-14 w-14 rounded-full" />
+                  <div>
+                    <Skeleton className="h-7 w-48" />
+                    <Skeleton className="h-4 w-32 mt-2" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-8">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-muted-foreground mb-4">Personal Information</h3>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i}>
+                      <dt className="text-sm font-normal text-muted-foreground mb-1">Field</dt>
+                      <dd><Skeleton className="h-5 w-full" /></dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Statistics skeletons */}
+        <h2 className="text-xl font-semibold tracking-tight mt-10 mb-4">Customer Statistics</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="border-blue-200 bg-blue-50/50">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <Skeleton className="h-5 w-24" />
+                </div>
+                <Skeleton className="h-9 w-9 rounded-full" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-20 rounded" />
+                <Skeleton className="h-4 w-32 mt-1" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        {/* Tabs skeleton */}
+        <div className="mt-8">
+          <div className="flex gap-4 mb-4">
+            {["Packages", "Pre-alerts", "Payments", "Invoices"].map((tab, i) => (
+              <Skeleton key={i} className="h-8 w-24" />
+            ))}
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <Skeleton className="h-8 w-full max-w-md mb-4" />
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-8">
       <h1 className="text-3xl font-bold tracking-tight mb-6">Customer Details</h1>
       <Card className="border-2 border-gray-100">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-white pb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -399,68 +526,94 @@ export default function AdminCustomerViewPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <div className="space-y-5">
-              <CardTitle className="text-lg font-semibold tracking-tight flex items-center gap-2"><Contact className="h-6 w-6" />Contact Information</CardTitle>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Mail className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Email:</span>
-                  <span className="text-foreground">{user.email}</span>
+          <div className="space-y-6">
+            {/* Personal Information */}
+            <div>
+              <h3 className="text-lg font-medium text-muted-foreground mb-4">Personal Information</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">First Name</dt>
+                  <dd className="text-sm font-medium">{user.firstName}</dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Phone className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Phone:</span>
-                  <span className="text-foreground">{user.phone || <span className="text-muted-foreground">N/A</span>}</span>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Last Name</dt>
+                  <dd className="text-sm font-medium">{user.lastName}</dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Address:</span>
-                  <span className="text-foreground">{user.address || <span className="text-muted-foreground">N/A</span>}</span>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Email Address</dt>
+                  <dd className="text-sm font-medium">{user.email}</dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Hash className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">TRN:</span>
-                  {editTrn ? (
-                    <span className="flex items-center gap-2">
-                      <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32 font-medium" />
-                      <Button size="sm" onClick={handleTrnSave} disabled={updateUserMutation.status === 'pending'}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setEditTrn(false)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <span className="text-foreground">{user.trn || <span className="text-muted-foreground">N/A</span>}</span>
-                      <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </span>
-                  )}
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Phone Number</dt>
+                  <dd className="text-sm font-medium">
+                    {user.phone ? user.phone : <span className="text-muted-foreground">Not provided</span>}
+                  </dd>
                 </div>
-              </div>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">TRN</dt>
+                  <dd className="text-sm">
+                    {editTrn ? (
+                      <span className="flex items-center gap-2">
+                        <Input value={trnValue} onChange={e => setTrnValue(e.target.value)} className="w-32 font-medium" />
+                        <Button size="sm" onClick={handleTrnSave} disabled={updateUserMutation.status === 'pending'}>
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditTrn(false)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-32 px-3 py-2 border border-muted rounded bg-muted/20 text-sm select-text"
+                          style={{ minHeight: '2.25rem', display: 'inline-flex', alignItems: 'center' }}
+                        >
+                          {user.trn ? user.trn : <span className="text-muted-foreground">N/A</span>}
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={handleTrnEdit}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <div className="space-y-5">
-              <CardTitle className="text-lg font-semibold tracking-tight flex items-center gap-2"><Info className="h-6 w-6" />Account Information</CardTitle>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Created:</span>
-                  <span className="text-foreground">{new Date(user.createdAt).toLocaleString()}</span>
+
+            {/* Address Information */}
+            <div>
+              <h3 className="text-lg font-medium text-muted-foreground mb-4">Address Information</h3>
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Address</dt>
+                  <dd className="text-sm whitespace-pre-wrap">
+                    {user.address ? user.address : <span className="text-muted-foreground">No address provided</span>}
+                  </dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Updated:</span>
-                  <span className="text-foreground">{new Date(user.updatedAt).toLocaleString()}</span>
+              </dl>
+            </div>
+
+            {/* Account Information */}
+            <div>
+              <h3 className="text-lg font-medium text-muted-foreground mb-4">Account Information</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Status</dt>
+                  <dd className="text-sm">
+                    <Badge variant={user.isActive ? "default" : "secondary"}>
+                      {user.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </dd>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">Company ID:</span>
-                  <span className="text-foreground">{user.companyId}</span>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Created</dt>
+                  <dd className="text-sm">{formatDate(user.createdAt)}</dd>
                 </div>
-              </div>
+                <div>
+                  <dt className="text-sm font-normal text-muted-foreground mb-1">Internal ID</dt>
+                  <dd className="text-sm font-mono">{user.prefId || 'N/A'}</dd>
+                </div>
+              </dl>
             </div>
           </div>
         </CardContent>
@@ -551,11 +704,49 @@ export default function AdminCustomerViewPage() {
       )}
 
       <div className="mt-8">
-        <div className="flex gap-4 mb-4">
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "packages" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("packages")}>Packages</button>
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "prealerts" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("prealerts")}>Pre-alerts</button>
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "payments" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("payments")}>Payments</button>
-          <button className={`px-3 py-1 rounded transition text-base ${tab === "invoices" ? "font-bold underline text-primary" : "hover:underline"}`} onClick={() => setTab("invoices")}>Invoices</button>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-4">
+            <Button
+              variant={tab === "packages" ? "default" : "outline"}
+              onClick={() => setTab("packages")}
+            >
+              Packages
+            </Button>
+            <Button
+              variant={tab === "prealerts" ? "default" : "outline"}
+              onClick={() => setTab("prealerts")}
+            >
+              Pre-alerts
+            </Button>
+            <Button
+              variant={tab === "payments" ? "default" : "outline"}
+              onClick={() => setTab("payments")}
+            >
+              Payments
+            </Button>
+            <Button
+              variant={tab === "invoices" ? "default" : "outline"}
+              onClick={() => setTab("invoices")}
+            >
+              Invoices
+            </Button>
+          </div>
+          {tab === "invoices" && (
+            <div className="flex items-center gap-2">
+              <Select
+                value={selectedCurrency}
+                onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+              >
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="Currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD ($)</SelectItem>
+                  <SelectItem value="JMD">JMD (J$)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <div className="rounded-lg border bg-background p-4 shadow-sm">
           {tab === "packages" && (
@@ -593,6 +784,7 @@ export default function AdminCustomerViewPage() {
                 loading={packagesLoading}
                 error={packagesError}
                 formatDate={formatDate}
+                onQuickInvoice={handleQuickInvoice}
                 {...(isPaginatedResult(packagesData) ? {
                   pagination: packagesData.pagination,
                   page: packagesPage,
@@ -635,6 +827,7 @@ export default function AdminCustomerViewPage() {
                 loading={preAlertsLoading}
                 error={preAlertsError}
                 formatDate={formatDate}
+                onMatchPreAlert={handleMatchPreAlert}
                 {...(isPaginatedResult(preAlertsData) ? {
                   pagination: preAlertsData.pagination,
                   page: prealertsPage,
@@ -675,7 +868,7 @@ export default function AdminCustomerViewPage() {
                 loading={paymentsLoading}
                 error={paymentsError}
                 formatDate={formatDate}
-                formatCurrency={formatCurrency}
+                formatCurrency={(amount) => formatCurrency(amount, true)}
                 {...(isPaginatedResult(paymentsData) ? {
                   pagination: paymentsData.pagination,
                   page: paymentsPage,
@@ -710,7 +903,6 @@ export default function AdminCustomerViewPage() {
                   </select>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleMakePayment} variant="default">Make Payment</Button>
                   <Button onClick={handleGenerateInvoice} variant="default">Generate Invoice</Button>
                 </div> 
               </div>
@@ -724,6 +916,7 @@ export default function AdminCustomerViewPage() {
                 error={invoicesError}
                 formatDate={formatDate}
                 formatCurrency={formatCurrency}
+                onPayInvoice={handlePayInvoice}
                 {...(isPaginatedResult(invoicesData) ? {
                   pagination: invoicesData.pagination,
                   page: invoicesPage,
@@ -751,51 +944,15 @@ export default function AdminCustomerViewPage() {
       />
 
       {/* Quick Invoice Dialog */}
-      <Dialog open={quickInvoiceOpen} onOpenChange={setQuickInvoiceOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Invoice for this Package?</DialogTitle>
-          </DialogHeader>
-          <div>
-            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
-            {generateInvoice.isError && (
-              <div className="text-red-600 mt-2 text-sm">{generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}</div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                if (!quickInvoicePackageId) return;
-                // Find the package to get the userId
-                const pkg = getArray(packagesData).find((p: any) => p.id === quickInvoicePackageId);
-                if (!pkg) return;
-                generateInvoice.mutate(
-                  { userId: pkg.userId, packageIds: [pkg.id] },
-                  {
-                    onSuccess: (invoice: any) => {
-                      setQuickInvoiceOpen(false);
-                      setQuickInvoicePackageId(null);
-                      toast({ title: 'Invoice created', description: 'The invoice was successfully created.' });
-                      if (invoice && invoice.id) {
-                        router.push(`/admin/invoices/${invoice.id}`);
-                      }
-                    },
-                    onError: (error: any) => {
-                      toast({ title: 'Error', description: error?.message || 'Failed to create invoice', variant: 'destructive' });
-                    },
-                  }
-                );
-              }}
-              disabled={generateInvoice.isPending}
-            >
-              {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
-            </Button>
-            <Button variant="outline" onClick={() => setQuickInvoiceOpen(false)} disabled={generateInvoice.isPending}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <QuickInvoiceDialog 
+        open={quickInvoiceOpen}
+        onOpenChange={setQuickInvoiceOpen}
+        packageId={quickInvoicePackageId}
+        userId={userId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+        }}
+      />
 
       {/* Pay All Invoices Dialog */}
       <Dialog open={payAllInvoicesOpen} onOpenChange={setPayAllInvoicesOpen}>
@@ -841,24 +998,59 @@ export default function AdminCustomerViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Invoice Payment Dialog */}
+      <PaymentProcessingModal
+        open={paymentModalOpen}
+        onOpenChange={setPaymentModalOpen}
+        invoiceId={selectedInvoiceId}
+        userId={userId}
+        initialAmount={paymentAmount}
+        companyId={companyId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin-user-invoices', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-payments', companyId, userId], exact: false });
+        }}
+      />
+
+      {/* Match PreAlert Modal */}
+      <MatchPreAlertModal
+        open={matchPreAlertModalOpen}
+        onOpenChange={setMatchPreAlertModalOpen}
+        preAlert={selectedPreAlert}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin-user-prealerts', companyId, userId], exact: false });
+          queryClient.invalidateQueries({ queryKey: ['admin-user-packages', companyId, userId], exact: false });
+        }}
+      />
     </div>
   );
 }
 
 // EnhancedDataTable: Modern, type-aware, pretty table with links, badges, formatting, loading, and empty states
-function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurrency, pagination, page, pageSize, onPageChange, onPageSizeChange }: {
+function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurrency, pagination, page, pageSize, onPageChange, onPageSizeChange, onPayInvoice, onMatchPreAlert }: {
   type: 'package' | 'prealert' | 'payment' | 'invoice',
   data: any[],
   loading?: boolean,
   error?: any,
   formatDate?: (date?: string) => string,
-  formatCurrency?: (amount?: number) => string,
+  formatCurrency?: (amount?: number | string) => string,
   pagination?: { page: number, pageSize: number, totalCount: number, totalPages: number },
   page?: number,
   pageSize?: number,
   onPageChange?: (page: number) => void,
   onPageSizeChange?: (size: number) => void,
+  onPayInvoice?: (invoiceId: string, amount: string | number) => void,
+  onMatchPreAlert?: (preAlert: any) => void,
 }) {
+  // Format payment method by removing underscores and capitalizing words
+  const formatPaymentMethod = (method?: string) => {
+    if (!method) return "-";
+    return method
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  
   // Column definitions and renderers by type
   const columns = useMemo(() => {
     switch (type) {
@@ -871,30 +1063,56 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
         ];
       case 'prealert':
         return [
-          { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => row.trackingNumber },
+          { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => (
+            <Link className="text-primary underline" href={`/admin/pre-alerts/${row.id}`}>
+              {row.trackingNumber}
+            </Link>
+          )},
           { key: 'courier', label: 'Courier', render: (row: any) => row.courier },
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="prealert" /> },
           { key: 'estimatedArrival', label: 'Est. Arrival', render: (row: any) => formatDate?.(row.estimatedArrival) },
+          { key: 'actions', label: 'Actions', render: (row: any) => 
+            row.status === 'pending' ? (
+              <Button size="sm" variant="outline" onClick={() => onMatchPreAlert && onMatchPreAlert(row)}>
+                Match
+              </Button>
+            ) : null
+          },
         ];
       case 'payment':
         return [
-          { key: 'amount', label: 'Amount', render: (row: any) => formatCurrency?.(row.amount) },
-          { key: 'paymentMethod', label: 'Method', render: (row: any) => row.paymentMethod },
+          { key: 'amount', label: 'Amount', render: (row: any) => {
+            return formatCurrency?.(row.amount || row.totalAmount);
+          }},
+          { key: 'paymentMethod', label: 'Method', render: (row: any) => {
+            if (!row.paymentMethod) return '-';
+            return row.paymentMethod
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (c: string) => c.toUpperCase());
+          }},
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="payment" /> },
-          { key: 'paymentDate', label: 'Date', render: (row: any) => formatDate?.(row.paymentDate) },
-          { key: 'id', label: 'Details', render: (row: any) => <Link className="text-primary underline" href={`/admin/payments/${row.id}`}>View</Link> },
+          { key: 'paymentDate', label: 'Date', render: (row: any) => formatDate?.(row.paymentDate || row.createdAt) },
         ];
       case 'invoice':
         return [
           { key: 'invoiceNumber', label: 'Invoice #', render: (row: any) => <Link className="text-primary underline" href={`/admin/invoices/${row.id}`}>{row.invoiceNumber}</Link> },
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="invoice" /> },
-          { key: 'totalAmount', label: 'Total', render: (row: any) => formatCurrency?.(row.totalAmount) },
-          { key: 'issueDate', label: 'Issued', render: (row: any) => formatDate?.(row.issueDate) },
+          { key: 'totalAmount', label: 'Total', render: (row: any) => {
+            return formatCurrency?.(row.totalAmount || row.amount);
+          }},
+          { key: 'issueDate', label: 'Issued', render: (row: any) => formatDate?.(row.issueDate || row.createdAt) },
+          { key: 'actions', label: 'Actions', render: (row: any) => 
+            row.status === 'issued' || row.status === 'overdue' ? (
+              <Button size="sm" variant="outline" onClick={() => onPayInvoice && onPayInvoice(row.id, row.totalAmount || row.amount)}>
+                Pay Invoice
+              </Button>
+            ) : null
+          },
         ];
       default:
         return [];
     }
-  }, [type, formatDate, formatCurrency]);
+  }, [type, formatDate, formatCurrency, onPayInvoice, onMatchPreAlert]);
 
   if (loading) return (
     <div className="space-y-2">
@@ -910,26 +1128,72 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
       <span>No {type}s found for this customer.</span>
     </div>
   );
+  
+  // Mobile card view for small screens
+  const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+  
   return (
     <div>
-      <div className="overflow-x-auto rounded border mt-2">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr>
-              {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, i) => (
-              <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
-                {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+      {isMobileView ? (
+        // Mobile card view
+        <div className="space-y-4">
+          {data.map((row, i) => (
+            <Card key={row.id || i} className="overflow-hidden">
+              <CardHeader className="p-4 bg-muted/30">
+                <CardTitle className="text-sm font-medium">
+                  {type === 'package' && (
+                    <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>
+                      {row.trackingNumber}
+                    </Link>
+                  )}
+                  {type === 'prealert' && (
+                    <Link className="text-primary underline" href={`/admin/pre-alerts/${row.id}`}>
+                      {row.trackingNumber}
+                    </Link>
+                  )}
+                  {type === 'payment' && `Payment #${row.id?.slice(0,8) || i}`}
+                  {type === 'invoice' && (
+                    <Link className="text-primary underline" href={`/admin/invoices/${row.id}`}>
+                      {row.invoiceNumber}
+                    </Link>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid gap-1 pt-4">
+                  {columns.map(col => (
+                    <div key={col.key} className="grid grid-cols-2 text-sm">
+                      <span className="font-medium text-muted-foreground">{col.label}</span>
+                      <span>{col.render(row)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        // Desktop table view
+        <div className="overflow-x-auto rounded border mt-2">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr>
+                {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.map((row, i) => (
+                <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
+                  {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-2">
           <div className="text-sm text-muted-foreground">
             Page {pagination.page} of {pagination.totalPages} | {pagination.totalCount} total
           </div>
@@ -986,7 +1250,19 @@ function formatStatusText(status: string): string {
 
 // EnhancedDataTableWithQuickInvoice: EnhancedDataTable with Quick Invoice button
 function EnhancedDataTableWithQuickInvoice(props: any) {
+  // Format payment method by removing underscores and capitalizing words
+  const formatPaymentMethod = (method?: string) => {
+    if (!method) return "-";
+    return method
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  
   if (props.type !== 'package') return <EnhancedDataTable {...props} />;
+  
+  // Mobile card view for small screens
+  const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+  
   const columns = [
     { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>{row.trackingNumber}</Link> },
     { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> },
@@ -998,29 +1274,58 @@ function EnhancedDataTableWithQuickInvoice(props: any) {
       </Button>
     ) },
   ];
+  
   if (props.loading) return <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded" />)}</div>;
   if (props.error) return <div className="text-red-600 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Failed to load data.</div>;
   if (!props.data.length) return <div className="flex flex-col items-center py-8 text-muted-foreground"><span className="text-2xl mb-2">🗂️</span><span>No packages found for this customer.</span></div>;
+  
   return (
     <div>
-      <div className="overflow-x-auto rounded border mt-2">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr>
-              {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {props.data.map((row: any, i: number) => (
-              <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
-                {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+      {isMobileView ? (
+        // Mobile card view
+        <div className="space-y-4">
+          {props.data.map((row: any, i: number) => (
+            <Card key={row.id || i} className="overflow-hidden">
+              <CardHeader className="p-4 bg-muted/30">
+                <CardTitle className="text-sm font-medium">
+                  {row.trackingNumber}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid gap-1 pt-4">
+                  {columns.map(col => (
+                    <div key={col.key} className="grid grid-cols-2 text-sm">
+                      <span className="font-medium text-muted-foreground">{col.label}</span>
+                      <span>{col.render(row)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        // Desktop table view
+        <div className="overflow-x-auto rounded border mt-2">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr>
+                {columns.map(col => <th key={col.key} className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">{col.label}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {props.data.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-b last:border-0 hover:bg-accent/30 transition">
+                  {columns.map(col => <td key={col.key} className="px-4 py-2">{col.render(row)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
       {props.pagination && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-2">
           <div className="text-sm text-muted-foreground">
             Page {props.pagination.page} of {props.pagination.totalPages} | {props.pagination.totalCount} total
           </div>

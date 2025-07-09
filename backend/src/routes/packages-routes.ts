@@ -52,4 +52,10 @@ router.post('/:packageId/match-prealert', /*checkRole(['admin_l1', 'admin_l2']),
 // Get unbilled packages for a user
 router.get('/users/:userId/unbilled-packages', controller.getUnbilledPackagesByUser);
 
+// Assign a user to a package (Admin L1+)
+router.post('/:id/assign-user', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.assignUser);
+
+// Get unassigned packages (Admin L1+)
+router.get('/unassigned', /*checkRole(['admin_l1', 'admin_l2']),*/ controller.getUnassignedPackages);
+
 export default router; 

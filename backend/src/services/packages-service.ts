@@ -145,11 +145,9 @@ export class PackagesService {
    */
   async getPackageById(id: string, companyId: string) {
     const pkg = await this.packagesRepository.findById(id, companyId);
-    
     if (!pkg) {
       throw AppError.notFound('Package not found');
     }
-    
     return pkg;
   }
 
@@ -229,6 +227,8 @@ export class PackagesService {
       const packageData: any = {
         ...validatedData,
         companyId, // Ensure companyId is explicitly set here
+        // Set default status to "received" if not specified
+        status: validatedData.status || 'received',
       };
       
       // Debug logging for final package data
@@ -316,6 +316,7 @@ export class PackagesService {
       sortOrder?: 'asc' | 'desc';
       page?: number;
       pageSize?: number;
+      search?: string;
     }
   ) {
     return this.packagesRepository.searchPackages(companyId, searchParams);
@@ -378,8 +379,21 @@ export class PackagesService {
     }
     
     // Update ONLY the pre-alert to link it to the package
-    // Do NOT update the package as there's no pre_alert_id column in the packages table
     const updatedPreAlert = await this.preAlertsRepository.matchToPackage(preAlertId, packageId, companyId);
+    
+    // Update package status to pre_alert if it's in received or in_transit state
+    if (existingPackage.status === 'received' || existingPackage.status === 'in_transit') {
+      await this.packagesRepository.update(packageId, { 
+        status: 'pre_alert'
+      }, companyId);
+      
+      // Refresh the package data
+      const updatedPackage = await this.packagesRepository.findById(packageId, companyId);
+      return {
+        package: updatedPackage,
+        preAlert: updatedPreAlert
+      };
+    }
     
     return {
       package: existingPackage,
@@ -519,5 +533,147 @@ export class PackagesService {
    */
   async getUnbilledPackagesByUser(userId: string, companyId: string) {
     return this.packagesRepository.findUnbilledByUserId(userId, companyId);
+  }
+
+  /**
+   * Assign a user to a package
+   */
+  async assignUserToPackage(packageId: string, userId: string, companyId: string) {
+    // Verify package exists and belongs to this company
+    const pkg = await this.packagesRepository.findById(packageId, companyId);
+    if (!pkg) {
+      throw AppError.notFound('Package not found');
+    }
+    
+    // Verify user exists and belongs to this company
+    const user = await this.usersRepository.findById(userId, companyId);
+    if (!user) {
+      throw AppError.notFound('User not found');
+    }
+    
+    // Get user's prefId if available
+    const prefId = await this.getUserPrefId(userId, companyId);
+    
+    // Update the package with the new userId and prefId
+    return this.packagesRepository.update(packageId, { 
+      userId, 
+      prefId: prefId || pkg.prefId 
+    }, companyId);
+  }
+
+  /**
+   * Get unassigned packages
+   */
+  async getUnassignedPackages(companyId: string, page = 1, limit = 10, filters: any = {}) {
+    const offset = (page - 1) * limit;
+    const db = this.packagesRepository.getDatabaseInstance();
+    
+    // Build where clause with initial condition that won't be undefined
+    const conditions: SQL<unknown>[] = [
+      eq(packages.companyId, companyId),
+      sql`${packages.userId} IS NULL`
+    ];
+    
+    // Apply filters if provided
+    if (filters.status) {
+      conditions.push(eq(packages.status, filters.status));
+    }
+    
+    if (filters.search) {
+      conditions.push(ilike(packages.trackingNumber, `%${filters.search}%`));
+    }
+    
+    if (filters.dateFrom) {
+      const dateFrom = new Date(filters.dateFrom);
+      conditions.push(gte(packages.receivedDate, dateFrom));
+    }
+    
+    if (filters.dateTo) {
+      const dateTo = new Date(filters.dateTo);
+      conditions.push(lte(packages.receivedDate, dateTo));
+    }
+
+    // Combine all conditions with AND
+    const whereClause = and(...conditions);
+    
+    // Determine sort order
+    let orderBy: SQL<unknown> = desc(packages.createdAt); // default sort
+    if (filters.sortBy) {
+      const direction = filters.sortOrder === 'asc' ? asc : desc;
+      switch (filters.sortBy) {
+        case 'trackingNumber':
+          orderBy = direction(packages.trackingNumber);
+          break;
+        case 'status':
+          orderBy = direction(packages.status);
+          break;
+        case 'receivedDate':
+          orderBy = direction(packages.receivedDate);
+          break;
+        case 'createdAt':
+          orderBy = direction(packages.createdAt);
+          break;
+        default:
+          orderBy = desc(packages.createdAt);
+      }
+    }
+    
+    // Get total count for pagination
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(packages)
+      .where(whereClause);
+    
+    // Get paginated results
+    const results = await db
+      .select()
+      .from(packages)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset);
+    
+    // Return paginated response
+    return {
+      data: results,
+      pagination: {
+        page,
+        pageSize: limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit)
+      }
+    };
+  }
+
+  /**
+   * Update package status to ready_for_pickup after payment
+   * This method is called from the payments service when a payment is completed
+   */
+  async updatePackageStatusAfterPayment(invoiceId: string, companyId: string) {
+    // Get all packages associated with this invoice
+    const packages = await this.getPackagesByInvoiceId(invoiceId, companyId);
+    
+    if (!packages || packages.length === 0) {
+      console.log(`No packages found for invoice ${invoiceId}`);
+      return;
+    }
+    
+    // Update each package status to ready_for_pickup
+    const updatePromises = packages.map(pkg => {
+      // Access the package id directly from the joined result
+      const packageId = pkg.id; // Access id directly since findByInvoiceId returns package objects
+      if (packageId) {
+        return this.packagesRepository.update(packageId, { 
+          status: 'ready_for_pickup'
+        }, companyId);
+      }
+      return Promise.resolve(null);
+    }).filter(promise => promise !== null);
+    
+    // Wait for all updates to complete
+    const results = await Promise.all(updatePromises);
+    console.log(`Updated ${results.length} packages to ready_for_pickup status for invoice ${invoiceId}`);
+    
+    return results;
   }
 } 

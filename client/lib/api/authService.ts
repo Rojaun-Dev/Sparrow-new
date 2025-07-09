@@ -24,12 +24,18 @@ class AuthService {
       if (response.accessToken) {
         console.log('Setting token:', response.accessToken);
         
-        // Examine token content before saving
+        // Examine token content before saving to ensure role is properly captured
         try {
           // This is just for debugging
           const decoded = require('jwt-decode')(response.accessToken);
           console.log('Decoded token content:', decoded);
           console.log('User role in token:', decoded.role || (decoded.user && decoded.user.role));
+          
+          // Ensure the user object has the role correctly set
+          if (response.user && !response.user.role && decoded.role) {
+            console.log('Setting missing role from token:', decoded.role);
+            response.user.role = decoded.role;
+          }
         } catch (decodeError) {
           console.error('Token decode error:', decodeError);
         }

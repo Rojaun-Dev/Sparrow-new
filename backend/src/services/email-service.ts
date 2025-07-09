@@ -319,4 +319,109 @@ export class EmailService {
       // Don't throw here, this is not critical for the user flow
     }
   }
+
+  /**
+   * Send a notification when a payment is processed
+   */
+  async sendPaymentConfirmationEmail(
+    to: string,
+    firstName: string,
+    paymentData: {
+      invoiceNumber: string;
+      paymentMethod: string;
+      amount: string | number;
+      paymentDate: string;
+      transactionId?: string;
+      status: string;
+      companyName: string;
+      invoiceId: string;
+      paymentId: string;
+      currencyInfo?: {
+        currency: string;
+        exchangeRate?: number;
+        originalAmount?: number;
+        convertedAmount?: number;
+        baseCurrency?: string;
+      };
+    }
+  ): Promise<void> {
+    try {
+      // Load the email template
+      const templatePath = path.join(__dirname, '../templates/payment-confirmation.html');
+      const templateSource = fs.readFileSync(templatePath, 'utf8');
+      
+      // Compile the template
+      const template = handlebars.compile(templateSource);
+      
+      // Format currency display
+      const formatCurrency = (amount: number | string | undefined, currency: string) => {
+        if (amount === undefined) return 'N/A';
+        const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+        return new Intl.NumberFormat('en-US', { 
+          style: 'currency', 
+          currency: currency,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(numAmount);
+      };
+      
+      // Prepare currency information for display
+      const currencyInfo = paymentData.currencyInfo || { currency: 'USD' };
+      const displayCurrency = currencyInfo.currency || 'USD';
+      const baseCurrency = currencyInfo.baseCurrency || 'USD';
+      
+      // Format amounts for display
+      const formattedAmount = formatCurrency(paymentData.amount, baseCurrency);
+      const formattedConvertedAmount = currencyInfo.convertedAmount 
+        ? formatCurrency(currencyInfo.convertedAmount, displayCurrency)
+        : null;
+      
+      // Format exchange rate for display
+      const formattedExchangeRate = currencyInfo.exchangeRate 
+        ? currencyInfo.exchangeRate.toFixed(4) 
+        : null;
+      
+      // Determine if currency conversion happened
+      const currencyConverted = 
+        displayCurrency !== baseCurrency && 
+        currencyInfo.exchangeRate !== undefined && 
+        currencyInfo.convertedAmount !== undefined;
+      
+      // Replace variables in the template
+      const html = template({
+        firstName,
+        invoiceNumber: paymentData.invoiceNumber,
+        paymentMethod: paymentData.paymentMethod,
+        amount: formattedAmount,
+        paymentDate: paymentData.paymentDate,
+        transactionId: paymentData.transactionId || 'N/A',
+        status: paymentData.status,
+        invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${paymentData.invoiceId}`,
+        receiptUrl: `${process.env.FRONTEND_URL}/payments/${paymentData.paymentId}`,
+        companyName: paymentData.companyName || 'Cautious Robot',
+        year: new Date().getFullYear(),
+        
+        // Currency information
+        displayCurrency,
+        baseCurrency,
+        currencyConverted,
+        convertedAmount: formattedConvertedAmount,
+        exchangeRate: formattedExchangeRate,
+        originalAmount: formattedAmount
+      });
+      
+      // Send the email
+      await this.transporter.sendMail({
+        from: `"${paymentData.companyName || 'Cautious Robot'}" <${this.fromEmail}>`,
+        to,
+        subject: 'Payment Confirmation',
+        html
+      });
+      
+      console.log(`Payment confirmation email sent to ${to} for invoice ${paymentData.invoiceNumber}`);
+    } catch (error) {
+      console.error('Failed to send payment confirmation email:', error);
+      // Don't throw here, this is not critical for the user flow
+    }
+  }
 } 

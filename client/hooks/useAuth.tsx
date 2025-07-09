@@ -16,7 +16,7 @@ type AuthContextType = {
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
-  login: (data: LoginFormValues) => Promise<{ success: boolean; message?: string }>;
+  login: (data: LoginFormValues) => Promise<{ success: boolean; user: User | null }>;
   register: (data: RegistrationFormValues) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -27,7 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   error: null,
   isAuthenticated: false,
-  login: async () => ({ success: false }),
+  login: async () => ({ success: false, user: null }),
   register: async () => ({ success: false }),
   logout: async () => {},
   clearError: () => {},
@@ -83,14 +83,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rememberMe: data.rememberMe
       });
       
-      // Set user from the response
-      setUser(result.user);
+      // Ensure user role is properly set by explicitly creating a new user object
+      // This guarantees that the role property is explicitly set and properly triggers re-renders
+      const userWithRole = {
+        ...result.user,
+        role: result.user.role  // Explicitly set the role to ensure it's captured
+      };
+      
+      // Set user from the response with properly established role
+      setUser(userWithRole);
       setIsAuthenticated(true);
-      return { success: true };
+      console.log('Login successful, user role set to:', userWithRole.role);
+      return { success: true, user: userWithRole };
     } catch (err: any) {
       const errorMessage = err?.message || 'Login failed';
       setError(errorMessage);
-      return { success: false, message: errorMessage };
+      return { success: false, user: null };
     } finally {
       setIsLoading(false);
     }

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Confirmation</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .header {
+      background-color: #4f46e5;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .content {
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-top: none;
+    }
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+    }
+    .button {
+      display: inline-block;
+      background-color: #4f46e5;
+      color: white;
+      padding: 10px 20px;
+      text-decoration: none;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .currency-info {
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 15px 0;
+      border-left: 4px solid #4f46e5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Payment Confirmation</h1>
+    </div>
+    <div class="content">
+      <p>Dear {{firstName}},</p>
+      
+      <p>We're confirming that your payment has been processed successfully for invoice <strong>{{invoiceNumber}}</strong>.</p>
+      
+      <table>
+        <tr>
+          <th>Payment Details</th>
+          <th>Value</th>
+        </tr>
+        <tr>
+          <td>Amount Paid</td>
+          <td>{{amount}}</td>
+        </tr>
+        <tr>
+          <td>Payment Method</td>
+          <td>{{paymentMethod}}</td>
+        </tr>
+        <tr>
+          <td>Payment Date</td>
+          <td>{{paymentDate}}</td>
+        </tr>
+        <tr>
+          <td>Transaction ID</td>
+          <td>{{transactionId}}</td>
+        </tr>
+        <tr>
+          <td>Status</td>
+          <td>{{status}}</td>
+        </tr>
+      </table>
+      
+      {{#if currencyConverted}}
+      <div class="currency-info">
+        <h3>Currency Information</h3>
+        <p>This payment was processed in {{displayCurrency}}.</p>
+        <table>
+          <tr>
+            <th>Currency Detail</th>
+            <th>Value</th>
+          </tr>
+          <tr>
+            <td>Original Amount ({{baseCurrency}})</td>
+            <td>{{originalAmount}}</td>
+          </tr>
+          <tr>
+            <td>Converted Amount ({{displayCurrency}})</td>
+            <td>{{convertedAmount}}</td>
+          </tr>
+          <tr>
+            <td>Exchange Rate ({{baseCurrency}} to {{displayCurrency}})</td>
+            <td>{{exchangeRate}}</td>
+          </tr>
+        </table>
+      </div>
+      {{else}}
+      <p>Payment processed in {{displayCurrency}}.</p>
+      {{/if}}
+      
+      <p>You can view your invoice details by clicking the button below:</p>
+      
+      <p style="text-align: center;">
+        <a href="{{invoiceUrl}}" class="button">View Invoice</a>
+      </p>
+
+      <p>You can also view or download your receipt by clicking the button below:</p>
+      
+      <p style="text-align: center;">
+        <a href="{{receiptUrl}}" class="button">View Receipt</a>
+      </p>
+      
+      <p>If you have any questions about your payment or need further assistance, please don't hesitate to contact our support team.</p>
+      
+      <p>Thank you for your business!</p>
+      
+      <p>Best regards,<br>{{companyName}} Team</p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} {{companyName}}. All rights reserved.</p>
+      <p>This is an automated email, please do not reply.</p>
+    </div>
+  </div>
+</body>
+</html> 

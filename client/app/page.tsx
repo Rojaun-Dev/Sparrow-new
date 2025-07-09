@@ -8,7 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
-import { authService } from "@/lib/api/authService"
 import { useToast } from "@/hooks/use-toast"
 import { useCompanyContext } from "@/hooks/useCompanyContext"
 
@@ -73,15 +72,19 @@ export default function LoginPage() {
     try {
       const values = form.getValues()
       
-      // Use authService directly to login
-      const result = await authService.login({
+      // Use context-aware login to ensure user state is updated globally
+      const loginResult = await login({
         email: values.email,
         password: values.password,
         rememberMe: values.rememberMe || false
-      })
+      });
+
+      if (!loginResult.success || !loginResult.user) {
+        throw new Error('Login failed');
+      }
       
       // Get the user role from the response
-      const userRole = result.user.role;
+      const userRole = loginResult.user.role;
       
       // Determine which dashboard to redirect to based on role
       const redirectPath = getRouteFromRole(userRole);
@@ -89,7 +92,7 @@ export default function LoginPage() {
       // Show success notification
       toast({
         title: "Login successful",
-        description: `Welcome back, ${result.user.firstName}! Redirecting you to your dashboard...`,
+        description: `Welcome back, ${loginResult.user.firstName}! Redirecting you to your dashboard...`,
         variant: "default",
       });
       

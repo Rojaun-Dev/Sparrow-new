@@ -11,6 +11,13 @@ export const companySettings = pgTable('company_settings', {
   themeSettings: jsonb('theme_settings').default({}),
   paymentSettings: jsonb('payment_settings').default({}),
   integrationSettings: jsonb('integration_settings').default({}),
+  exchangeRateSettings: jsonb('exchange_rate_settings').default({
+    baseCurrency: 'USD',
+    targetCurrency: 'JMD',
+    exchangeRate: 158.50,
+    lastUpdated: null,
+    autoUpdate: false
+  }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }); 

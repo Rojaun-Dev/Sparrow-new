@@ -431,13 +431,12 @@ export default function AdminPreAlertDetailPage() {
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">Tracking #</th>
-                  <th className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">User</th>
                   <th className="px-4 py-2 text-left font-semibold bg-muted uppercase tracking-wide text-xs">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {packagesLoading ? (
-                  <tr><td colSpan={3}>Loading...</td></tr>
+                  <tr><td colSpan={2}>Loading...</td></tr>
                 ) : packagesData?.data?.length ? (
                   (packagesData.data as PackageType[]).map((pkg) => (
                     <tr
@@ -446,12 +445,11 @@ export default function AdminPreAlertDetailPage() {
                       onClick={() => setSelectedPackage(pkg)}
                     >
                       <td className="px-4 py-2">{pkg.trackingNumber}</td>
-                      <td className="px-4 py-2">{pkg.userId}</td>
                       <td className="px-4 py-2">{pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1).replace(/_/g, ' ')}</td>
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={3}>No packages found.</td></tr>
+                  <tr><td colSpan={2}>No packages found.</td></tr>
                 )}
               </tbody>
             </table>

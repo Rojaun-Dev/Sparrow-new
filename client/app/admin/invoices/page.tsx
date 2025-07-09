@@ -20,7 +20,10 @@ import { useCompany, useMyAdminCompany } from '@/hooks/useCompanies';
 import { usePackagesByInvoiceId } from '@/hooks/usePackages';
 import { useUser } from '@/hooks/useUsers';
 import { useInvoice } from '@/hooks/useInvoices';
+import { useCurrency } from '@/hooks/useCurrency';
+import { CurrencySelector } from '@/components/ui/currency-selector';
 import type { InvoiceStatus } from '@/lib/api/types';
+import { Badge } from '@/components/ui/badge';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -32,6 +35,7 @@ export default function InvoicesPage() {
   const { exportCsv } = useExportCsv();
   const { data: usersData } = useUsers();
   const usersMap = Array.isArray(usersData) ? usersData.reduce((acc, u) => { acc[u.id] = u; return acc; }, {}) : {};
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
 
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -119,6 +123,14 @@ export default function InvoicesPage() {
             <CardTitle>Invoices</CardTitle>
             <CardDescription>View and manage all invoices for your company</CardDescription>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Currency:</span>
+            <CurrencySelector
+              value={selectedCurrency}
+              onValueChange={setSelectedCurrency}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}
@@ -149,58 +161,127 @@ export default function InvoicesPage() {
             <div className="py-8 text-center text-red-600">Failed to load invoices</div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Associated Customer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Issue Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(inv => (
-                    <TableRow key={inv.id}>
-                      <TableCell>{inv.invoiceNumber}</TableCell>
-                      <TableCell>
-                        {usersMap[inv.userId] ? (
-                          <Link href={`/admin/customers/${inv.userId}`} className="text-blue-600 hover:underline">
-                            {usersMap[inv.userId].firstName} {usersMap[inv.userId].lastName}
-                          </Link>
-                        ) : inv.userId}
-                      </TableCell>
-                      <TableCell>{inv.status}</TableCell>
-                      <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
-                      <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
-                      <TableCell>{inv.totalAmount ? `$${Number(inv.totalAmount).toFixed(2)}` : "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Link href={`/admin/invoices/${inv.id}`} passHref legacyBehavior>
-                            <Button size="sm" variant="outline">View</Button>
-                          </Link>
-                          <Button size="sm" variant="outline" onClick={() => handlePrint(inv.id)}>
-                            Print
-                          </Button>
-                          {inv.status === 'draft' && (
-                            <Button size="sm" variant="destructive" onClick={() => handleDelete(inv.id)}>
-                              Delete
-                            </Button>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4 mt-4">
+                {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(inv => (
+                  <Card key={inv.id} className="overflow-hidden">
+                    <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{inv.invoiceNumber}</CardTitle>
+                        <CardDescription>
+                          {inv.status && (
+                            <Badge variant={
+                              inv.status === 'paid' ? 'success' : 
+                              inv.status === 'overdue' ? 'destructive' : 
+                              inv.status === 'draft' ? 'outline' : 
+                              'secondary'
+                            }>
+                              {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                            </Badge>
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )) : (
+                        </CardDescription>
+                      </div>
+                      <div className="text-lg font-semibold">
+                        {inv.totalAmount ? convertAndFormat(Number(inv.totalAmount)) : "-"}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-2 space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Customer:</span>
+                        <span className="text-sm">
+                          {usersMap[inv.userId] ? (
+                            <Link href={`/admin/customers/${inv.userId}`} className="text-blue-600 hover:underline">
+                              {usersMap[inv.userId].firstName} {usersMap[inv.userId].lastName}
+                            </Link>
+                          ) : inv.userId}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Issue Date:</span>
+                        <span className="text-sm">{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Due Date:</span>
+                        <span className="text-sm">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</span>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Link href={`/admin/invoices/${inv.id}`} passHref>
+                          <Button size="sm" variant="outline">View</Button>
+                        </Link>
+                        <Button size="sm" variant="outline" onClick={() => handlePrint(inv.id)}>
+                          Print
+                        </Button>
+                        {inv.status === 'draft' && (
+                          <Button size="sm" variant="destructive" onClick={() => handleDelete(inv.id)}>
+                            Delete
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No invoices found.
+                  </div>
+                )}
+              </div>
+              
+              {/* Desktop Table - Hide on Mobile */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No invoices found.
-                      </TableCell>
+                      <TableHead>Invoice #</TableHead>
+                      <TableHead>Associated Customer</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Issue Date</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(inv => (
+                      <TableRow key={inv.id}>
+                        <TableCell>{inv.invoiceNumber}</TableCell>
+                        <TableCell>
+                          {usersMap[inv.userId] ? (
+                            <Link href={`/admin/customers/${inv.userId}`} className="text-blue-600 hover:underline">
+                              {usersMap[inv.userId].firstName} {usersMap[inv.userId].lastName}
+                            </Link>
+                          ) : inv.userId}
+                        </TableCell>
+                        <TableCell>{inv.status}</TableCell>
+                        <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
+                        <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
+                        <TableCell>{inv.totalAmount ? convertAndFormat(Number(inv.totalAmount)) : "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Link href={`/admin/invoices/${inv.id}`} passHref legacyBehavior>
+                              <Button size="sm" variant="outline">View</Button>
+                            </Link>
+                            <Button size="sm" variant="outline" onClick={() => handlePrint(inv.id)}>
+                              Print
+                            </Button>
+                            {inv.status === 'draft' && (
+                              <Button size="sm" variant="destructive" onClick={() => handleDelete(inv.id)}>
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No invoices found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
               {/* Pagination Controls */}
               {data && data.pagination && (
                 <div className="flex items-center justify-between mt-4">

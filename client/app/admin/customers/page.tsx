@@ -147,6 +147,7 @@ export default function CustomersPage() {
   const [actionType, setActionType] = useState<'deactivate' | 'reactivate' | null>(null)
   const [isHardDeleteDialogOpen, setIsHardDeleteDialogOpen] = useState(false)
   const [customerToHardDelete, setCustomerToHardDelete] = useState<string | null>(null)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
 
   // CSV export hook
   const { exportCsv, loading: exportLoading } = useExportCsv();
@@ -295,7 +296,7 @@ export default function CustomersPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" className="gap-1" onClick={handleExport} disabled={exportLoading}>
+              <Button variant="outline" className="gap-1" onClick={() => setIsExportDialogOpen(true)} disabled={exportLoading}>
                 <Download className="h-4 w-4" />
                 Export
               </Button>
@@ -316,13 +317,38 @@ export default function CustomersPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  // Show 5 skeleton rows matching the table columns
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
+                          <div>
+                            <div className="h-4 w-24 bg-muted rounded animate-pulse mb-1" />
+                            <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="h-4 w-10 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="h-4 w-10 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="h-4 w-16 bg-muted rounded animate-pulse ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))
                 ) : customers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
@@ -446,6 +472,45 @@ export default function CustomersPage() {
             </Button>
             <Button variant="destructive" onClick={handleHardDeleteCustomer} disabled={deleteCompanyUserMutation.isPending}>
               {deleteCompanyUserMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Confirmation Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Customer Data</DialogTitle>
+            <DialogDescription>
+              This will export all customer data matching your current search and filters as a CSV file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              The export will include the following information:
+            </p>
+            <ul className="list-disc pl-5 mt-2 text-sm text-muted-foreground">
+              <li>Customer name and contact details</li>
+              <li>Account status and creation date</li>
+              <li>Address information</li>
+            </ul>
+            <p className="mt-4 text-sm font-medium">
+              Are you sure you want to proceed with the export?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                handleExport();
+                setIsExportDialogOpen(false);
+              }} 
+              disabled={exportLoading}
+            >
+              {exportLoading ? "Exporting..." : "Export CSV"}
             </Button>
           </DialogFooter>
         </DialogContent>

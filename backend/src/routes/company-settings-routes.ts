@@ -78,4 +78,18 @@ router.put(
   companySettingsController.updateThemeSettings
 );
 
+// Update internal prefix
+router.put(
+  '/internal-prefix',
+  /*checkRole(['admin_l2']),*/
+  companySettingsController.updateInternalPrefix
+);
+
+// Update exchange rate settings
+router.put(
+  '/exchange-rate',
+  /*checkRole(['admin_l2']),*/
+  companySettingsController.updateExchangeRateSettings
+);
+
 export default router; 

@@ -257,6 +257,32 @@ class PackageService {
     const cId = companyId || await this.getCompanyId();
     return apiClient.get<Package[]>(`${this.baseUrl}/${cId}/packages/users/${userId}/unbilled-packages`);
   }
+
+  /**
+   * Get unassigned packages
+   */
+  async getUnassignedPackages(filters: any = {}, companyId?: string): Promise<any> {
+    const cId = companyId || await this.getCompanyId();
+    const queryParams = new URLSearchParams();
+    
+    // Add filters to query params
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, String(value));
+      }
+    });
+    
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    return apiClient.get(`${this.baseUrl}/${cId}/packages/unassigned${queryString}`);
+  }
+
+  /**
+   * Assign a user to a package
+   */
+  async assignUserToPackage(packageId: string, userId: string, companyId?: string): Promise<any> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${cId}/packages/${packageId}/assign-user`, { userId });
+  }
 }
 
 // Create and export a single instance of the service

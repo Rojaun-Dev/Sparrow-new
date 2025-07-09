@@ -10,7 +10,7 @@ import { packageService } from "@/lib/api/packageService";
 import { Badge } from "@/components/ui/badge";
 
 const packageSchema = z.object({
-  userId: z.string().uuid({ message: "Customer is required" }),
+  userId: z.string().uuid({ message: "Customer is required" }).optional(),
   trackingNumber: z.string().min(3, "Tracking number is required"),
   weight: z.coerce.number().positive("Weight must be positive"),
   status: z.enum(["received", "processed", "ready_for_pickup", "delivered", "returned", "pre_alert"], { message: "Status is required" }),

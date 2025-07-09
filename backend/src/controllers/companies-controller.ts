@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import { CompaniesService } from '../services/companies-service';
 import { AuthRequest } from '../middleware/auth';
+import { AuditLogsService } from '../services/audit-logs-service';
 
 const companiesService = new CompaniesService();
+const auditLogsService = new AuditLogsService();
 
 /**
  * Get all companies
@@ -68,9 +70,34 @@ export const getCompanyById = async (req: AuthRequest, res: Response) => {
 /**
  * Create company
  */
-export const createCompany = async (req: Request, res: Response) => {
+export const createCompany = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.userId as string;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    
     const company = await companiesService.createCompany(req.body);
+    
+    // Audit log for company registration
+    if (company) {
+      await auditLogsService.createLog({
+        userId: userId || 'system',
+        companyId: company.id,
+        action: 'company_registration',
+        entityType: 'company',
+        entityId: company.id,
+        details: {
+          name: company.name,
+          subdomain: company.subdomain,
+          email: company.email,
+          phone: company.phone,
+          address: company.address
+        },
+        ipAddress,
+        userAgent
+      });
+    }
+    
     return res.status(201).json({
       success: true,
       data: company
@@ -88,10 +115,42 @@ export const createCompany = async (req: Request, res: Response) => {
 /**
  * Update company
  */
-export const updateCompany = async (req: Request, res: Response) => {
+export const updateCompany = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.userId as string;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    
+    // Get company before update for audit log
+    const companyBefore = await companiesService.getCompanyById(id);
     const company = await companiesService.updateCompany(id, req.body);
+    
+    // Audit log for company update
+    if (company && companyBefore) {
+      await auditLogsService.createLog({
+        userId: userId || 'system',
+        companyId: id,
+        action: 'company_update',
+        entityType: 'company',
+        entityId: id,
+        details: {
+          changes: Object.keys(req.body).reduce((acc: Record<string, {from: any, to: any}>, key) => {
+            const k = key as keyof typeof companyBefore;
+            if (companyBefore[k] !== req.body[key]) {
+              acc[key] = {
+                from: companyBefore[k],
+                to: req.body[key]
+              };
+            }
+            return acc;
+          }, {})
+        },
+        ipAddress,
+        userAgent
+      });
+    }
+    
     return res.status(200).json({
       success: true,
       data: company
@@ -109,10 +168,35 @@ export const updateCompany = async (req: Request, res: Response) => {
 /**
  * Delete company
  */
-export const deleteCompany = async (req: Request, res: Response) => {
+export const deleteCompany = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.userId as string;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    
+    // Get company before deletion for audit log
+    const company = await companiesService.getCompanyById(id);
     await companiesService.deleteCompany(id);
+    
+    // Audit log for company deletion
+    if (company) {
+      await auditLogsService.createLog({
+        userId: userId || 'system',
+        companyId: id,
+        action: 'company_deletion',
+        entityType: 'company',
+        entityId: id,
+        details: {
+          name: company.name,
+          subdomain: company.subdomain,
+          email: company.email
+        },
+        ipAddress,
+        userAgent
+      });
+    }
+    
     return res.status(200).json({
       success: true,
       message: 'Company deleted successfully'

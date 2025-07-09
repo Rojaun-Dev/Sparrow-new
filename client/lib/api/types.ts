@@ -190,6 +190,14 @@ export interface Payment extends BaseEntity {
   transactionId?: string;
   paymentDate: string;
   notes?: string;
+  meta?: {
+    currency?: SupportedCurrency;
+    exchangeRate?: number;
+    wiPayRequestPayload?: any;
+    wiPayCallback?: any;
+    transactionTimestamp?: string;
+    [key: string]: any;
+  };
 }
 
 // Fee related types
@@ -223,6 +231,16 @@ export interface Fee extends BaseEntity {
 }
 
 // Company setting types
+export type SupportedCurrency = 'USD' | 'JMD';
+
+export interface ExchangeRateSettings {
+  baseCurrency: SupportedCurrency;
+  targetCurrency: SupportedCurrency;
+  exchangeRate: number;
+  lastUpdated: string | null;
+  autoUpdate: boolean;
+}
+
 export interface CompanySettings extends BaseEntity {
   companyId: string;
   shippingRates?: any;
@@ -231,7 +249,7 @@ export interface CompanySettings extends BaseEntity {
   taxRates?: any;
   shippingAddress?: any;
   notificationSettings?: any;
-  exchangeRateSettings?: any;
+  exchangeRateSettings?: ExchangeRateSettings;
   themeSettings?: any;
   integrationSettings?: {
     magayaIntegration?: {
@@ -297,9 +315,26 @@ export interface PaymentFilterParams extends PaginationParams {
 export interface Company extends BaseEntity {
   name: string;
   address?: string;
+  shipping_info?: {
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+  };
   phone?: string;
   email?: string;
   website?: string;
+  subdomain?: string;
+  locations?: string[];
+  bankInfo?: string;
+  paymentSettings?: any;
+  images?: {
+    logo?: string;
+    favicon?: string;
+    banner?: string;
+  };
 }
 
 // Company Invitation Types

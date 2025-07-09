@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { usePackage, useUpdatePackageStatus } from "@/hooks/usePackages"
+import { usePackage, useUpdatePackageStatus, useAssignUserToPackage } from "@/hooks/usePackages"
 import { useInvoiceByPackageId } from "@/hooks/useInvoices"
 import { usePreAlertsByPackageId } from "@/hooks/usePreAlerts"
 import { Button } from "@/components/ui/button"
@@ -18,10 +18,13 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PackageStatus } from "@/lib/api/types"
 import { toast } from "@/components/ui/use-toast"
-import { Pencil } from "lucide-react"
+import { Pencil, UserPlus } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useGenerateInvoice } from '@/hooks/useInvoices'
+import { AssignUserModal } from "@/components/packages/AssignUserModal"
+import { useQueryClient } from "@tanstack/react-query"
+import { useUser } from "@/hooks/useUsers"
 
 const PACKAGE_STATUS_OPTIONS: PackageStatus[] = [
   "pre_alert",
@@ -54,6 +57,12 @@ export default function AdminPackageDetailPage() {
   const { data: packageData, isLoading, isError, error } = usePackage(id);
   const { data: relatedInvoice, isLoading: isLoadingInvoice, isError: isInvoiceError, error: invoiceError } = useInvoiceByPackageId(id);
   const { data: prealerts, isLoading: isLoadingPrealerts } = usePreAlertsByPackageId(id);
+  
+  // Fetch user data if packageData.userId is available
+  const { data: userData, isLoading: isUserLoading } = useUser(
+    packageData?.userId || undefined
+  );
+  
   const updateStatusMutation = useUpdatePackageStatus();
   const [form, setForm] = useState<any>(null);
   const [activeImage, setActiveImage] = useState(0);
@@ -62,6 +71,10 @@ export default function AdminPackageDetailPage() {
   const router = useRouter();
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
   const generateInvoice = useGenerateInvoice();
+  const queryClient = useQueryClient();
+  
+  // Add state for assign user modal
+  const [assignUserModalOpen, setAssignUserModalOpen] = useState(false);
 
   if (!packageData) {
     return null;
@@ -126,6 +139,21 @@ export default function AdminPackageDetailPage() {
   };
   const handleRemoveTag = (tag: string) => {
     handleFormChange("tags", tagsArray.filter((t: string) => t !== tag).join(", "));
+  };
+
+  // Handle opening the assign user modal
+  const handleAssignUser = () => {
+    setAssignUserModalOpen(true);
+  };
+
+  // Handle successful user assignment
+  const handleAssignSuccess = () => {
+    toast({
+      title: "Success",
+      description: "Customer assigned to package successfully",
+    });
+    // Refresh package data
+    queryClient.invalidateQueries({ queryKey: ['packages', 'detail', id] });
   };
 
   if (isLoading) {
@@ -320,7 +348,47 @@ export default function AdminPackageDetailPage() {
                           <p className="text-base">{new Date(packageData.receivedDate).toLocaleDateString()}</p>
                         </div>
                       )}
-                      {/* TODO: Add Customer and Company display if needed */}
+                      {/* Customer Information Section */}
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Customer</h3>
+                        <div className="bg-muted/30 p-3 rounded-md">
+                          {packageData.userId ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                {isUserLoading ? (
+                                  <Skeleton className="h-10 w-48" />
+                                ) : userData ? (
+                                  <>
+                                    <p className="font-medium">
+                                      {userData.firstName} {userData.lastName}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {userData.email}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p className="text-muted-foreground">Customer information unavailable</p>
+                                )}
+                              </div>
+                              <Link href={`/admin/customers/${packageData.userId}`}>
+                                <Button size="sm" variant="outline">View Customer</Button>
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <p className="text-muted-foreground">No customer assigned</p>
+                              <Button 
+                                size="sm" 
+                                onClick={handleAssignUser}
+                                className="flex items-center gap-1"
+                              >
+                                <UserPlus className="h-4 w-4" />
+                                Assign Customer
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   {packageData.notes && (
@@ -548,6 +616,14 @@ export default function AdminPackageDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Add the AssignUserModal at the end of the component */}
+      <AssignUserModal
+        open={assignUserModalOpen}
+        onOpenChange={setAssignUserModalOpen}
+        packageId={id}
+        onSuccess={handleAssignSuccess}
+        companyId={packageData?.companyId}
+      />
     </div>
   );
 } 

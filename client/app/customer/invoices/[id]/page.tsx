@@ -35,6 +35,15 @@ import { usePayWiPay, usePaymentAvailability } from "@/hooks/usePayWiPay"
 import { useCompanySettings } from "@/hooks/useCompanySettings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/hooks/useAuth"
+import { useCurrency } from "@/hooks/useCurrency"
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { SupportedCurrency } from "@/lib/api/types"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -163,9 +172,17 @@ function PayNowButton({ invoice }: { invoice: any }) {
   const { initiate, isLoading, error } = usePayWiPay();
   const { data: paymentSettings, isLoading: isLoadingPaymentSettings } = usePaymentAvailability();
   const [showError, setShowError] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('USD');
+  const { settings } = useCompanySettings();
   
   // Check if WiPay is enabled in company settings
   const isWiPayEnabled = paymentSettings?.isEnabled;
+  
+  // Check if exchange rate is available
+  const hasExchangeRate = settings?.exchangeRateSettings?.exchangeRate > 0;
+  
+  // Get exchange rate settings
+  const exchangeRate = settings?.exchangeRateSettings?.exchangeRate || 150;
   
   const handlePayment = async () => {
     if (!isWiPayEnabled) {
@@ -176,7 +193,8 @@ function PayNowButton({ invoice }: { invoice: any }) {
     try {
       await initiate({
         invoiceId: invoice.id,
-        origin: 'SparrowX-Customer-Portal'
+        origin: 'SparrowX-Customer-Portal',
+        currency: selectedCurrency
       });
     } catch (err) {
       console.error("Payment initiation error:", err);
@@ -219,13 +237,41 @@ function PayNowButton({ invoice }: { invoice: any }) {
         </Alert>
       )}
       
+      {hasExchangeRate && (
+        <div className="mb-4">
+          <label className="text-sm font-medium mb-1 block">
+            Select Payment Currency
+          </label>
+          <Select 
+            value={selectedCurrency}
+            onValueChange={(value) => setSelectedCurrency(value as SupportedCurrency)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select Currency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD ($)</SelectItem>
+              <SelectItem value="JMD">JMD (J$)</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <div className="text-xs text-muted-foreground mt-1">
+            {selectedCurrency === 'JMD' ? (
+              <>Exchange rate: $1 USD = J${settings?.exchangeRateSettings?.exchangeRate || 150} JMD</>
+            ) : (
+              <>Prices shown in USD</>
+            )}
+          </div>
+        </div>
+      )}
+      
       <Button 
         className="w-full" 
         onClick={handlePayment} 
         disabled={isLoading}
       >
         <CreditCard className="mr-2 h-4 w-4" />
-        {isLoading ? "Processing..." : "Pay Now"}
+        {isLoading ? "Processing..." : `Pay Now (${selectedCurrency})`}
       </Button>
       
       <div className="text-xs text-muted-foreground text-center">
@@ -348,6 +394,9 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  // Add currency conversion support
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
+
   if (isLoading) {
     return <InvoiceDetailsSkeleton />
   }
@@ -436,6 +485,21 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             Print
           </Button>
           
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedCurrency}
+              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="JMD">JMD (J$)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
           {invoice && relatedPackages && user && company ? (
             <InvoicePDFRenderer
               invoice={invoice}
@@ -443,6 +507,8 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
               user={user}
               company={company}
               buttonText="Download PDF"
+              currency={selectedCurrency}
+              exchangeRateSettings={exchangeRateSettings || undefined}
             />
           ) : (
             <Button

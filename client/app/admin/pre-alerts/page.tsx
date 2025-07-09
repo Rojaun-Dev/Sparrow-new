@@ -156,68 +156,134 @@ export default function PreAlertsPage() {
             <div className="py-8 text-center text-red-600">Failed to load pre-alerts</div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tracking #</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Courier</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Estimated Arrival</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(alert => (
-                    <TableRow key={alert.id}>
-                      <TableCell>{alert.trackingNumber}</TableCell>
-                      <TableCell>{userMap[alert.userId] ? `${userMap[alert.userId].firstName} ${userMap[alert.userId].lastName}` : alert.userId}</TableCell>
-                      <TableCell>{alert.courier}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          alert.status === 'pending' ? 'secondary'
-                          : alert.status === 'matched' ? 'success'
-                          : alert.status === 'cancelled' ? 'destructive'
-                          : 'outline'
-                        }>
-                          {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{alert.estimatedArrival ? new Date(alert.estimatedArrival).toLocaleDateString() : "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4">
+                {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(alert => (
+                  <Card key={alert.id} className="overflow-hidden">
+                    <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{alert.trackingNumber}</CardTitle>
+                        <CardDescription>{alert.courier}</CardDescription>
+                      </div>
+                      <Badge variant={
+                        alert.status === 'pending' ? 'secondary'
+                        : alert.status === 'matched' ? 'success'
+                        : alert.status === 'cancelled' ? 'destructive'
+                        : 'outline'
+                      }>
+                        {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
+                      </Badge>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-2 space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Customer:</span>
+                        <span className="text-sm">
+                          {userMap[alert.userId] ? `${userMap[alert.userId].firstName} ${userMap[alert.userId].lastName}` : alert.userId}
+                        </span>
+                      </div>
+                      {alert.estimatedArrival && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Est. Arrival:</span>
+                          <span className="text-sm">{new Date(alert.estimatedArrival).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="flex items-center gap-1.5 hover:bg-blue-50 transition-colors border-blue-200"
+                          onClick={() => handleViewPreAlert(alert.id)}
+                        >
+                          <Eye className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-600">View</span>
+                        </Button>
+                        {alert.status === 'pending' && (
                           <Button 
                             size="sm" 
                             variant="outline"
-                            className="flex items-center gap-1.5 hover:bg-blue-50 transition-colors border-blue-200"
-                            onClick={() => handleViewPreAlert(alert.id)}
+                            className="flex items-center gap-1.5 hover:bg-green-50 transition-colors border-green-200"
+                            onClick={() => openMatchModal(alert)}
                           >
-                            <Eye className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-600">View</span>
+                            <Link className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-medium text-green-600">Match</span>
                           </Button>
-                          {alert.status === 'pending' && (
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No pre-alerts found.
+                  </div>
+                )}
+              </div>
+              
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tracking #</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Courier</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Estimated Arrival</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.isArray(data?.data) && data.data.length > 0 ? data.data.map(alert => (
+                      <TableRow key={alert.id}>
+                        <TableCell>{alert.trackingNumber}</TableCell>
+                        <TableCell>{userMap[alert.userId] ? `${userMap[alert.userId].firstName} ${userMap[alert.userId].lastName}` : alert.userId}</TableCell>
+                        <TableCell>{alert.courier}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            alert.status === 'pending' ? 'secondary'
+                            : alert.status === 'matched' ? 'success'
+                            : alert.status === 'cancelled' ? 'destructive'
+                            : 'outline'
+                          }>
+                            {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{alert.estimatedArrival ? new Date(alert.estimatedArrival).toLocaleDateString() : "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
                             <Button 
                               size="sm" 
                               variant="outline"
-                              className="flex items-center gap-1.5 hover:bg-green-50 transition-colors border-green-200"
-                              onClick={() => openMatchModal(alert)}
+                              className="flex items-center gap-1.5 hover:bg-blue-50 transition-colors border-blue-200"
+                              onClick={() => handleViewPreAlert(alert.id)}
                             >
-                              <Link className="h-4 w-4 text-green-600" />
-                              <span className="text-sm font-medium text-green-600">Match</span>
+                              <Eye className="h-4 w-4 text-blue-600" />
+                              <span className="text-sm font-medium text-blue-600">View</span>
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No pre-alerts found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                            {alert.status === 'pending' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="flex items-center gap-1.5 hover:bg-green-50 transition-colors border-green-200"
+                                onClick={() => openMatchModal(alert)}
+                              >
+                                <Link className="h-4 w-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-600">Match</span>
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No pre-alerts found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
               {/* Pagination Controls */}
               {data && data.pagination && (
                 <div className="flex items-center justify-between mt-4">
@@ -302,13 +368,12 @@ export default function PreAlertsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tracking #</TableHead>
-                    <TableHead>User</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {packagesLoading ? (
-                    <TableRow><TableCell colSpan={3}>Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2}>Loading...</TableCell></TableRow>
                   ) : packagesData?.data?.length ? (
                     packagesData.data.map((pkg: Package) => (
                       <TableRow
@@ -317,12 +382,11 @@ export default function PreAlertsPage() {
                         onClick={() => setSelectedPackage(pkg)}
                       >
                         <TableCell>{pkg.trackingNumber}</TableCell>
-                        <TableCell>{pkg.userId}</TableCell>
                         <TableCell>{pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1).replace(/_/g, ' ')}</TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={3}>No packages found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2}>No packages found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

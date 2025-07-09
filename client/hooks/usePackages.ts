@@ -135,4 +135,26 @@ export function useUnbilledPackagesByUser(userId: string, companyId?: string) {
     queryFn: () => packageService.getUnbilledPackagesByUser(userId, companyId),
     enabled: !!userId && !!companyId,
   });
+}
+
+// Hook for fetching unassigned packages
+export function useUnassignedPackages(filters: PackageFilterParams = {}) {
+  return useQuery({
+    queryKey: [...packageKeys.lists(), 'unassigned', filters],
+    queryFn: () => packageService.getUnassignedPackages(filters),
+  });
+}
+
+// Hook for assigning a user to a package
+export function useAssignUserToPackage() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ packageId, userId }: { packageId: string, userId: string }) => 
+      packageService.assignUserToPackage(packageId, userId),
+    onSuccess: () => {
+      // Invalidate relevant queries to refresh data
+      queryClient.invalidateQueries({ queryKey: packageKeys.lists() });
+    },
+  });
 } 

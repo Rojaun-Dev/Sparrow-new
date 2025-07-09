@@ -97,7 +97,12 @@ export function generateBreadcrumbItems(pathname: string, rootPath?: string): Br
 
     // Handle special cases for IDs in the path
     if (segment.match(/^[0-9a-f]{8,}$/i)) {
-      label = "Details"
+      // Check if this is a customer ID in the path /admin/customers/[id]
+      if (index > 0 && pathSegments[index-1] === "customers") {
+        label = "Customer Details"
+      } else {
+        label = "Details"
+      }
     }
 
     return {

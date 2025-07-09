@@ -7,9 +7,11 @@ import { PassThrough } from 'stream';
 import { UsersService } from '../services/users-service';
 import { EmailService } from '../services/email-service';
 import { CompaniesService } from '../services/companies-service';
+import { AuditLogsService } from '../services/audit-logs-service';
 
 interface AuthRequest extends Request {
   companyId?: string;
+  userId?: string;
 }
 
 export class PackagesController {
@@ -17,12 +19,14 @@ export class PackagesController {
   private usersService: UsersService;
   private emailService: EmailService;
   private companiesService: CompaniesService;
+  private auditLogsService: AuditLogsService;
 
   constructor() {
     this.service = new PackagesService();
     this.usersService = new UsersService();
     this.emailService = new EmailService();
     this.companiesService = new CompaniesService();
+    this.auditLogsService = new AuditLogsService();
   }
 
   /**
@@ -248,6 +252,11 @@ export class PackagesController {
         searchParams.receivedDateTo = new Date(searchParams.receivedDateTo as string);
       }
       
+      // Prioritize tracking number search - if search param exists, use it for tracking number
+      if (searchParams.search && !searchParams.trackingNumber) {
+        searchParams.trackingNumber = searchParams.search;
+      }
+      
       const result = await this.service.searchPackages(companyId, searchParams);
       return ApiResponse.success(res, result);
     } catch (error) {
@@ -365,14 +374,34 @@ export class PackagesController {
   matchPreAlertToPackage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
       const { packageId } = req.params;
       const { preAlertId, sendNotification = false } = req.body;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
       
       if (!preAlertId) {
         return ApiResponse.validationError(res, { message: 'preAlertId is required' });
       }
       
       const result = await this.service.matchPreAlertToPackage(preAlertId, packageId, companyId);
+      
+      // Create audit log for pre-alert assignment
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'match_prealert_to_package',
+        entityType: 'package',
+        entityId: packageId,
+        details: {
+          packageId: packageId,
+          preAlertId: preAlertId,
+          packageTrackingNumber: result.package?.trackingNumber || '',
+          preAlertTrackingNumber: result.preAlert?.trackingNumber || ''
+        },
+        ipAddress,
+        userAgent
+      });
       
       // Send notification if requested
       if (sendNotification && result.package && result.preAlert) {
@@ -388,23 +417,23 @@ export class PackagesController {
             
             // Get company name
             const company = await this.companiesService.getCompanyById(companyId);
-            const companyName = company ? company.name : 'Cautious Robot';
+            const companyName = company && company.name ? company.name : 'Cautious Robot';
             
             // Format data for the email
             await this.emailService.sendPreAlertMatchedEmail(
               user.email,
               user.firstName,
               {
-                preAlertTrackingNumber: result.preAlert.trackingNumber,
-                packageTrackingNumber: result.package.trackingNumber,
+                preAlertTrackingNumber: result.preAlert.trackingNumber || '',
+                packageTrackingNumber: result.package.trackingNumber || '',
                 courier: result.preAlert.courier || '',
                 description: result.package.description || result.preAlert.description || '',
-                status: result.package.status,
+                status: result.package.status || 'received',
                 receivedDate: result.package.receivedDate ? 
                   new Date(result.package.receivedDate).toLocaleDateString() : 
                   new Date().toLocaleDateString(),
                 companyName,
-                packageId: result.package.id
+                packageId: result.package.id || ''
               }
             );
           }
@@ -430,6 +459,78 @@ export class PackagesController {
       const companyId = req.companyId as string;
       const packages = await this.service.getUnbilledPackagesByUser(userId, companyId);
       return res.json({ success: true, data: packages });
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * Assign a user to a package
+   */
+  assignUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const companyId = req.companyId as string;
+      const adminUserId = req.userId as string;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      
+      if (!userId) {
+        return ApiResponse.validationError(res, { message: 'userId is required' });
+      }
+
+      // Get the package before update for audit log
+      const packageBefore = await this.service.getPackageById(id, companyId);
+      
+      const pkg = await this.service.assignUserToPackage(id, userId, companyId);
+      
+      // Create audit log for customer assignment
+      await this.auditLogsService.createLog({
+        userId: adminUserId,
+        companyId,
+        action: 'assign_customer_to_package',
+        entityType: 'package',
+        entityId: id,
+        details: {
+          packageId: id,
+          customerId: userId,
+          trackingNumber: pkg?.trackingNumber || '',
+          previousCustomerId: packageBefore.userId || null
+        },
+        ipAddress,
+        userAgent
+      });
+
+      return ApiResponse.success(res, pkg, 'User assigned to package successfully');
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+  };
+
+  /**
+   * Get unassigned packages
+   */
+  getUnassignedPackages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      // Extract filters from query params
+      const filters = {
+        status: req.query.status as string,
+        search: req.query.search as string,
+        dateFrom: req.query.dateFrom as string,
+        dateTo: req.query.dateTo as string,
+        sortBy: req.query.sortBy as string,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc',
+      };
+      
+      const result = await this.service.getUnassignedPackages(companyId, page, limit, filters);
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
       return undefined;

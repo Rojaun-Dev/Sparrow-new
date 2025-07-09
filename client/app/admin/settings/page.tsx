@@ -30,13 +30,21 @@ import { useApiKey } from "@/hooks/useApiKey"
 import { Spinner } from "@/components/ui/spinner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { useCompanyContext } from "@/hooks/useCompanyContext"
 
 export default function CompanySettingsPage() {
   const { user } = useAuth();
   const isAdminL2 = user?.role === "admin_l2";
-  const { company, isLoading, updateCompany, updateLocations, updateIntegrationSettings } = useCompanySettings();
+  const { company, settings, isLoading, updateCompany, updateLocations, updateIntegrationSettings, updateInternalPrefix } = useCompanySettings();
+  const { companyId } = useCompanyContext();
+  console.log("CompanyContext companyId:", companyId);
   const { assets, getAssetByType, uploadAsset, deleteAsset } = useCompanyAssets();
   const { generateApiKey, isGenerating, apiKey } = useApiKey();
+  
+  // Debug logs
+  console.log("Company data received:", company);
+  console.log("Settings data received:", settings);
+  console.log("Loading state:", isLoading);
   
   const [companyData, setCompanyData] = useState({
     id: "",
@@ -45,6 +53,14 @@ export default function CompanySettingsPage() {
     email: "",
     phone: "",
     address: "",
+    shipping_info: {
+      address_line1: "",
+      address_line2: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: ""
+    },
     website: "",
     locations: [] as string[],
     bankInfo: "",
@@ -72,6 +88,7 @@ export default function CompanySettingsPage() {
         cronInterval: 24,
       },
     },
+    internalPrefix: "SPX",
   });
   
   const [activeTab, setActiveTab] = useState("general")
@@ -96,9 +113,50 @@ export default function CompanySettingsPage() {
   const [domainInputValue, setDomainInputValue] = useState('');
   const [originInputValue, setOriginInputValue] = useState('');
   
+  // Add new state for internal prefix
+  const [internalPrefixValue, setInternalPrefixValue] = useState("");
+  
+  // Add state for exchange rate settings
+  const [exchangeRateSettings, setExchangeRateSettings] = useState({
+    baseCurrency: 'USD' as 'USD' | 'JMD',
+    targetCurrency: 'JMD' as 'USD' | 'JMD',
+    exchangeRate: 158.50,
+    lastUpdated: null as string | null,
+    autoUpdate: false
+  });
+  
+  // Initialize exchange rate settings properly from API data
+  useEffect(() => {
+    if (settings?.exchangeRateSettings) {
+      // Only update if values are different to prevent unnecessary re-renders
+      const newSettings = settings.exchangeRateSettings;
+      setExchangeRateSettings(prev => {
+        if (
+          prev.baseCurrency === newSettings.baseCurrency &&
+          prev.targetCurrency === newSettings.targetCurrency &&
+          prev.exchangeRate === newSettings.exchangeRate &&
+          prev.lastUpdated === newSettings.lastUpdated &&
+          prev.autoUpdate === newSettings.autoUpdate
+        ) {
+          return prev;
+        }
+        
+        return {
+          baseCurrency: newSettings.baseCurrency || 'USD',
+          targetCurrency: newSettings.targetCurrency || 'JMD',
+          exchangeRate: newSettings.exchangeRate || 158.50,
+          lastUpdated: newSettings.lastUpdated || null,
+          autoUpdate: newSettings.autoUpdate || false
+        };
+      });
+    }
+  }, [settings?.exchangeRateSettings]);
+  
   // Load company data when available
   useEffect(() => {
+    console.log("useEffect triggered with company:", company);
     if (company) {
+      console.log("Company data available, updating state:", company);
       setCompanyData(prev => {
         // Only update if values are different to prevent unnecessary re-renders
         if (
@@ -107,6 +165,7 @@ export default function CompanySettingsPage() {
           prev.email === company.email &&
           prev.phone === company.phone &&
           prev.address === company.address &&
+          JSON.stringify(prev.shipping_info) === JSON.stringify(company.shipping_info || {}) &&
           prev.website === company.website &&
           prev.bankInfo === company.bankInfo &&
           JSON.stringify(prev.locations) === JSON.stringify(company.locations || []) &&
@@ -122,6 +181,14 @@ export default function CompanySettingsPage() {
           email: company.email || "",
           phone: company.phone || "",
           address: company.address || "",
+          shipping_info: company.shipping_info || {
+            address_line1: "",
+            address_line2: "",
+            city: "",
+            state: "",
+            zip: "",
+            country: ""
+          },
           website: company.website || "",
           locations: company.locations || [],
           bankInfo: company.bankInfo || "",
@@ -149,12 +216,13 @@ export default function CompanySettingsPage() {
               cronInterval: 24,
             },
           },
+          internalPrefix: "SPX",
         };
       });
     }
   }, [company]);
   
-  // Separate useEffect for colors to prevent unnecessary re-renders
+  // Update theme colors when company assets change (logo metadata contains theme colors)
   useEffect(() => {
     const themeAsset = getAssetByType("logo");
     if (themeAsset?.metadata) {
@@ -163,16 +231,15 @@ export default function CompanySettingsPage() {
           prev.primaryColor === (themeAsset.metadata.primaryColor || "#3b82f6") &&
           prev.secondaryColor === (themeAsset.metadata.secondaryColor || "#10b981")
         ) {
-          return prev;
+          return prev; // no change
         }
-        
         return {
           primaryColor: themeAsset.metadata.primaryColor || "#3b82f6",
           secondaryColor: themeAsset.metadata.secondaryColor || "#10b981",
         };
       });
     }
-  }, [getAssetByType]);
+  }, [assets]);
   
   useEffect(() => {
     async function fetchCompanySettings() {
@@ -181,7 +248,8 @@ export default function CompanySettingsPage() {
         if (settings?.paymentSettings) {
           setCompanyData(prev => ({
             ...prev,
-            paymentSettings: settings.paymentSettings
+            paymentSettings: settings.paymentSettings,
+            internalPrefix: settings.internalPrefix || "SPX",
           }));
         }
         
@@ -212,10 +280,22 @@ export default function CompanySettingsPage() {
                 cronEnabled: integrationSettings?.magayaIntegration?.cronEnabled || false,
                 cronInterval: integrationSettings?.magayaIntegration?.cronInterval || 24,
               },
-            }
+            },
+            internalPrefix: settings?.internalPrefix || prev.internalPrefix,
           }));
         } catch (err) {
           console.error('Failed to load integration settings:', err);
+        }
+        
+        // Load exchange rate settings
+        if (settings?.exchangeRateSettings) {
+          setExchangeRateSettings({
+            baseCurrency: settings.exchangeRateSettings.baseCurrency || 'USD',
+            targetCurrency: settings.exchangeRateSettings.targetCurrency || 'JMD',
+            exchangeRate: settings.exchangeRateSettings.exchangeRate || 158.50,
+            lastUpdated: settings.exchangeRateSettings.lastUpdated || null,
+            autoUpdate: settings.exchangeRateSettings.autoUpdate || false
+          });
         }
       } catch (err) {
         // Optionally handle error
@@ -238,9 +318,29 @@ export default function CompanySettingsPage() {
     }
   }, [apiKey]);
   
+  // Update internal prefix when settings are loaded
+  useEffect(() => {
+    if (settings?.internalPrefix) {
+      setInternalPrefixValue(settings.internalPrefix);
+    }
+  }, [settings]);
+  
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setCompanyData(prev => ({ ...prev, [name]: value }))
+    
+    // Handle nested properties like shipping_info.address_line1
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.')
+      setCompanyData(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent as keyof typeof prev],
+          [child]: value
+        }
+      }))
+    } else {
+      setCompanyData(prev => ({ ...prev, [name]: value }))
+    }
   }
   
   const handleSelectChange = (name: string, value: string) => {
@@ -280,9 +380,24 @@ export default function CompanySettingsPage() {
           email: companyData.email,
           phone: companyData.phone,
           address: companyData.address,
+          shipping_info: companyData.shipping_info,
           website: companyData.website,
           bankInfo: companyData.bankInfo,
         });
+        
+        // Update exchange rate settings
+        const exchangeRatePayload = {
+          ...exchangeRateSettings,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        try {
+          await apiClient.put('/company-settings/exchange-rate', exchangeRatePayload);
+          console.log("Exchange rate settings updated successfully");
+        } catch (error) {
+          console.error("Failed to update exchange rate settings:", error);
+          throw error;
+        }
       }
       
       // Update company locations
@@ -500,6 +615,46 @@ export default function CompanySettingsPage() {
     }
   };
 
+  // Add a handler for updating the internal prefix
+  const handleUpdateInternalPrefix = async () => {
+    if (!internalPrefixValue || internalPrefixValue.length < 2 || internalPrefixValue.length > 5) {
+      toast({
+        title: "Invalid prefix",
+        description: "Internal prefix must be between 2 and 5 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      await updateInternalPrefix.mutateAsync(internalPrefixValue);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      console.error("Failed to update internal prefix:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Exchange rate settings handlers
+  const handleExchangeRateChange = (field: string, value: any) => {
+    // Use a functional update to ensure we're working with the latest state
+    setExchangeRateSettings(prev => {
+      // If the value is the same, don't update to avoid infinite loops
+      if (prev[field] === value) {
+        return prev;
+      }
+      
+      console.log(`Updating exchange rate setting: ${field} = ${value}`);
+      return {
+        ...prev,
+        [field]: value
+      };
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-6">
@@ -639,20 +794,23 @@ export default function CompanySettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full md:w-auto grid-cols-4 md:grid-cols-4 h-auto gap-2">
+        <TabsList className="grid w-full md:w-auto grid-cols-5 md:grid-cols-5 h-auto gap-2">
           <TabsTrigger className="px-3" value="general" onClick={() => setActiveTab("general")}>General</TabsTrigger>
           <TabsTrigger className="px-3" value="locations" onClick={() => setActiveTab("locations")}>Locations</TabsTrigger>
           <TabsTrigger className="px-3" value="branding" onClick={() => setActiveTab("branding")}>Branding</TabsTrigger>
           <TabsTrigger className="px-3" value="integrations" onClick={() => setActiveTab("integrations")}>Integrations</TabsTrigger>
+          <TabsTrigger className="px-3" value="payment" onClick={() => setActiveTab("payment")}>Payment</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
           <Card>
-            <CardHeader className="sm:flex-row sm:items-center">
-              <CardTitle>Company Information</CardTitle>
-              <CardDescription>
-                Manage your company's basic information
-              </CardDescription>
+            <CardHeader>
+              <div>
+                <CardTitle>Company Information</CardTitle>
+                <CardDescription className="mt-1">
+                  Manage your company's basic information
+                </CardDescription>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -714,6 +872,7 @@ export default function CompanySettingsPage() {
               
               <div className="space-y-2">
                 <Label htmlFor="address">Business Address</Label>
+                <p className="text-xs text-muted-foreground mb-2">This is the address clients will use to ship their purchases to.</p>
                 <Textarea 
                   id="address" 
                   name="address" 
@@ -723,7 +882,84 @@ export default function CompanySettingsPage() {
                   className="w-full min-h-[100px]"
                 />
               </div>
-              
+
+              <div className="space-y-2">
+                <Label htmlFor="shippingInfo">Shipping Information</Label>
+                <p className="text-xs text-muted-foreground mb-2">This is the address clients will use to ship their purchases to.</p>
+                <div className="border rounded-md p-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_address_line1">Address Line 1</Label>
+                      <Input 
+                        id="shipping_info_address_line1" 
+                        name="shipping_info.address_line1" 
+                        value={companyData.shipping_info?.address_line1 || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_address_line2">Address Line 2</Label>
+                      <Input 
+                        id="shipping_info_address_line2" 
+                        name="shipping_info.address_line2" 
+                        value={companyData.shipping_info?.address_line2 || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_city">City</Label>
+                      <Input 
+                        id="shipping_info_city" 
+                        name="shipping_info.city" 
+                        value={companyData.shipping_info?.city || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_state">State/Province</Label>
+                      <Input 
+                        id="shipping_info_state" 
+                        name="shipping_info.state" 
+                        value={companyData.shipping_info?.state || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping_info_zip">ZIP/Postal Code</Label>
+                      <Input 
+                        id="shipping_info_zip" 
+                        name="shipping_info.zip" 
+                        value={companyData.shipping_info?.zip || ''} 
+                        onChange={handleInputChange} 
+                        disabled={!isAdminL2}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="shipping_info_country">Country</Label>
+                    <Input 
+                      id="shipping_info_country" 
+                      name="shipping_info.country" 
+                      value={companyData.shipping_info?.country || ''} 
+                      onChange={handleInputChange} 
+                      disabled={!isAdminL2}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="website">Website</Label>
                 <Input 
@@ -751,6 +987,148 @@ export default function CompanySettingsPage() {
                   This information will appear on invoices and is used for payment processing.
                 </p>
               </div>
+
+              {/* Exchange Rate Settings Section */}
+              <Separator className="my-6" />
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-medium">Currency & Exchange Rate Settings</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure exchange rates for currency conversion. All amounts are entered in USD and can be displayed in JMD.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="baseCurrency">Base Currency</Label>
+                    <Select 
+                      defaultValue={exchangeRateSettings.baseCurrency}
+                      onValueChange={(value) => handleExchangeRateChange('baseCurrency', value)}
+                      disabled={!isAdminL2}
+                    >
+                      <SelectTrigger id="baseCurrency">
+                        <SelectValue placeholder="Select base currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="JMD">JMD (J$)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Currency that amounts are entered in (typically USD)
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="targetCurrency">Target Currency</Label>
+                    <Select 
+                      defaultValue={exchangeRateSettings.targetCurrency}
+                      onValueChange={(value) => handleExchangeRateChange('targetCurrency', value)}
+                      disabled={!isAdminL2}
+                    >
+                      <SelectTrigger id="targetCurrency">
+                        <SelectValue placeholder="Select target currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="JMD">JMD (J$)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Currency to convert to for display
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="exchangeRate">Exchange Rate</Label>
+                    <Input
+                      id="exchangeRate"
+                      name="exchangeRate"
+                      type="number"
+                      step="0.01"
+                      value={exchangeRateSettings.exchangeRate || 0}
+                      onChange={(e) => handleExchangeRateChange('exchangeRate', parseFloat(e.target.value) || 0)}
+                      disabled={!isAdminL2}
+                      placeholder="158.50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      How many {exchangeRateSettings.targetCurrency || 'JMD'} per 1 {exchangeRateSettings.baseCurrency || 'USD'}
+                    </p>
+                  </div>
+                  
+                  {/* Removing auto-update checkbox as it's causing issues and not implemented yet */}
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground mt-6">
+                      Auto-update feature will be available in a future release
+                    </p>
+                  </div>
+                </div>
+                
+                {exchangeRateSettings.lastUpdated && (
+                  <div className="text-sm text-muted-foreground">
+                    Last updated: {new Date(exchangeRateSettings.lastUpdated).toLocaleString()}
+                  </div>
+                )}
+                
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    <strong>Preview:</strong> $100.00 USD = J${exchangeRateSettings.exchangeRate ? (100 * (exchangeRateSettings.exchangeRate || 0)).toFixed(2) : "0.00"} JMD
+                  </p>
+                </div>
+              </div>
+
+              {/* Internal Prefix Section - Only visible to admin_l2 users */}
+              {isAdminL2 && (
+                <>
+                  <Separator className="my-6" />
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-medium">Internal Prefix Settings</h3>
+                      <p className="text-sm text-muted-foreground">
+                        This prefix is used for internal tracking IDs and customer reference numbers.
+                        Changing this will affect all new packages and users.
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <Label htmlFor="internalPrefix">Internal Prefix</Label>
+                        <Input
+                          id="internalPrefix"
+                          name="internalPrefix"
+                          value={internalPrefixValue}
+                          onChange={(e) => setInternalPrefixValue(e.target.value.toUpperCase())}
+                          placeholder="SPX"
+                          className="mt-1"
+                          maxLength={5}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          2-5 characters, uppercase letters recommended
+                        </p>
+                      </div>
+                      <div className="flex items-end">
+                        <Button 
+                          onClick={handleUpdateInternalPrefix}
+                          disabled={isSaving || !internalPrefixValue || internalPrefixValue === settings?.internalPrefix}
+                          className="mb-1"
+                        >
+                          {isSaving ? <Spinner className="mr-2 h-4 w-4" /> : null}
+                          Update Prefix
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm">
+                        <strong>Example:</strong> With prefix "{internalPrefixValue || 'SPX'}", tracking IDs will look like:
+                        <code className="ml-2 bg-muted px-2 py-1 rounded">{internalPrefixValue || 'SPX'}-23-05-ABC123</code>
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1505,7 +1883,131 @@ export default function CompanySettingsPage() {
           </Card>
         </TabsContent>
         
+        <TabsContent value="payment" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Settings</CardTitle>
+              <CardDescription>
+                Configure payment gateway options such as WiPay.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* WiPay configuration */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Enable WiPay</Label>
+                    <p className="text-sm text-muted-foreground">Allow customers to pay invoices online via WiPay.</p>
+                  </div>
+                  <Switch
+                    checked={companyData.paymentSettings?.wipay?.enabled || false}
+                    onCheckedChange={(value) => {
+                      setCompanyData((prev) => ({
+                        ...prev,
+                        paymentSettings: {
+                          ...prev.paymentSettings,
+                          wipay: {
+                            ...(prev.paymentSettings?.wipay || {}),
+                            enabled: value,
+                          },
+                        },
+                      }));
+                    }}
+                    disabled={!isAdminL2}
+                  />
+                </div>
 
+                {companyData.paymentSettings?.wipay?.enabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-account">Account Number</Label>
+                      <Input
+                        id="wipay-account"
+                        value={companyData.paymentSettings?.wipay?.accountNumber || ''}
+                        onChange={(e) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              accountNumber: e.target.value,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-api-key">API Key</Label>
+                      <Input
+                        id="wipay-api-key"
+                        value={companyData.paymentSettings?.wipay?.apiKey || ''}
+                        onChange={(e) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              apiKey: e.target.value,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-environment">Environment</Label>
+                      <Select
+                        value={companyData.paymentSettings?.wipay?.environment || 'sandbox'}
+                        onValueChange={(val) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              environment: val,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2 || companyData.paymentSettings?.wipay?.environment === 'live'}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sandbox">Sandbox</SelectItem>
+                          <SelectItem value="live">Live</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wipay-fee-structure">Fee Structure</Label>
+                      <Select
+                        value={companyData.paymentSettings?.wipay?.feeStructure || 'customer_pay'}
+                        onValueChange={(val) => setCompanyData((prev) => ({
+                          ...prev,
+                          paymentSettings: {
+                            ...prev.paymentSettings,
+                            wipay: {
+                              ...(prev.paymentSettings?.wipay || {}),
+                              feeStructure: val,
+                            },
+                          },
+                        }))}
+                        disabled={!isAdminL2}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="customer_pay">Customer Pays</SelectItem>
+                          <SelectItem value="merchant_absorb">Merchant Absorbs</SelectItem>
+                          <SelectItem value="split">Split</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </>
   )

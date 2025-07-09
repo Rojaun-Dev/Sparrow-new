@@ -72,12 +72,23 @@ const integrationSettingsSchema = z.object({
   }).optional(),
 });
 
+// Define validation schema for exchange rate settings
+const exchangeRateSettingsSchema = z.object({
+  baseCurrency: z.enum(['USD', 'JMD']),
+  targetCurrency: z.enum(['USD', 'JMD']),
+  exchangeRate: z.number().positive(),
+  lastUpdated: z.string().optional(),
+  autoUpdate: z.boolean().default(false),
+});
+
 // Define validation schema for all settings
 const companySettingsSchema = z.object({
+  internalPrefix: z.string().min(2).max(5).optional(),
   notificationSettings: notificationSettingsSchema.optional(),
   themeSettings: themeSettingsSchema.optional(),
   paymentSettings: paymentSettingsSchema.optional(),
   integrationSettings: integrationSettingsSchema.optional(),
+  exchangeRateSettings: exchangeRateSettingsSchema.optional(),
 });
 
 export class CompanySettingsService extends BaseService<typeof companySettings> {
@@ -280,5 +291,48 @@ export class CompanySettingsService extends BaseService<typeof companySettings> 
       console.error('Error getting all company settings:', error);
       throw error;
     }
+  }
+
+  /**
+   * Update internal prefix for a company
+   */
+  async updateInternalPrefix(companyId: string, internalPrefix: string) {
+    // Validate prefix (2-5 characters)
+    if (!internalPrefix || internalPrefix.length < 2 || internalPrefix.length > 5) {
+      throw new Error('Internal prefix must be between 2 and 5 characters');
+    }
+    
+    // Get existing settings
+    const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+    
+    if (!settings) {
+      // Create new settings with the prefix
+      return this.companySettingsRepository.create({
+        companyId,
+        internalPrefix,
+      }, companyId);
+    }
+    
+    // Update existing settings
+    return this.companySettingsRepository.update(settings.id, {
+      internalPrefix,
+      updatedAt: new Date(),
+    }, companyId);
+  }
+
+  /**
+   * Update exchange rate settings for a company
+   */
+  async updateExchangeRateSettings(companyId: string, exchangeRateSettings: any) {
+    // Validate exchange rate settings
+    const validatedData = exchangeRateSettingsSchema.parse(exchangeRateSettings);
+    
+    // Additional validation: base and target currencies must be different
+    if (validatedData.baseCurrency === validatedData.targetCurrency) {
+      throw new Error('Base currency and target currency must be different');
+    }
+    
+    // Update exchange rate settings
+    return this.companySettingsRepository.updateExchangeRateSettings(companyId, validatedData);
   }
 } 
