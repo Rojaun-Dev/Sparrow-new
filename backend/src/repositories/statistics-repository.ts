@@ -1,6 +1,6 @@
 import { sql, and, eq, gte, lt } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { packages, packageStatusEnum } from '../db/schema/packages';
+import { packages } from '../db/schema/packages';
 import { preAlerts } from '../db/schema/pre-alerts';
 import { invoices } from '../db/schema/invoices';
 import { payments } from '../db/schema/payments';
