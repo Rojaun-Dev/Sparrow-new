@@ -54,7 +54,7 @@ import { useCustomerStatisticsForAdmin } from '@/hooks/useProfile'
 import { useExportCsv } from '@/hooks/useExportCsv'
 
 function CustomerRow({ customer, companyId, openActionDialog, openHardDeleteDialog, formatDate }: any) {
-  const { data: stats, isLoading: statsLoading } = useCustomerStatisticsForAdmin(customer.id, companyId);
+  const { data: stats, isLoading: statsLoading } = useCustomerStatisticsForAdmin(customer.id, companyId, 'USD');
   return (
     <TableRow key={customer.id}>
       <TableCell>

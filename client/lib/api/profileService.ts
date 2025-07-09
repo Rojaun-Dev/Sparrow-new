@@ -50,6 +50,17 @@ export const profileService = {
     }
   },
 
+  async getCustomerStatisticsForAdmin(userId: string, companyId: string, currency: 'USD' | 'JMD' = 'USD') {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>(`/statistics/customer/${userId}?currency=${currency}`);
+      console.log('Customer Statistics API response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching customer statistics:', error);
+      throw error;
+    }
+  },
+
   async getAdminMetrics() {
     try {
       const response = await apiClient.get<ApiResponse<any>>('/admin/metrics');
