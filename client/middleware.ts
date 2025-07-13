@@ -40,12 +40,19 @@ async function detectCompanyFromRequest(request: NextRequest) {
   let companySubdomain = null;
 
   // Method 1: Check for subdomain
-  // Example: company-name.app.example.com
+  // Example: company-name.app.example.com or express.localhost:3000
   const hostname = request.headers.get('host') || '';
   const hostParts = hostname.split('.');
   
-  // If we have at least 3 parts (subdomain.domain.tld) and it's not 'www'
-  if (hostParts.length >= 3 && hostParts[0] !== 'www') {
+  // Handle localhost subdomains (e.g., express.localhost:3000)
+  if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+    if (hostParts.length >= 2 && hostParts[1] === 'localhost') {
+      companySubdomain = hostParts[0];
+      console.log(`Detected localhost subdomain: ${companySubdomain}`);
+    } else {
+      console.log('Skipping subdomain detection for bare localhost');
+    }
+  } else if (hostParts.length >= 3 && hostParts[0] !== 'www') {
     companySubdomain = hostParts[0];
   }
 
@@ -88,11 +95,18 @@ export async function middleware(request: NextRequest) {
   
   // Save detected company in request header for the application
   if (company) {
-    // Add company information to response headers
+    // Add company information to response headers and request headers
     const response = NextResponse.next();
     response.headers.set('x-company-id', company.id);
     response.headers.set('x-company-name', company.name);
     response.headers.set('x-company-subdomain', company.subdomain);
+    
+    // Also set in request headers for SSR/ISR support
+    // This allows pages to access company info during server-side rendering
+    request.headers.set('x-company-id', company.id);
+    request.headers.set('x-company-name', company.name);
+    request.headers.set('x-company-subdomain', company.subdomain);
+    
     return response;
   }
 
