@@ -13,6 +13,7 @@ import type { Metadata } from "next"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { CompanyProvider } from "@/hooks/useCompanyContext"
 import { CurrencyProvider } from "@/components/providers/CurrencyProvider"
+import CompanyMetaTags from "@/components/CompanyMetaTags"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -31,6 +32,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <CompanyMetaTags />
+      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <QueryProvider>

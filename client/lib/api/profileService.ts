@@ -7,6 +7,9 @@ export interface ProfileResponse {
     email: string;
     firstName: string;
     lastName: string;
+    phone?: string | null;
+    address?: string | null;
+    trn?: string | null;
     role: string;
   };
 }
@@ -20,8 +23,11 @@ interface ApiResponse<T> {
 export const profileService = {
   async getProfile() {
     try {
-      const response = await apiClient.get<ApiResponse<ProfileResponse>>('/auth/profile');
-      return response.data;
+      // apiClient unwraps to `{ user: User }` already, so just return the `user` field
+      const response = await apiClient.get<ProfileResponse>(
+        '/auth/me'
+      );
+      return response.user;
     } catch (error) {
       console.error('Error fetching profile:', error);
       throw error;
@@ -30,8 +36,12 @@ export const profileService = {
 
   async updateProfile(data: any) {
     try {
-      const response = await apiClient.put<ApiResponse<ProfileResponse>>('/auth/profile', data);
-      return response.data;
+      // apiClient unwraps to `{ user: User }`
+      const response = await apiClient.put<ProfileResponse>(
+        '/auth/profile',
+        data
+      );
+      return response.user;
     } catch (error) {
       console.error('Error updating profile:', error);
       throw error;
@@ -71,10 +81,14 @@ export const profileService = {
     }
   },
 
+  // Notification preferences ------------------
   async getNotificationPreferences(): Promise<NotificationPreferences> {
     try {
-      const response = await apiClient.get<ApiResponse<NotificationPreferences>>('/auth/notification-preferences');
-      return response.data;
+      // apiClient unwraps to the preferences object directly
+      const response = await apiClient.get<NotificationPreferences>(
+        '/auth/me/notifications'
+      );
+      return response;
     } catch (error) {
       console.error('Error fetching notification preferences:', error);
       throw error;
@@ -83,8 +97,12 @@ export const profileService = {
 
   async updateNotificationPreferences(preferences: NotificationPreferences) {
     try {
-      const response = await apiClient.put<ApiResponse<any>>('/auth/notification-preferences', preferences);
-      return response.data;
+      // apiClient unwraps to the updated preferences object directly
+      const response = await apiClient.put<NotificationPreferences>(
+        '/auth/me/notifications',
+        preferences
+      );
+      return response;
     } catch (error) {
       console.error('Error updating notification preferences:', error);
       throw error;
