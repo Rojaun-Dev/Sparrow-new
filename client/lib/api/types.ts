@@ -72,6 +72,7 @@ export interface User extends BaseEntity {
   phone?: string;
   address?: string;
   trn?: string; // Tax Registration Number
+  prefId?: string; // Company prefix combined with internal ID
   role: 'customer' | 'admin_l1' | 'admin_l2' | 'super_admin';
   isActive: boolean;
   notificationPreferences?: NotificationPreferences;

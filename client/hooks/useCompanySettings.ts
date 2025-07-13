@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/apiClient';
 import { ExchangeRateSettings, Company } from '@/lib/api/types';
-import { useCompanyContext } from './useCompanyContext';
 
 interface Settings {
   id: string;
@@ -18,20 +17,15 @@ interface Settings {
 
 export function useCompanySettings() {
   const queryClient = useQueryClient();
-  const { companyId } = useCompanyContext();
-  
-  // Fallback for testing - remove in production
-  const effectiveCompanyId = companyId;  // Hardcoded for testing
   
   // Fetch company settings
   const { data: settings, isLoading: isSettingsLoading, error } = useQuery<Settings>({
-    queryKey: ['company-settings', effectiveCompanyId],
+    queryKey: ['company-settings'],
     queryFn: () => apiClient.get('/company-settings'),
     enabled: true, // Always try to fetch
   });
 
   // Debug logs
-  console.log("useCompanySettings - companyId:", companyId);
   console.log("useCompanySettings - settings loading:", isSettingsLoading);
   console.log("useCompanySettings - settings error:", error);
 
@@ -39,7 +33,7 @@ export function useCompanySettings() {
     mutationFn: (data: any) => apiClient.put(`/companies/${data.id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-settings'] });
-      queryClient.invalidateQueries({ queryKey: ['company', effectiveCompanyId] });
+      queryClient.invalidateQueries({ queryKey: ['company'] });
     },
   });
 
@@ -47,7 +41,7 @@ export function useCompanySettings() {
     mutationFn: (locations: string[]) => apiClient.put(`/companies/current`, { locations }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-settings'] });
-      queryClient.invalidateQueries({ queryKey: ['company', effectiveCompanyId] });
+      queryClient.invalidateQueries({ queryKey: ['company'] });
     },
   });
 
@@ -74,7 +68,7 @@ export function useCompanySettings() {
 
   // Fetch full company details (name, subdomain, etc.)
   const { data: company, isLoading: isCompanyLoading } = useQuery<Company>({
-    queryKey: ['company', effectiveCompanyId],
+    queryKey: ['company'],
     queryFn: () => apiClient.get('/companies/admin/me'),
     enabled: true, // Always try to fetch
     staleTime: 5 * 60 * 1000, // 5 minutes

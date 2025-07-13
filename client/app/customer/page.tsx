@@ -22,6 +22,7 @@ import { useUserStatistics, useUserPackages, useCreatePreAlertWithDocuments } fr
 import { PreAlert, Package as PackageType } from "@/lib/api/types";
 import { useToast } from "@/components/ui/use-toast";
 import { FileUpload } from "@/components/ui/file-upload";
+import { ShippingInfoCard } from "@/components/customer/ShippingInfoCard";
 
 export default function CustomerDashboard() {
   const router = useRouter();
@@ -291,6 +292,9 @@ export default function CustomerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Shipping Information Card */}
+      <ShippingInfoCard />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="md:col-span-2 lg:col-span-4">

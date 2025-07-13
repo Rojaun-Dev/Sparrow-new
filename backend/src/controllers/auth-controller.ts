@@ -206,6 +206,7 @@ export class AuthController {
           trn: user.trn,
           role: user.role,
           companyId: user.companyId,
+          prefId: user.prefId,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           notificationPreferences: user.notificationPreferences
@@ -247,6 +248,7 @@ export class AuthController {
           trn: user.trn,
           role: user.role,
           companyId: user.companyId,
+          prefId: user.prefId,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           notificationPreferences: user.notificationPreferences
