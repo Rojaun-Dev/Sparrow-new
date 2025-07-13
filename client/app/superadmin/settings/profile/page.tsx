@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/hooks/useAuth"
 import { 
   Card, 
   CardContent, 
@@ -106,6 +107,7 @@ const ProfileSkeleton = () => {
 
 export default function SuperadminProfilePage() {
   const { data: user, isLoading } = useCurrentUser()
+  const { logout } = useAuth()
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile()
   const { mutate: updatePassword, isPending: changingPassword } = useUpdatePassword()
   const { data: notificationPrefs, isLoading: loadingPrefs } = useNotificationPreferences()
@@ -552,7 +554,7 @@ export default function SuperadminProfilePage() {
               <Shield className="mr-2 h-4 w-4 text-muted-foreground" />
               Security Audit Log (Coming Soon)
             </Button>
-            <Button variant="outline" className="justify-start text-red-500">
+            <Button variant="outline" className="justify-start text-red-500" onClick={logout}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </Button>

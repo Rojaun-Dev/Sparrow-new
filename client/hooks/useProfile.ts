@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { profileService } from '@/lib/api/profileService';
+import { apiClient } from '@/lib/api/apiClient';
 import { User, NotificationPreferences } from '@/lib/api/types';
 
 // Key factory for profile queries
@@ -85,5 +86,34 @@ export function useCustomerStatisticsForAdmin(userId: string, companyId: string,
       return response && response.data ? response.data : response;
     },
     enabled: !!userId && !!companyId,
+  });
+} 
+
+// ---------------------- Pickup Locations ----------------------
+
+// Hook to fetch list of available pickup locations for the current company
+export function usePickupLocations() {
+  return useQuery({
+    queryKey: ['pickup-locations'],
+    queryFn: async () => {
+      // Backend exposes company settings pickup locations
+      const locations = await apiClient.get<string[]>('/company-settings/pickup-locations');
+      return locations;
+    }
+  });
+}
+
+// Hook to update user's preferred pickup location
+export function useUpdatePickupLocation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (pickupLocationId: string) => {
+      // Wrap in { preferences } to satisfy backend controller
+      return profileService.updateNotificationPreferences({ pickupLocationId } as any);
+    },
+    onSuccess: () => {
+      // Invalidate preferences cache so UI updates
+      queryClient.invalidateQueries({ queryKey: profileKeys.notifications() });
+    }
   });
 } 
