@@ -127,7 +127,7 @@ export default function CustomerDashboard() {
 
   // Helper to get package count by status
   const getPackageCountByStatus = (status: string) => {
-    if (!statistics?.data?.packagesByStatus) return 0;
+    if (!statistics?.packagesByStatus) return 0;
     return parseInt(statistics.packagesByStatus[status] || '0', 10);
   };
 
@@ -194,7 +194,7 @@ export default function CustomerDashboard() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
-            Failed to load dashboard statistics. Please try again later.
+            {statsError.message || 'Failed to load dashboard statistics. Please try again later.'}
           </AlertDescription>
         </Alert>
       )}
@@ -284,7 +284,7 @@ export default function CustomerDashboard() {
                     : '$0.00'}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {statistics?.outstandingInvoices?.count || 0} outstanding invoices
+                  {statistics?.outstandingInvoices?.count || 0} unpaid invoices
                 </p>
               </>
             )}
