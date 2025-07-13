@@ -62,8 +62,8 @@ class PaymentService {
       const url = `${this.baseUrl}/${companyId}/payments/user/${userProfile.id}`;
       console.log(`Making request to: ${url}`);
       
-      // Use the client directly to get access to the raw response
-      const response = await apiClient.client.get(url, { 
+      // Use the apiClient.get method which properly extracts the data field
+      const response = await apiClient.get<PaginatedResponse<Payment>>(url, { 
         params: {
           status: params?.status,
           method: params?.method,
@@ -78,19 +78,20 @@ class PaymentService {
         }
       });
       
-      console.log('Raw API response:', response.data);
+      console.log('Processed API response:', response);
       
-      // Check if we have a proper response
-      if (response.data && response.data.data) {
-        return response.data;
+      // The apiClient.get method already extracts the data field, so response should be the paginated data
+      if (response && typeof response === 'object' && 'data' in response && 'pagination' in response) {
+        return response as PaginatedResponse<Payment>;
       }
       
-      // If we got an array directly
-      if (Array.isArray(response.data)) {
+      // If we got an array directly (fallback case)
+      if (Array.isArray(response)) {
+        const arrayResponse = response as Payment[];
         return {
-          data: response.data,
+          data: arrayResponse,
           pagination: {
-            total: response.data.length,
+            total: arrayResponse.length,
             page: params?.page || 1, 
             limit: params?.limit || 10,
             totalPages: 1

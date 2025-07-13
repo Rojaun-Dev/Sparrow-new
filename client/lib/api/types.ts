@@ -190,6 +190,7 @@ export interface Payment extends BaseEntity {
   transactionId?: string;
   paymentDate: string;
   notes?: string;
+  invoiceNumber?: string; // Added from backend search results
   meta?: {
     currency?: SupportedCurrency;
     exchangeRate?: number;

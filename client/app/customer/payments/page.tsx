@@ -369,7 +369,7 @@ export default function PaymentsPage() {
                 <CardDescription>
                   {isLoading 
                     ? 'Loading payment history...'
-                    : `Showing ${paymentsData?.data?.length || 0} transactions`
+                    : `Showing ${Array.isArray(paymentsData?.data) ? paymentsData.data.length : 0} transactions`
                   }
                 </CardDescription>
               </div>
@@ -383,10 +383,25 @@ export default function PaymentsPage() {
                 <div className="flex justify-center items-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : !paymentsData?.data || paymentsData.data.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No payment transactions found. Try adjusting your filters.
-                </div>
+              ) : !Array.isArray(paymentsData?.data) || paymentsData.data.length === 0 ? (
+                <>
+                  {!Array.isArray(paymentsData?.data) && paymentsData?.data !== undefined && (
+                    <>
+                      {console.warn('Unexpected payments data shape:', paymentsData?.data)}
+                      <div className="text-center py-2 text-red-500">
+                        Warning: Unexpected response shape for payments data. Please contact support.
+                        {process.env.NODE_ENV === 'development' && (
+                          <pre className="text-xs text-muted-foreground overflow-x-auto bg-gray-100 p-2 mt-2 rounded">
+                            {JSON.stringify(paymentsData?.data, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  <div className="text-center py-8 text-muted-foreground">
+                    No payment transactions found. Try adjusting your filters.
+                  </div>
+                </>
               ) : (
                 <div className="rounded-md border">
                   <Table>
@@ -401,10 +416,16 @@ export default function PaymentsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paymentsData.data.map((payment: Payment) => (
+                      {(paymentsData.data ?? []).map((payment: Payment) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium">
-                            {payment.invoiceId}
+                            {payment.invoiceNumber ? (
+                              <Link href={`/customer/invoices/${payment.invoiceId}`} className="text-primary hover:underline">
+                                {payment.invoiceNumber}
+                              </Link>
+                            ) : (
+                              payment.invoiceId
+                            )}
                           </TableCell>
                           <TableCell>{formatDate(payment.paymentDate, payment)}</TableCell>
                           <TableCell>
