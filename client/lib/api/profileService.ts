@@ -10,6 +10,8 @@ export interface ProfileResponse {
     phone?: string | null;
     address?: string | null;
     trn?: string | null;
+    prefId?: string;
+    companyId: string;
     role: string;
   };
 }

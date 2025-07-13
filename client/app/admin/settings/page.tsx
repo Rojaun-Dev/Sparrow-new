@@ -375,6 +375,7 @@ export default function CompanySettingsPage() {
       // Update company general information
       if (activeTab === "general") {
         await updateCompany.mutateAsync({
+          id: companyData.id,
           name: companyData.name,
           subdomain: companyData.subdomain,
           email: companyData.email,
