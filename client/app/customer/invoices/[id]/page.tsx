@@ -480,11 +480,6 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Printer className="mr-2 h-4 w-4" />
-            Print
-          </Button>
-          
           <div className="flex items-center gap-2">
             <Select
               value={selectedCurrency}

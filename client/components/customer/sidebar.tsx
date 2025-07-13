@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Box, ChevronDown, CreditCard, FileText, Home, Menu, Package, PlusCircle, User, X } from "lucide-react"
+import { Box, ChevronDown, CreditCard, FileText, Home, Menu, Package, PlusCircle, User, X, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { useCompanyAssets } from "@/hooks/useCompanyAssets"
+import { useAuth } from "@/hooks/useAuth"
 
 interface NavItem {
   title: string
@@ -60,11 +61,6 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    title: "Payments",
-    href: "/customer/payments",
-    icon: CreditCard,
-  },
-  {
     title: "Profile",
     href: "/customer/profile",
     icon: User,
@@ -77,6 +73,7 @@ export function CustomerSidebar({ open, setOpen }: { open: boolean, setOpen: (op
   const { getAssetByType } = useCompanyAssets()
   const companyBanner = getAssetByType("banner")
   const companyLogo = getAssetByType("logo")
+  const { logout } = useAuth();
 
   const toggleSubmenu = (title: string) => {
     setOpenSubmenu(openSubmenu === title ? null : title)
@@ -188,6 +185,18 @@ export function CustomerSidebar({ open, setOpen }: { open: boolean, setOpen: (op
           ))}
         </nav>
       </ScrollArea>
+      <div className="p-4 border-t flex flex-col">
+        <Button
+          variant="destructive"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={async () => {
+            await logout();
+          }}
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
+      </div>
     </div>
   )
 
@@ -295,6 +304,19 @@ export function CustomerSidebar({ open, setOpen }: { open: boolean, setOpen: (op
             ))}
           </nav>
         </ScrollArea>
+        <div className="p-4 border-t flex flex-col">
+          <Button
+            variant="destructive"
+            className="w-full flex items-center justify-center gap-2"
+            onClick={async () => {
+              await logout();
+              setOpen(false);
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   )
