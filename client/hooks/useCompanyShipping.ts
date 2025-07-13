@@ -11,6 +11,12 @@ interface ShippingInfo {
   country?: string;
 }
 
+interface CompanyData {
+  id: string;
+  name: string;
+  shipping_info: ShippingInfo;
+}
+
 interface CompanyShippingData {
   company: {
     id: string;
@@ -38,13 +44,14 @@ export function useCompanyShipping() {
       }
 
       // Fetch company details to get shipping info
-      const companyData = await apiClient.get(`/companies/${user.companyId}`) as any;
+      // The API client automatically unwraps the response, so we get the data directly
+      const companyData = await apiClient.get<CompanyData>(`/companies/${user.companyId}`);
       
       return {
         company: {
           id: user.companyId,
-          name: companyData.data?.name || 'Unknown Company',
-          shipping_info: companyData.data?.shipping_info || {}
+          name: companyData?.name || 'Unknown Company',
+          shipping_info: companyData?.shipping_info || {}
         },
         user: {
           id: user.id,
@@ -69,7 +76,7 @@ export function formatShippingAddress(shippingData: CompanyShippingData | undefi
   }
 
   const addressLine1 = shipping.address_line1;
-  const addressLine2 = `suite ${user.prefId}, prefID ${user.prefId}`;
+  const addressLine2 = `${shipping.address_line2} ${user.prefId}`;
   
   const cityStateZip = [
     shipping.city,
