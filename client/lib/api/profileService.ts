@@ -50,23 +50,63 @@ export const profileService = {
 
   async getUserStatistics(currency: 'USD' | 'JMD' = 'USD') {
     try {
-      // Update the endpoint to match the backend route
-      const response = await apiClient.get<ApiResponse<any>>(`/statistics/admin?currency=${currency}`);
+      // First get the current user to determine their role
+      const user = await this.getProfile();
+      
+      let endpoint: string;
+      
+      // Determine the correct endpoint based on user role
+      switch (user.role) {
+        case 'customer':
+          endpoint = `/statistics/customer?currency=${currency}`;
+          break;
+        case 'admin_l1':
+        case 'admin_l2':
+          endpoint = `/statistics/admin?currency=${currency}`;
+          break;
+        case 'super_admin':
+          endpoint = `/statistics/superadmin?currency=${currency}`;
+          break;
+        default:
+          // Default to customer endpoint for unknown roles
+          endpoint = `/statistics/customer?currency=${currency}`;
+          break;
+      }
+      
+      const response = await apiClient.get<any>(endpoint);
       console.log('Statistics API response:', response);
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching user statistics:', error);
+      
+      // Provide helpful error messages for specific status codes
+      if (error.status === 403) {
+        throw new Error('You are not authorized to view this data. Please contact an administrator if you believe this is an error.');
+      } else if (error.status === 401) {
+        throw new Error('Your session has expired. Please log in again.');
+      } else if (error.status === 500) {
+        throw new Error('Server error occurred while fetching statistics. Please try again later.');
+      }
+      
       throw error;
     }
   },
 
   async getCustomerStatisticsForAdmin(userId: string, companyId: string, currency: 'USD' | 'JMD' = 'USD') {
     try {
-      const response = await apiClient.get<ApiResponse<any>>(`/statistics/customer/${userId}?currency=${currency}`);
+      const response = await apiClient.get<any>(`/statistics/customer/${userId}?currency=${currency}`);
       console.log('Customer Statistics API response:', response);
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching customer statistics:', error);
+      
+      // Provide helpful error messages for specific status codes
+      if (error.status === 403) {
+        throw new Error('You are not authorized to view customer statistics.');
+      } else if (error.status === 404) {
+        throw new Error('Customer not found.');
+      }
+      
       throw error;
     }
   },
