@@ -36,7 +36,7 @@ export function ShippingInfoCard() {
       });
     }
   };
-
+// cleanup
   if (isLoading) {
     return (
       <Card>
