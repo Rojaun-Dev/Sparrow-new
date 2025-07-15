@@ -27,9 +27,9 @@ const packageSchema = z.object({
   status: z.enum(["received", "processed", "ready_for_pickup", "delivered", "returned", "pre_alert"], { message: "Status is required" }),
   description: z.string().optional(),
   dimensions: z.object({
-    length: z.coerce.number().positive("Length must be positive").optional(),
-    width: z.coerce.number().positive("Width must be positive").optional(),
-    height: z.coerce.number().positive("Height must be positive").optional(),
+    length: z.coerce.number().optional(),
+    width: z.coerce.number().optional(),
+    height: z.coerce.number().optional(),
   }).partial().optional(),
   declaredValue: z.coerce.number().nonnegative("Declared value must be 0 or more").optional(),
   senderInfo: z.object({
@@ -51,7 +51,7 @@ export default function RegisterPackagePage() {
   const router = useRouter();
 
   const defaultValues: Partial<PackageFormValues> = {
-    userId: "",
+    userId: undefined,
     trackingNumber: "",
     weight: undefined,
     status: "received",
@@ -153,7 +153,7 @@ export default function RegisterPackagePage() {
                 >
                   {selectedCustomer
                     ? `${selectedCustomer.firstName} ${selectedCustomer.lastName} (${selectedCustomer.email})`
-                    : customerLoading ? "Loading..." : "Search and select customer..."}
+                    : customerLoading ? "Loading..." : "Search and select customer...(optional)"}
                 </button>
                 {customerDropdownOpen && (
                   <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg">
