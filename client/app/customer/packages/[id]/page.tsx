@@ -193,19 +193,9 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
             {getStatusLabel(packageData.status)}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Printer className="mr-2 h-4 w-4" />
-            Print
-          </Button>
-          <Button variant="outline" size="sm">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Support
-          </Button>
-        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-2">
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
@@ -489,135 +479,6 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Tracking Timeline</CardTitle>
-              <CardDescription>
-                Follow the journey of your package.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-8">
-                {packageTimeline.length > 0 ? (
-                  packageTimeline.map((event: any, index: number) => (
-                    <div key={index} className="flex">
-                      <div className="mr-4 flex flex-col items-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                          <Package className="h-5 w-5 text-primary" />
-                        </div>
-                        {index !== packageTimeline.length - 1 && (
-                          <div className="mt-1 h-full w-px bg-border" />
-                        )}
-                      </div>
-                      <div className="space-y-1 pt-1.5">
-                        <p className="text-sm font-medium">{event.status || "Status Update"}</p>
-                        <p className="text-sm text-muted-foreground">{event.description || "Package status updated"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {event.timestamp ? new Date(event.timestamp).toLocaleString() : new Date(event.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex justify-center py-8 text-muted-foreground">
-                    No tracking information available yet
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Package Photos</CardTitle>
-              <CardDescription>
-                {packagePhotos.length} photos available
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {packagePhotos.length > 0 ? (
-                <div className="space-y-4">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <div className="overflow-hidden rounded-md border cursor-pointer">
-                        <Image
-                          src={packagePhotos[activeImage]}
-                          alt="Package photo"
-                          width={400}
-                          height={300}
-                          className="aspect-video object-cover transition-transform hover:scale-105"
-                        />
-                      </div>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-lg">
-                      <DialogHeader>
-                        <DialogTitle>Package Photos</DialogTitle>
-                        <DialogDescription>
-                          Photos of your package taken at our warehouse.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="mt-4">
-                        <Image
-                          src={packagePhotos[activeImage]}
-                          alt="Package photo"
-                          width={800}
-                          height={600}
-                          className="rounded-md"
-                        />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <div className="flex flex-wrap gap-2">
-                    {packagePhotos.map((photo, i) => (
-                      <div
-                        key={i}
-                        className={`relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border transition-colors ${
-                          activeImage === i ? "ring-2 ring-primary" : ""
-                        }`}
-                        onClick={() => setActiveImage(i)}
-                      >
-                        <Image
-                          src={photo}
-                          alt={`Photo ${i + 1}`}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed">
-                  <ImageIcon className="h-10 w-10 text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">No photos available</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start">
-                <Truck className="mr-2 h-4 w-4" />
-                Track with Carrier
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <MessageSquare className="mr-2 h-4 w-4" />
-                Contact Support
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Map className="mr-2 h-4 w-4" />
-                Pickup Locations
-              </Button>
             </CardContent>
           </Card>
         </div>

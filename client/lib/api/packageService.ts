@@ -101,6 +101,7 @@ class PackageService {
           dateTo: filters.dateTo,
           sortBy: filters.sortBy,
           sortOrder: filters.sortOrder,
+          page: filters.page,
           limit: filters.limit,
           offset: filters.offset
         }
