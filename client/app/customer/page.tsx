@@ -336,7 +336,7 @@ export default function CustomerDashboard() {
                 <TableBody>
                   {packagesData?.map((pkg: PackageType) => (
                     <TableRow key={pkg.id}>
-                      <TableCell className="font-medium">{pkg.internalTrackingId}</TableCell>
+                      <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
                       <TableCell>{pkg.description}</TableCell>
                       <TableCell>
                         <Badge className={getStatusBadgeColor(pkg.status)}>

@@ -256,7 +256,7 @@ export default function PackagesPage() {
                 <TableBody>
                   {packagesData.data.map((pkg: PackageType) => (
                     <TableRow key={pkg.id}>
-                      <TableCell className="font-medium">{pkg.internalTrackingId}</TableCell>
+                      <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
                       <TableCell>{pkg.description}</TableCell>
                       <TableCell>
                         <Badge className={getStatusBadgeColor(pkg.status)}>
