@@ -77,9 +77,9 @@ export class PreAlertsController {
         searchParams.page = 1;
       }
       if (searchParams.limit) {
-        searchParams.pageSize = Number(searchParams.limit);
+        searchParams.limit = Number(searchParams.limit);
       } else {
-        searchParams.pageSize = 10;
+        searchParams.limit = 10;
       }
       // Convert date query parameters
       if (searchParams.dateFrom) {
@@ -242,8 +242,8 @@ export class PreAlertsController {
       if (searchParams.page) {
         searchParams.page = Number(searchParams.page);
       }
-      if (searchParams.pageSize) {
-        searchParams.pageSize = Number(searchParams.pageSize);
+      if (searchParams.limit) {
+        searchParams.limit = Number(searchParams.limit);
       }
       // Convert date query parameters
       if (searchParams.estimatedArrivalFrom) {
