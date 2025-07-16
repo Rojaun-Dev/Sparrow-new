@@ -238,6 +238,19 @@ export class ApiClient {
       if (this.isIOSInIframe()) {
         sessionStorage.removeItem('ios_iframe_token');
         sessionStorage.removeItem('parentToken');
+        
+        // Notify parent window of logout
+        try {
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+              type: 'SPARROW_TOKEN_REMOVED',
+              timestamp: Date.now()
+            }, '*');
+            console.log('Sent logout message to parent window');
+          }
+        } catch (error) {
+          console.warn('Failed to notify parent window of logout:', error);
+        }
       }
       
       // Also remove from cookies - important to use same path/domain options as when setting

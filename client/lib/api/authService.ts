@@ -12,6 +12,45 @@ import {
 class AuthService {
   private baseUrl = '/auth';
 
+  // Detect iOS devices in iframe contexts
+  private isIOSInIframe(): boolean {
+    if (typeof window === 'undefined') return false;
+    
+    const isIframe = window.parent !== window;
+    const isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent);
+    
+    return isIOS && isIframe;
+  }
+
+  // Handle navigation for iOS iframe after successful login
+  private handleIOSIframeNavigation(userRole: string): void {
+    if (typeof window === 'undefined') return;
+    
+    // Determine the appropriate dashboard route based on user role
+    let dashboardRoute = '/';
+    switch (userRole) {
+      case 'customer':
+        dashboardRoute = '/customer';
+        break;
+      case 'admin_l1':
+      case 'admin_l2':
+        dashboardRoute = '/admin';
+        break;
+      case 'super_admin':
+        dashboardRoute = '/superadmin';
+        break;
+      default:
+        dashboardRoute = '/customer';
+    }
+    
+    console.log(`iOS iframe navigation to: ${dashboardRoute}`);
+    
+    // Navigate to the appropriate dashboard
+    if (window.location.pathname !== dashboardRoute) {
+      window.location.href = dashboardRoute;
+    }
+  }
+
   /**
    * Log in a user
    */
@@ -43,6 +82,14 @@ class AuthService {
         
         // Pass the rememberMe flag to setToken to adjust cookie expiration
         apiClient.setToken(response.accessToken, !!credentials.rememberMe);
+        
+        // For iOS iframe contexts, also trigger navigation after setting token
+        if (this.isIOSInIframe()) {
+          // Give the postMessage time to be sent before navigation
+          setTimeout(() => {
+            this.handleIOSIframeNavigation(response.user.role);
+          }, 100);
+        }
       } else {
         console.error('No access token in response');
       }
