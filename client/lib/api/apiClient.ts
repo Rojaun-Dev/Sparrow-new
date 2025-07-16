@@ -66,7 +66,7 @@ export class ApiClient {
   public getToken(): string | null {
     if (typeof window !== 'undefined') {
       // First try to get from localStorage (backward compatibility)
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
       
       // If not in localStorage but in cookies, update localStorage
       // This creates a bridge between cookies (needed for middleware/server) 
@@ -75,7 +75,22 @@ export class ApiClient {
         const cookieToken = Cookies.get('token');
         if (cookieToken) {
           localStorage.setItem('token', cookieToken);
-          return cookieToken;
+          token = cookieToken;
+        }
+      }
+      
+      // For iframe environments, try additional token synchronization
+      if (!token && window.parent !== window) {
+        try {
+          // Check if parent has token information we can use
+          // This is a fallback for iframe scenarios where cookies might not work
+          const parentToken = sessionStorage.getItem('parentToken');
+          if (parentToken) {
+            localStorage.setItem('token', parentToken);
+            token = parentToken;
+          }
+        } catch (error) {
+          // Silent fail for cross-origin restrictions
         }
       }
       
@@ -94,19 +109,69 @@ export class ApiClient {
       // Middleware runs on the server and can't access localStorage,
       // but can access cookies sent with the request
       const isProduction = process.env.NODE_ENV === 'production';
+      const isSecure = window.location.protocol === 'https:';
       
       // Use longer expiration for "remember me" option
       const expirationDays = rememberMe ? 30 : 7;
 
-      // For iframe / cross-site scenarios we must use SameSite=None and Secure.
-      // Require HTTPS in all environments; if running on http://localhost the cookie
-      // will be ignored, but the client still has the token in localStorage.
-      Cookies.set('token', token, {
+      // Try multiple cookie strategies for iframe compatibility
+      const cookieOptions = {
         expires: expirationDays,
         path: '/',
-        secure: true,
-        sameSite: 'none'
-      });
+        secure: isSecure,
+        sameSite: 'none' as const
+      };
+
+      // Primary attempt with SameSite=None for iframe support
+      try {
+        Cookies.set('token', token, cookieOptions);
+        console.log('Cookie set successfully with SameSite=None');
+      } catch (error) {
+        console.warn('Failed to set SameSite=None cookie, trying fallback:', error);
+        
+        // Fallback for browsers that don't support SameSite=None
+        try {
+          Cookies.set('token', token, {
+            expires: expirationDays,
+            path: '/',
+            secure: isSecure,
+            sameSite: 'lax' as const
+          });
+          console.log('Cookie set successfully with SameSite=Lax');
+        } catch (fallbackError) {
+          console.warn('Failed to set SameSite=Lax cookie, trying without SameSite:', fallbackError);
+          
+          // Final fallback - no SameSite specified
+          Cookies.set('token', token, {
+            expires: expirationDays,
+            path: '/',
+            secure: isSecure
+          });
+          console.log('Cookie set successfully without SameSite');
+        }
+      }
+      
+      // Verify cookie was set
+      const cookieCheck = Cookies.get('token');
+      if (cookieCheck) {
+        console.log('Cookie verification successful');
+      } else {
+        console.error('Cookie verification failed - token not found after setting');
+      }
+      
+      // For iframe environments, also try setting with document.cookie as a backup
+      if (window.parent !== window) {
+        try {
+          const expirationDate = new Date();
+          expirationDate.setDate(expirationDate.getDate() + expirationDays);
+          document.cookie = `token=${token}; expires=${expirationDate.toUTCString()}; path=/; ${isSecure ? 'secure;' : ''} samesite=none`;
+          
+          // Also store in sessionStorage for iframe fallback
+          sessionStorage.setItem('parentToken', token);
+        } catch (docCookieError) {
+          console.warn('Failed to set iframe cookie with document.cookie:', docCookieError);
+        }
+      }
     }
   }
 

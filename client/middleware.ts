@@ -131,12 +131,25 @@ export async function middleware(request: NextRequest) {
   }
 
   // Get the token from cookie (primary) or authorization header (fallback)
-  const token = request.cookies.get('token')?.value || 
-                request.headers.get('Authorization')?.split(' ')[1] ||
-                request.headers.get('authorization')?.split(' ')[1];
+  const tokenFromCookie = request.cookies.get('token')?.value;
+  const tokenFromAuthHeader = request.headers.get('Authorization')?.split(' ')[1] ||
+                             request.headers.get('authorization')?.split(' ')[1];
+  
+  const token = tokenFromCookie || tokenFromAuthHeader;
+  
+  // Debug token sources in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Middleware token check for path:', path);
+    console.log('Token from cookie:', tokenFromCookie ? 'Present' : 'Missing');
+    console.log('Token from auth header:', tokenFromAuthHeader ? 'Present' : 'Missing');
+    console.log('All cookies:', request.cookies.getAll().map(c => c.name));
+  }
   
   // No token, redirect to unauthorized
   if (!token) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('No token found, redirecting to unauthorized');
+    }
     const url = new URL('/unauthorized', request.url);
     url.searchParams.set('message', 'You need to be logged in to access this page');
     return NextResponse.redirect(url);

@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { jwtDecode } from 'jwt-decode';
 import { 
   AuthResponse, 
   LoginCredentials, 
@@ -26,15 +27,15 @@ class AuthService {
         
         // Examine token content before saving to ensure role is properly captured
         try {
-          // This is just for debugging
-          const decoded = require('jwt-decode')(response.accessToken);
+          // Use ES6 import for better Safari compatibility
+          const decoded = jwtDecode<{ role?: string; user?: { role: string } }>(response.accessToken);
           console.log('Decoded token content:', decoded);
           console.log('User role in token:', decoded.role || (decoded.user && decoded.user.role));
           
           // Ensure the user object has the role correctly set
           if (response.user && !response.user.role && decoded.role) {
             console.log('Setting missing role from token:', decoded.role);
-            response.user.role = decoded.role;
+            response.user.role = decoded.role as any;
           }
         } catch (decodeError) {
           console.error('Token decode error:', decodeError);
