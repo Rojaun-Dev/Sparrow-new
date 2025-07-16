@@ -138,6 +138,20 @@ export class ApiClient {
       if (this.isIOSInIframe()) {
         console.log('iOS iframe detected - cookies will be blocked, using localStorage only');
         sessionStorage.setItem('ios_iframe_token', token);
+        
+        // Try to communicate with parent window for navigation
+        try {
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+              type: 'SPARROW_AUTH_SUCCESS',
+              token: token,
+              timestamp: Date.now()
+            }, '*');
+            console.log('Sent auth success message to parent window');
+          }
+        } catch (error) {
+          console.warn('Failed to communicate with parent window:', error);
+        }
         return;
       }
       
