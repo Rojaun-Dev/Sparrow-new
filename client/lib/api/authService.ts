@@ -85,10 +85,23 @@ class AuthService {
         
         // For iOS iframe contexts, also trigger navigation after setting token
         if (this.isIOSInIframe()) {
-          // Give the postMessage time to be sent before navigation
+          console.log('iOS iframe login - preparing navigation for role:', response.user.role);
+          
+          // Give the postMessage time to be sent and token to be stored before navigation
           setTimeout(() => {
-            this.handleIOSIframeNavigation(response.user.role);
-          }, 100);
+            // Double-check token is available before navigation
+            const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+            if (token) {
+              console.log('iOS iframe - token confirmed, proceeding with navigation');
+              this.handleIOSIframeNavigation(response.user.role);
+            } else {
+              console.error('iOS iframe - token not found after login, retrying...');
+              // Retry navigation after a longer delay
+              setTimeout(() => {
+                this.handleIOSIframeNavigation(response.user.role);
+              }, 500);
+            }
+          }, 200);
         }
       } else {
         console.error('No access token in response');

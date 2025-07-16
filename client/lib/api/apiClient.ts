@@ -44,6 +44,7 @@ export class ApiClient {
           // This helps with middleware token detection when cookies are blocked
           if (this.isIOSInIframe()) {
             config.headers['X-Auth-Token'] = token;
+            console.log('iOS iframe - Adding X-Auth-Token header');
           }
           
           console.log('Adding token to request:', token.substring(0, 10) + '...');
