@@ -116,6 +116,11 @@ export async function middleware(request: NextRequest) {
   // Check for token in URL parameters (for iOS iframe navigation)
   const tokenFromUrl = request.nextUrl.searchParams.get('ios_token');
   
+  // Check if this is an iOS iframe context by looking at User-Agent and headers
+  const userAgent = request.headers.get('user-agent') || '';
+  const isIOSUserAgent = /iPad|iPhone|iPod/.test(userAgent);
+  const hasIOSToken = !!tokenFromUrl;
+  
   const token = tokenFromCookie || tokenFromAuthHeader || tokenFromCustomHeader || tokenFromUrl;
   
   // Debug token sources in development
@@ -171,17 +176,43 @@ export async function middleware(request: NextRequest) {
     // User has correct role, proceed
     // If token was passed via URL (iOS iframe), clean it up and set as cookie for subsequent requests
     if (tokenFromUrl) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('iOS iframe token detected in URL, cleaning up and setting cookie');
+      }
+      
       const url = request.nextUrl.clone();
       url.searchParams.delete('ios_token');
       response = NextResponse.redirect(url);
       
-      // Try to set the token as a cookie for future requests
-      response.cookies.set('token', tokenFromUrl, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-        maxAge: 60 * 60 * 24 * 7 // 7 days
-      });
+      // For iOS Chrome/Safari iframe contexts, try multiple cookie strategies
+      const isSecure = process.env.NODE_ENV === 'production';
+      
+      // Primary attempt with SameSite=None
+      try {
+        response.cookies.set('token', tokenFromUrl, {
+          httpOnly: false,
+          secure: isSecure,
+          sameSite: 'none',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+      } catch (error) {
+        // Fallback without SameSite for problematic browsers
+        response.cookies.set('token', tokenFromUrl, {
+          httpOnly: false,
+          secure: isSecure,
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+      }
+      
+      // For iOS Chrome/Safari that are particularly stubborn, add additional headers
+      if (isIOSUserAgent) {
+        response.headers.set('X-iOS-Token', tokenFromUrl);
+        response.headers.set('X-iOS-Auth-Hint', 'token-available');
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Cookie and headers set in middleware redirect response');
+      }
     }
     
     return response;

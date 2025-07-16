@@ -96,6 +96,15 @@ export class ApiClient {
           localStorage.setItem('token', token);
           return token;
         }
+        
+        // Also check URL parameters for iOS iframe token (fallback)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('ios_token');
+        if (urlToken) {
+          localStorage.setItem('token', urlToken);
+          sessionStorage.setItem('ios_iframe_token', urlToken);
+          token = urlToken;
+        }
       }
       
       // If not in localStorage but in cookies, update localStorage
