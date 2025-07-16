@@ -45,8 +45,17 @@ class AuthService {
     
     console.log(`iOS iframe navigation to: ${dashboardRoute}`);
     
+    // For iOS iframe, append token as query parameter for initial navigation
+    const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+    if (token) {
+      const url = new URL(dashboardRoute, window.location.origin);
+      url.searchParams.set('ios_token', token);
+      dashboardRoute = url.pathname + url.search;
+      console.log(`iOS iframe navigation with token to: ${dashboardRoute}`);
+    }
+    
     // Navigate to the appropriate dashboard
-    if (window.location.pathname !== dashboardRoute) {
+    if (window.location.pathname !== dashboardRoute.split('?')[0]) {
       window.location.href = dashboardRoute;
     }
   }

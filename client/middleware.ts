@@ -113,7 +113,10 @@ export async function middleware(request: NextRequest) {
   // Check for token in custom header (for iOS iframe contexts where cookies are blocked)
   const tokenFromCustomHeader = request.headers.get('x-auth-token');
   
-  const token = tokenFromCookie || tokenFromAuthHeader || tokenFromCustomHeader;
+  // Check for token in URL parameters (for iOS iframe navigation)
+  const tokenFromUrl = request.nextUrl.searchParams.get('ios_token');
+  
+  const token = tokenFromCookie || tokenFromAuthHeader || tokenFromCustomHeader || tokenFromUrl;
   
   // Debug token sources in development
   if (process.env.NODE_ENV === 'development') {
@@ -121,6 +124,8 @@ export async function middleware(request: NextRequest) {
     console.log('Token from cookie:', tokenFromCookie ? 'Present' : 'Missing');
     console.log('Token from auth header:', tokenFromAuthHeader ? 'Present' : 'Missing');
     console.log('Token from custom header:', tokenFromCustomHeader ? 'Present' : 'Missing');
+    console.log('Token from URL:', tokenFromUrl ? 'Present' : 'Missing');
+    console.log('Final token decision:', token ? 'Present' : 'Missing');
     console.log('All cookies:', request.cookies.getAll().map(c => c.name));
     console.log('User-Agent:', request.headers.get('user-agent'));
   }
@@ -163,7 +168,22 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // User has correct role, proceed with company headers if set
+    // User has correct role, proceed
+    // If token was passed via URL (iOS iframe), clean it up and set as cookie for subsequent requests
+    if (tokenFromUrl) {
+      const url = request.nextUrl.clone();
+      url.searchParams.delete('ios_token');
+      response = NextResponse.redirect(url);
+      
+      // Try to set the token as a cookie for future requests
+      response.cookies.set('token', tokenFromUrl, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none',
+        maxAge: 60 * 60 * 24 * 7 // 7 days
+      });
+    }
+    
     return response;
   } catch (error) {
     // Invalid token, redirect to login
