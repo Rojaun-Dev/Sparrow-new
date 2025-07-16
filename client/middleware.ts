@@ -98,32 +98,7 @@ export async function middleware(request: NextRequest) {
     prefix => path === prefix || path.startsWith(`${prefix}/`)
   );
   
-  // Try to detect company from the request (subdomain or URL parameter)
-  const companySubdomain = detectCompanyFromRequest(request);
   let response = NextResponse.next();
-  
-  // Only fetch company details if we have a subdomain and need it
-  if (companySubdomain) {
-    try {
-      const company = await getCompanyDetails(companySubdomain);
-      if (company) {
-        // Add company information to response headers
-        response.headers.set('x-company-id', company.id);
-        response.headers.set('x-company-name', company.name);
-        response.headers.set('x-company-subdomain', company.subdomain);
-        
-        // Also set in request headers for SSR/ISR support
-        request.headers.set('x-company-id', company.id);
-        request.headers.set('x-company-name', company.name);
-        request.headers.set('x-company-subdomain', company.subdomain);
-      }
-    } catch (error) {
-      // Silent fail for company lookup to prevent blocking
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Company lookup failed:', error);
-      }
-    }
-  }
   
   if (!protectedPathPrefix) {
     // Not a protected route, proceed with company headers if set
