@@ -130,19 +130,24 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Get the token from cookie (primary) or authorization header (fallback)
+  // Get the token from multiple sources to handle iOS iframe issues
   const tokenFromCookie = request.cookies.get('token')?.value;
   const tokenFromAuthHeader = request.headers.get('Authorization')?.split(' ')[1] ||
                              request.headers.get('authorization')?.split(' ')[1];
   
-  const token = tokenFromCookie || tokenFromAuthHeader;
+  // Check for token in custom header (for iOS iframe contexts where cookies are blocked)
+  const tokenFromCustomHeader = request.headers.get('x-auth-token');
+  
+  const token = tokenFromCookie || tokenFromAuthHeader || tokenFromCustomHeader;
   
   // Debug token sources in development
   if (process.env.NODE_ENV === 'development') {
     console.log('Middleware token check for path:', path);
     console.log('Token from cookie:', tokenFromCookie ? 'Present' : 'Missing');
     console.log('Token from auth header:', tokenFromAuthHeader ? 'Present' : 'Missing');
+    console.log('Token from custom header:', tokenFromCustomHeader ? 'Present' : 'Missing');
     console.log('All cookies:', request.cookies.getAll().map(c => c.name));
+    console.log('User-Agent:', request.headers.get('user-agent'));
   }
   
   // No token, redirect to unauthorized

@@ -39,6 +39,13 @@ export class ApiClient {
           config.headers = config.headers || {};
           // Set Authorization header with Bearer token
           config.headers.Authorization = `Bearer ${token}`;
+          
+          // For iOS iframe contexts, also add token as custom header
+          // This helps with middleware token detection when cookies are blocked
+          if (this.isIOSInIframe()) {
+            config.headers['X-Auth-Token'] = token;
+          }
+          
           console.log('Adding token to request:', token.substring(0, 10) + '...');
         } else {
           console.warn('No token found for request');
@@ -62,11 +69,33 @@ export class ApiClient {
     );
   }
 
+  // Detect iOS devices in iframe contexts
+  private isIOSInIframe(): boolean {
+    if (typeof window === 'undefined') return false;
+    
+    // Check if we're in an iframe
+    const isIframe = window.parent !== window;
+    
+    // Check if we're on iOS (covers Safari, Chrome, Firefox on iOS)
+    const isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent);
+    
+    return isIOS && isIframe;
+  }
+
   // Get token from localStorage
   public getToken(): string | null {
     if (typeof window !== 'undefined') {
       // First try to get from localStorage (backward compatibility)
       let token = localStorage.getItem('token');
+      
+      // For iOS iframe contexts, check sessionStorage first
+      if (!token && this.isIOSInIframe()) {
+        token = sessionStorage.getItem('ios_iframe_token');
+        if (token) {
+          localStorage.setItem('token', token);
+          return token;
+        }
+      }
       
       // If not in localStorage but in cookies, update localStorage
       // This creates a bridge between cookies (needed for middleware/server) 
@@ -104,6 +133,13 @@ export class ApiClient {
     if (typeof window !== 'undefined') {
       // Store in localStorage for existing code that depends on it
       localStorage.setItem('token', token);
+      
+      // For iOS iframe contexts, cookies are blocked so we rely on localStorage + headers
+      if (this.isIOSInIframe()) {
+        console.log('iOS iframe detected - cookies will be blocked, using localStorage only');
+        sessionStorage.setItem('ios_iframe_token', token);
+        return;
+      }
       
       // Also store in cookie for middleware to access 
       // Middleware runs on the server and can't access localStorage,
@@ -183,6 +219,12 @@ export class ApiClient {
       // Clear from localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
+      
+      // For iOS iframe contexts, also clear sessionStorage
+      if (this.isIOSInIframe()) {
+        sessionStorage.removeItem('ios_iframe_token');
+        sessionStorage.removeItem('parentToken');
+      }
       
       // Also remove from cookies - important to use same path/domain options as when setting
       // Otherwise cookie deletion might not work if paths don't match
