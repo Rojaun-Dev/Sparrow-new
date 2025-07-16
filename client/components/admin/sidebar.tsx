@@ -68,7 +68,7 @@ const navItems: NavItem[] = [
       { title: "All Packages", href: "/admin/packages" },
       { title: "Register Package", href: "/admin/packages/register" },
       { title: "Import Packages", href: "/admin/import" },
-      { title: "Batch Processing", href: "/admin/packages/batch", comingSoon: true },
+      { title: "Batch Processing", href: "", comingSoon: true },
     ],
   },
   {
