@@ -9,18 +9,12 @@ export class EmailService {
   private fromEmail: string;
 
   private getTemplatePath(filename: string): string {
-    // In production (compiled), templates are copied to dist/templates
+    // In production (compiled), templates should be in src/templates
     // In development, they're in src/templates
     const isProduction = process.env.NODE_ENV === 'production';
     if (isProduction) {
-      // Find the dist folder in the path and navigate to templates from there
-      const distIndex = __dirname.indexOf('dist');
-      if (distIndex !== -1) {
-        const distPath = __dirname.substring(0, distIndex + 4); // Include 'dist'
-        return path.join(distPath, 'templates', filename);
-      }
-      // Fallback to the original logic if 'dist' not found
-      return path.join(__dirname, '../templates', filename);
+      // Navigate from /opt/render/project/src/backend/dist/services to /opt/render/project/src/templates
+      return path.join(__dirname, '../../../templates', filename);
     } else {
       // In development, __dirname points to src/services
       return path.join(__dirname, '../templates', filename);
