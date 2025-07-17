@@ -50,6 +50,14 @@ router.get('/companies/:companyId/public-assets', (req: express.Request, res: ex
   return companyAssetsController.listPublicAssets(req as any, res, next);
 });
 
+// Import company invitations controller for public routes
+import { CompanyInvitationsController } from '../controllers/company-invitations-controller';
+const companyInvitationsController = new CompanyInvitationsController();
+
+// Public company invitation routes - no authentication required
+router.get('/companies/verify-invitation/:token', companyInvitationsController.verifyInvitation.bind(companyInvitationsController));
+router.post('/companies/register/:token', companyInvitationsController.registerFromInvitation.bind(companyInvitationsController));
+
 // Apply JWT authentication middleware to all other routes
 // JWT middleware check is applied directly to these routes
 const protectedRoutes = express.Router();

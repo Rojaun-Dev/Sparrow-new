@@ -48,16 +48,8 @@ router.post(
   companyInvitationsController.sendInvitation.bind(companyInvitationsController)
 );
 
-// Public routes for company registration from invitation
-router.get(
-  '/verify-invitation/:token',
-  companyInvitationsController.verifyInvitation.bind(companyInvitationsController)
-);
-
-router.post(
-  '/register/:token',
-  companyInvitationsController.registerFromInvitation.bind(companyInvitationsController)
-);
+// Public routes for company registration from invitation moved to main router (index.ts)
+// to avoid JWT authentication middleware
 
 // Get pre-alerts by package ID
 router.get('/:companyId/packages/:packageId/prealerts', (req, res, next) => preAlertsController.getPreAlertsByPackageId(req as any, res, next));
