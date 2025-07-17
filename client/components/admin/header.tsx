@@ -21,7 +21,7 @@ export function AdminHeader() {
     // Implement logout logic
     console.log("Logging out...")
   }
-
+// test
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-background px-4 lg:px-6">
       <div className="flex w-full items-center justify-between">

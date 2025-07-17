@@ -44,6 +44,7 @@ export class ApiClient {
           // This helps with middleware token detection when cookies are blocked
           if (this.isIOSInIframe()) {
             config.headers['X-Auth-Token'] = token;
+            console.log('iOS iframe - Adding X-Auth-Token header');
           }
           
           console.log('Adding token to request:', token.substring(0, 10) + '...');
@@ -95,6 +96,15 @@ export class ApiClient {
           localStorage.setItem('token', token);
           return token;
         }
+        
+        // Also check URL parameters for iOS iframe token (fallback)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('ios_token');
+        if (urlToken) {
+          localStorage.setItem('token', urlToken);
+          sessionStorage.setItem('ios_iframe_token', urlToken);
+          token = urlToken;
+        }
       }
       
       // If not in localStorage but in cookies, update localStorage
@@ -138,6 +148,20 @@ export class ApiClient {
       if (this.isIOSInIframe()) {
         console.log('iOS iframe detected - cookies will be blocked, using localStorage only');
         sessionStorage.setItem('ios_iframe_token', token);
+        
+        // Try to communicate with parent window for navigation
+        try {
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+              type: 'SPARROW_AUTH_SUCCESS',
+              token: token,
+              timestamp: Date.now()
+            }, '*');
+            console.log('Sent auth success message to parent window');
+          }
+        } catch (error) {
+          console.warn('Failed to communicate with parent window:', error);
+        }
         return;
       }
       
@@ -154,8 +178,8 @@ export class ApiClient {
       const cookieOptions = {
         expires: expirationDays,
         path: '/',
-        secure: isSecure,
-        sameSite: 'none' as const
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: (process.env.NODE_ENV === 'development' ? 'lax' : 'none') as const
       };
 
       // Primary attempt with SameSite=None for iframe support
@@ -170,7 +194,7 @@ export class ApiClient {
           Cookies.set('token', token, {
             expires: expirationDays,
             path: '/',
-            secure: isSecure,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax' as const
           });
           console.log('Cookie set successfully with SameSite=Lax');
@@ -181,7 +205,7 @@ export class ApiClient {
           Cookies.set('token', token, {
             expires: expirationDays,
             path: '/',
-            secure: isSecure
+            secure: process.env.NODE_ENV === 'production'
           });
           console.log('Cookie set successfully without SameSite');
         }
@@ -200,7 +224,9 @@ export class ApiClient {
         try {
           const expirationDate = new Date();
           expirationDate.setDate(expirationDate.getDate() + expirationDays);
-          document.cookie = `token=${token}; expires=${expirationDate.toUTCString()}; path=/; ${isSecure ? 'secure;' : ''} samesite=none`;
+          const secureFlag = process.env.NODE_ENV === 'production' ? 'secure;' : '';
+          const sameSiteValue = process.env.NODE_ENV === 'development' ? 'lax' : 'none';
+          document.cookie = `token=${token}; expires=${expirationDate.toUTCString()}; path=/; ${secureFlag} samesite=${sameSiteValue}`;
           
           // Also store in sessionStorage for iframe fallback
           sessionStorage.setItem('parentToken', token);
@@ -224,20 +250,33 @@ export class ApiClient {
       if (this.isIOSInIframe()) {
         sessionStorage.removeItem('ios_iframe_token');
         sessionStorage.removeItem('parentToken');
+        
+        // Notify parent window of logout
+        try {
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+              type: 'SPARROW_TOKEN_REMOVED',
+              timestamp: Date.now()
+            }, '*');
+            console.log('Sent logout message to parent window');
+          }
+        } catch (error) {
+          console.warn('Failed to notify parent window of logout:', error);
+        }
       }
       
       // Also remove from cookies - important to use same path/domain options as when setting
       // Otherwise cookie deletion might not work if paths don't match
       Cookies.remove('token', {
         path: '/',
-        secure: true,
-        sameSite: 'none'
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
       });
       
       Cookies.remove('refreshToken', {
         path: '/',
-        secure: true,
-        sameSite: 'none'
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
       });
       
       // Double-check cookies were removed - an additional safety check
