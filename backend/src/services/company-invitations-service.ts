@@ -190,7 +190,7 @@ export class CompanyInvitationsService {
     });
     
     // Generate the invitation link
-    const invitationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register/company/invite?token=${invitation.token}`;
+    const invitationLink = `${process.env.CLIENT_URL || 'http://localhost:3000'}/register/company/invite?token=${invitation.token}`;
     
     // Send email
     await this.emailService.sendCompanyInvitation(
