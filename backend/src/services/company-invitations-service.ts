@@ -61,7 +61,7 @@ export class CompanyInvitationsService {
     await this.companyInvitationsRepo.create(invitation);
 
     // Send invitation email
-    const invitationLink = `${process.env.APP_BASE_URL}/register/company/invite?token=${token}`;
+    const invitationLink = `${process.env.CLIENT_URL}/register/company/invite?token=${token}`;
     
     await this.emailService.sendCompanyInvitation(
       data.email,
