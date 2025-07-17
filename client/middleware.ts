@@ -191,15 +191,16 @@ export async function middleware(request: NextRequest) {
       try {
         response.cookies.set('token', tokenFromUrl, {
           httpOnly: false,
-          secure: isSecure,
-          sameSite: 'none',
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
           maxAge: 60 * 60 * 24 * 7 // 7 days
         });
       } catch (error) {
         // Fallback without SameSite for problematic browsers
         response.cookies.set('token', tokenFromUrl, {
           httpOnly: false,
-          secure: isSecure,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
           maxAge: 60 * 60 * 24 * 7 // 7 days
         });
       }

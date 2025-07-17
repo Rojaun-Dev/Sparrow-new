@@ -16,7 +16,9 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
+import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 import { cn } from "@/lib/utils"
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp } from "@/lib/utils/iframe-detection"
 
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -89,7 +91,23 @@ export default function LoginPage() {
       // Determine which dashboard to redirect to based on role
       const redirectPath = getRouteFromRole(userRole);
       
-      // Show success notification
+      // Check if this is iOS mobile in iframe - redirect to main app instead
+      if (isIOSMobileInIframe()) {
+        // Show success notification for iOS mobile iframe users
+        toast({
+          title: "Login successful",
+          description: `Welcome back, ${loginResult.user.firstName}! Redirecting you to the main application...`,
+          variant: "default",
+        });
+        
+        // Redirect iOS mobile iframe users to main app dashboard
+        setTimeout(() => {
+          redirectIOSMobileToMainApp(redirectPath);
+        }, 1000);
+        return;
+      }
+      
+      // Show success notification for normal users
       toast({
         title: "Login successful",
         description: `Welcome back, ${loginResult.user.firstName}! Redirecting you to your dashboard...`,
@@ -326,6 +344,9 @@ export default function LoginPage() {
           © {new Date().getFullYear()} SparrowX. All rights reserved.
         </div>
       </div>
+      
+      {/* Floating Portal Button */}
+      <FloatingPortalButton />
     </div>
   )
 }

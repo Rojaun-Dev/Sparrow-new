@@ -178,8 +178,8 @@ export class ApiClient {
       const cookieOptions = {
         expires: expirationDays,
         path: '/',
-        secure: isSecure,
-        sameSite: 'none' as const
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: (process.env.NODE_ENV === 'development' ? 'lax' : 'none') as const
       };
 
       // Primary attempt with SameSite=None for iframe support
@@ -194,7 +194,7 @@ export class ApiClient {
           Cookies.set('token', token, {
             expires: expirationDays,
             path: '/',
-            secure: isSecure,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax' as const
           });
           console.log('Cookie set successfully with SameSite=Lax');
@@ -205,7 +205,7 @@ export class ApiClient {
           Cookies.set('token', token, {
             expires: expirationDays,
             path: '/',
-            secure: isSecure
+            secure: process.env.NODE_ENV === 'production'
           });
           console.log('Cookie set successfully without SameSite');
         }
@@ -224,7 +224,9 @@ export class ApiClient {
         try {
           const expirationDate = new Date();
           expirationDate.setDate(expirationDate.getDate() + expirationDays);
-          document.cookie = `token=${token}; expires=${expirationDate.toUTCString()}; path=/; ${isSecure ? 'secure;' : ''} samesite=none`;
+          const secureFlag = process.env.NODE_ENV === 'production' ? 'secure;' : '';
+          const sameSiteValue = process.env.NODE_ENV === 'development' ? 'lax' : 'none';
+          document.cookie = `token=${token}; expires=${expirationDate.toUTCString()}; path=/; ${secureFlag} samesite=${sameSiteValue}`;
           
           // Also store in sessionStorage for iframe fallback
           sessionStorage.setItem('parentToken', token);
@@ -267,14 +269,14 @@ export class ApiClient {
       // Otherwise cookie deletion might not work if paths don't match
       Cookies.remove('token', {
         path: '/',
-        secure: true,
-        sameSite: 'none'
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
       });
       
       Cookies.remove('refreshToken', {
         path: '/',
-        secure: true,
-        sameSite: 'none'
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
       });
       
       // Double-check cookies were removed - an additional safety check
