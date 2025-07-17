@@ -38,19 +38,41 @@ export function isIOSMobileInIframe(): boolean {
 /**
  * Redirects iOS mobile iframe users to the main application dashboard
  * Used as a workaround for iOS iframe token validation issues
+ * Includes token in URL for proper authentication
  */
 export function redirectIOSMobileToMainApp(dashboardPath: string): void {
   if (!isIOSMobileInIframe()) return;
   
   try {
-    // Get the main application URL with the dashboard path
-    const mainAppUrl = `${window.location.origin}${dashboardPath}`;
+    // Get the authentication token from available sources
+    const token = localStorage.getItem('token') || 
+                  sessionStorage.getItem('ios_iframe_token') ||
+                  sessionStorage.getItem('token');
     
-    // Break out of iframe and redirect to main app
+    if (!token) {
+      console.error('No token found for iOS mobile iframe redirect');
+      // Redirect to login if no token is available
+      window.top!.location.href = `${window.location.origin}/`;
+      return;
+    }
+    
+    // Create URL with token parameter for iOS iframe handling
+    const url = new URL(dashboardPath, window.location.origin);
+    url.searchParams.set('ios_token', token);
+    
+    const mainAppUrl = url.toString();
+    console.log('Redirecting iOS mobile iframe user to main app with token');
+    
+    // Break out of iframe and redirect to main app with token
     window.top!.location.href = mainAppUrl;
   } catch (e) {
+    console.error('Error redirecting iOS mobile iframe user:', e);
     // Fallback: open in new window if we can't access window.top
-    console.warn('Could not redirect to main app, opening in new window');
-    window.open(`${window.location.origin}${dashboardPath}`, '_blank');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+    const fallbackUrl = token 
+      ? `${window.location.origin}${dashboardPath}?ios_token=${token}`
+      : `${window.location.origin}/`;
+    
+    window.open(fallbackUrl, '_blank');
   }
 }
