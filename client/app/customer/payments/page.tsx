@@ -453,10 +453,6 @@ export default function PaymentsPage() {
                                     </Link>
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onClick={() => handleDownloadReceipt(payment.id)}>
-                                  <Download className="mr-2 h-4 w-4" />
-                                  {downloadReceipt.isPending ? 'Downloading...' : 'Download Receipt'}
-                                </DropdownMenuItem>
                                 {payment.status === "completed" && payment.amount > 0 && (
                                   <DropdownMenuItem disabled>
                                     <X className="mr-2 h-4 w-4" />

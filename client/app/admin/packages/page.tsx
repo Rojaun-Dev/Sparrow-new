@@ -594,10 +594,10 @@ export default function PackagesPage() {
                             <span className="text-sm">{formatDimensions(pkg.dimensions)}</span>
                           </div>
                         )}
-                        {pkg.receivedDate && (
+                        {pkg.createdAt && (
                           <div className="flex justify-between">
                             <span className="text-sm font-medium text-muted-foreground">Received Date:</span>
-                            <span className="text-sm">{formatDate(pkg.receivedDate)}</span>
+                            <span className="text-sm">{formatDate(pkg.createdAt)}</span>
                           </div>
                         )}
                         <div className="flex justify-end gap-2 mt-4">
@@ -706,7 +706,7 @@ export default function PackagesPage() {
                               {formatDimensions(pkg.dimensions)}
                             </TableCell>
                             <TableCell className="hidden lg:table-cell">
-                              {formatDate(pkg.receivedDate)}
+                              {formatDate(pkg.createdAt)}
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>

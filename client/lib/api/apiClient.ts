@@ -39,6 +39,14 @@ export class ApiClient {
           config.headers = config.headers || {};
           // Set Authorization header with Bearer token
           config.headers.Authorization = `Bearer ${token}`;
+          
+          // For iOS iframe contexts, also add token as custom header
+          // This helps with middleware token detection when cookies are blocked
+          if (this.isIOSInIframe()) {
+            config.headers['X-Auth-Token'] = token;
+            console.log('iOS iframe - Adding X-Auth-Token header');
+          }
+          
           console.log('Adding token to request:', token.substring(0, 10) + '...');
         } else {
           console.warn('No token found for request');
@@ -62,11 +70,42 @@ export class ApiClient {
     );
   }
 
+  // Detect iOS devices in iframe contexts
+  private isIOSInIframe(): boolean {
+    if (typeof window === 'undefined') return false;
+    
+    // Check if we're in an iframe
+    const isIframe = window.parent !== window;
+    
+    // Check if we're on iOS (covers Safari, Chrome, Firefox on iOS)
+    const isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent);
+    
+    return isIOS && isIframe;
+  }
+
   // Get token from localStorage
   public getToken(): string | null {
     if (typeof window !== 'undefined') {
       // First try to get from localStorage (backward compatibility)
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
+      
+      // For iOS iframe contexts, check sessionStorage first
+      if (!token && this.isIOSInIframe()) {
+        token = sessionStorage.getItem('ios_iframe_token');
+        if (token) {
+          localStorage.setItem('token', token);
+          return token;
+        }
+        
+        // Also check URL parameters for iOS iframe token (fallback)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('ios_token');
+        if (urlToken) {
+          localStorage.setItem('token', urlToken);
+          sessionStorage.setItem('ios_iframe_token', urlToken);
+          token = urlToken;
+        }
+      }
       
       // If not in localStorage but in cookies, update localStorage
       // This creates a bridge between cookies (needed for middleware/server) 
@@ -75,7 +114,22 @@ export class ApiClient {
         const cookieToken = Cookies.get('token');
         if (cookieToken) {
           localStorage.setItem('token', cookieToken);
-          return cookieToken;
+          token = cookieToken;
+        }
+      }
+      
+      // For iframe environments, try additional token synchronization
+      if (!token && window.parent !== window) {
+        try {
+          // Check if parent has token information we can use
+          // This is a fallback for iframe scenarios where cookies might not work
+          const parentToken = sessionStorage.getItem('parentToken');
+          if (parentToken) {
+            localStorage.setItem('token', parentToken);
+            token = parentToken;
+          }
+        } catch (error) {
+          // Silent fail for cross-origin restrictions
         }
       }
       
@@ -90,23 +144,96 @@ export class ApiClient {
       // Store in localStorage for existing code that depends on it
       localStorage.setItem('token', token);
       
+      // For iOS iframe contexts, cookies are blocked so we rely on localStorage + headers
+      if (this.isIOSInIframe()) {
+        console.log('iOS iframe detected - cookies will be blocked, using localStorage only');
+        sessionStorage.setItem('ios_iframe_token', token);
+        
+        // Try to communicate with parent window for navigation
+        try {
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+              type: 'SPARROW_AUTH_SUCCESS',
+              token: token,
+              timestamp: Date.now()
+            }, '*');
+            console.log('Sent auth success message to parent window');
+          }
+        } catch (error) {
+          console.warn('Failed to communicate with parent window:', error);
+        }
+        return;
+      }
+      
       // Also store in cookie for middleware to access 
       // Middleware runs on the server and can't access localStorage,
       // but can access cookies sent with the request
       const isProduction = process.env.NODE_ENV === 'production';
+      const isSecure = window.location.protocol === 'https:';
       
       // Use longer expiration for "remember me" option
       const expirationDays = rememberMe ? 30 : 7;
 
-      // For iframe / cross-site scenarios we must use SameSite=None and Secure.
-      // Require HTTPS in all environments; if running on http://localhost the cookie
-      // will be ignored, but the client still has the token in localStorage.
-      Cookies.set('token', token, {
+      // Try multiple cookie strategies for iframe compatibility
+      const cookieOptions = {
         expires: expirationDays,
         path: '/',
-        secure: true,
-        sameSite: 'none'
-      });
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: (process.env.NODE_ENV === 'development' ? 'lax' : 'none') as const
+      };
+
+      // Primary attempt with SameSite=None for iframe support
+      try {
+        Cookies.set('token', token, cookieOptions);
+        console.log('Cookie set successfully with SameSite=None');
+      } catch (error) {
+        console.warn('Failed to set SameSite=None cookie, trying fallback:', error);
+        
+        // Fallback for browsers that don't support SameSite=None
+        try {
+          Cookies.set('token', token, {
+            expires: expirationDays,
+            path: '/',
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax' as const
+          });
+          console.log('Cookie set successfully with SameSite=Lax');
+        } catch (fallbackError) {
+          console.warn('Failed to set SameSite=Lax cookie, trying without SameSite:', fallbackError);
+          
+          // Final fallback - no SameSite specified
+          Cookies.set('token', token, {
+            expires: expirationDays,
+            path: '/',
+            secure: process.env.NODE_ENV === 'production'
+          });
+          console.log('Cookie set successfully without SameSite');
+        }
+      }
+      
+      // Verify cookie was set
+      const cookieCheck = Cookies.get('token');
+      if (cookieCheck) {
+        console.log('Cookie verification successful');
+      } else {
+        console.error('Cookie verification failed - token not found after setting');
+      }
+      
+      // For iframe environments, also try setting with document.cookie as a backup
+      if (window.parent !== window) {
+        try {
+          const expirationDate = new Date();
+          expirationDate.setDate(expirationDate.getDate() + expirationDays);
+          const secureFlag = process.env.NODE_ENV === 'production' ? 'secure;' : '';
+          const sameSiteValue = process.env.NODE_ENV === 'development' ? 'lax' : 'none';
+          document.cookie = `token=${token}; expires=${expirationDate.toUTCString()}; path=/; ${secureFlag} samesite=${sameSiteValue}`;
+          
+          // Also store in sessionStorage for iframe fallback
+          sessionStorage.setItem('parentToken', token);
+        } catch (docCookieError) {
+          console.warn('Failed to set iframe cookie with document.cookie:', docCookieError);
+        }
+      }
     }
   }
 
@@ -119,18 +246,37 @@ export class ApiClient {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       
+      // For iOS iframe contexts, also clear sessionStorage
+      if (this.isIOSInIframe()) {
+        sessionStorage.removeItem('ios_iframe_token');
+        sessionStorage.removeItem('parentToken');
+        
+        // Notify parent window of logout
+        try {
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+              type: 'SPARROW_TOKEN_REMOVED',
+              timestamp: Date.now()
+            }, '*');
+            console.log('Sent logout message to parent window');
+          }
+        } catch (error) {
+          console.warn('Failed to notify parent window of logout:', error);
+        }
+      }
+      
       // Also remove from cookies - important to use same path/domain options as when setting
       // Otherwise cookie deletion might not work if paths don't match
       Cookies.remove('token', {
         path: '/',
-        secure: true,
-        sameSite: 'none'
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
       });
       
       Cookies.remove('refreshToken', {
         path: '/',
-        secure: true,
-        sameSite: 'none'
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
       });
       
       // Double-check cookies were removed - an additional safety check

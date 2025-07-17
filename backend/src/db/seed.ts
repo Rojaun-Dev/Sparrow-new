@@ -1,11 +1,11 @@
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { database } from '../config';
+import { database, server } from '../config';
 import logger from '../utils/logger';
 
 // Import seed functions
 import { seedCompanies } from './seeds/companies';
-import { seedUsers } from './seeds/users';
+import { seedUsers, seedProductionSuperAdmin } from './seeds/users';
 import { seedCompanySettings } from './seeds/company-settings';
 import { seedFees } from './seeds/fees';
 import { seedPackages } from './seeds/packages';
@@ -14,10 +14,10 @@ import { seedInvoices } from './seeds/invoices';
 import { seedPayments } from './seeds/payments';
 
 /**
- * Seed the database with initial data for development
+ * Seed the database with production-only data (superadmin only)
  */
-async function seedDatabase() {
-  logger.info('Seeding database with initial data...');
+async function seedProductionDatabase() {
+  logger.info('Seeding database with production data (superadmin only)...');
   
   // Create a PostgreSQL connection
   const pool = new Pool({
@@ -27,9 +27,45 @@ async function seedDatabase() {
     user: database.user,
     password: database.password,
     connectionString: database.connectionString,
-  ssl: {
-    rejectUnauthorized: false, // Necessary for Render's SSL
-  },
+    ssl: {
+      rejectUnauthorized: false, // Necessary for Render's SSL
+    },
+  });
+  
+  const db = drizzle(pool);
+  
+  try {
+    // For production, only seed the superadmin user
+    await seedProductionSuperAdmin(db);
+    logger.info('Production superadmin seeded successfully');
+    
+    logger.info('Production database seeding completed successfully');
+  } catch (error) {
+    logger.error(error, 'Error during production database seeding');
+    process.exit(1);
+  }
+  
+  // Close the pool
+  await pool.end();
+}
+
+/**
+ * Seed the database with full development data
+ */
+async function seedDevelopmentDatabase() {
+  logger.info('Seeding database with development data...');
+  
+  // Create a PostgreSQL connection
+  const pool = new Pool({
+    host: database.host,
+    port: database.port,
+    database: database.name,
+    user: database.user,
+    password: database.password,
+    connectionString: database.connectionString,
+    ssl: {
+      rejectUnauthorized: false, // Necessary for Render's SSL
+    },
   });
   
   const db = drizzle(pool);
@@ -68,14 +104,29 @@ async function seedDatabase() {
     await seedPayments(db);
     logger.info('Payments seeded successfully');
     
-    logger.info('Database seeding completed successfully');
+    logger.info('Development database seeding completed successfully');
   } catch (error) {
-    logger.error(error, 'Error during database seeding');
+    logger.error(error, 'Error during development database seeding');
     process.exit(1);
   }
   
   // Close the pool
   await pool.end();
+}
+
+/**
+ * Main seeding function that chooses between production and development seeding
+ */
+async function seedDatabase() {
+  logger.info(`Environment: ${server.env}`);
+  
+  if (server.isProd) {
+    logger.info('Production environment detected - seeding superadmin only');
+    await seedProductionDatabase();
+  } else {
+    logger.info('Development environment detected - seeding full test data');
+    await seedDevelopmentDatabase();
+  }
 }
 
 // Run seeding when script is executed directly

@@ -64,6 +64,7 @@ class InvoiceService {
           dateTo: params?.dateTo,
           sortBy: params?.sortBy,
           sortOrder: params?.sortOrder,
+          page: params?.page,
           limit: params?.limit,
           offset: params?.offset
         }

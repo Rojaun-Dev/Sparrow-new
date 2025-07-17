@@ -56,6 +56,7 @@ class PackageService {
           dateTo: filters.dateTo,
           sortBy: filters.sortBy,
           sortOrder: filters.sortOrder,
+          page: filters.page,
           limit: filters.limit,
           offset: filters.offset
         }
@@ -82,6 +83,8 @@ class PackageService {
   /**
    * Get packages for the current user with pagination info
    * This is a new method that returns the full paginated response
+   * [Update][Todo] - One of these gotta go, either this or the one above, the purpose from the one below is to return the full paination info
+   *                  the one above is to return the data array only, which is what the frontend expects.
    */
   async getUserPackagesWithPagination(filters: PackageFilterParams = {}): Promise<PaginatedResponse<Package>> {
     const companyId = await this.getCompanyId();
@@ -101,6 +104,7 @@ class PackageService {
           dateTo: filters.dateTo,
           sortBy: filters.sortBy,
           sortOrder: filters.sortOrder,
+          page: filters.page,
           limit: filters.limit,
           offset: filters.offset
         }
