@@ -27,12 +27,15 @@
   "private": true,
   "dependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.13",
     "@types/express": "^4.17.17",
     "@types/express-fileupload": "^1.5.1",
+    "@types/morgan": "^1.9.10",
     "@types/multer": "^1.4.13",
     "@types/node": "^18.16.0",
     "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^6.4.17",
     "auth0": "^3.6.0",
     "bcrypt": "^5.1.1",
     "compression": "^1.7.4",
@@ -63,11 +66,8 @@
     "zod": "^3.21.4"
   },
   "devDependencies": {
-    "@types/compression": "^1.8.1",
     "@types/handlebars": "^4.1.0",
     "@types/jest": "^29.5.2",
-    "@types/morgan": "^1.9.10",
-    "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.10.2",
     "@types/supertest": "^2.0.12",
     "@types/uuid": "^9.0.2",
