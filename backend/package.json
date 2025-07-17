@@ -63,11 +63,11 @@
     "zod": "^3.21.4"
   },
   "devDependencies": {
-    "@types/compression": "^1.7.2",
+    "@types/compression": "^1.8.1",
     "@types/handlebars": "^4.1.0",
     "@types/jest": "^29.5.2",
-    "@types/morgan": "^1.9.4",
-    "@types/nodemailer": "^6.4.14",
+    "@types/morgan": "^1.9.10",
+    "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.10.2",
     "@types/supertest": "^2.0.12",
     "@types/uuid": "^9.0.2",

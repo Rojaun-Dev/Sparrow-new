@@ -238,8 +238,7 @@ export async function seedProductionSuperAdmin(db: NodePgDatabase<any>) {
         subdomain: 'sparrowx',
         email: 'contact@sparrowx.com',
         phone: '+1-876-555-0000',
-        address: 'Kingston, Jamaica',
-        description: 'SparrowX Platform'
+        address: 'Kingston, Jamaica'
       }).returning();
       
       sparrowCompanyId = sparrowCompany[0].id;
