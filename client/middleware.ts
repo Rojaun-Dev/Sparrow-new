@@ -98,32 +98,7 @@ export async function middleware(request: NextRequest) {
     prefix => path === prefix || path.startsWith(`${prefix}/`)
   );
   
-  // Try to detect company from the request (subdomain or URL parameter)
-  const companySubdomain = detectCompanyFromRequest(request);
   let response = NextResponse.next();
-  
-  // Only fetch company details if we have a subdomain and need it
-  if (companySubdomain) {
-    try {
-      const company = await getCompanyDetails(companySubdomain);
-      if (company) {
-        // Add company information to response headers
-        response.headers.set('x-company-id', company.id);
-        response.headers.set('x-company-name', company.name);
-        response.headers.set('x-company-subdomain', company.subdomain);
-        
-        // Also set in request headers for SSR/ISR support
-        request.headers.set('x-company-id', company.id);
-        request.headers.set('x-company-name', company.name);
-        request.headers.set('x-company-subdomain', company.subdomain);
-      }
-    } catch (error) {
-      // Silent fail for company lookup to prevent blocking
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Company lookup failed:', error);
-      }
-    }
-  }
   
   if (!protectedPathPrefix) {
     // Not a protected route, proceed with company headers if set
@@ -138,7 +113,15 @@ export async function middleware(request: NextRequest) {
   // Check for token in custom header (for iOS iframe contexts where cookies are blocked)
   const tokenFromCustomHeader = request.headers.get('x-auth-token');
   
-  const token = tokenFromCookie || tokenFromAuthHeader || tokenFromCustomHeader;
+  // Check for token in URL parameters (for iOS iframe navigation)
+  const tokenFromUrl = request.nextUrl.searchParams.get('ios_token');
+  
+  // Check if this is an iOS iframe context by looking at User-Agent and headers
+  const userAgent = request.headers.get('user-agent') || '';
+  const isIOSUserAgent = /iPad|iPhone|iPod/.test(userAgent);
+  const hasIOSToken = !!tokenFromUrl;
+  
+  const token = tokenFromCookie || tokenFromAuthHeader || tokenFromCustomHeader || tokenFromUrl;
   
   // Debug token sources in development
   if (process.env.NODE_ENV === 'development') {
@@ -146,6 +129,8 @@ export async function middleware(request: NextRequest) {
     console.log('Token from cookie:', tokenFromCookie ? 'Present' : 'Missing');
     console.log('Token from auth header:', tokenFromAuthHeader ? 'Present' : 'Missing');
     console.log('Token from custom header:', tokenFromCustomHeader ? 'Present' : 'Missing');
+    console.log('Token from URL:', tokenFromUrl ? 'Present' : 'Missing');
+    console.log('Final token decision:', token ? 'Present' : 'Missing');
     console.log('All cookies:', request.cookies.getAll().map(c => c.name));
     console.log('User-Agent:', request.headers.get('user-agent'));
   }
@@ -188,7 +173,49 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // User has correct role, proceed with company headers if set
+    // User has correct role, proceed
+    // If token was passed via URL (iOS iframe), clean it up and set as cookie for subsequent requests
+    if (tokenFromUrl) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('iOS iframe token detected in URL, cleaning up and setting cookie');
+      }
+      
+      const url = request.nextUrl.clone();
+      url.searchParams.delete('ios_token');
+      response = NextResponse.redirect(url);
+      
+      // For iOS Chrome/Safari iframe contexts, try multiple cookie strategies
+      const isSecure = process.env.NODE_ENV === 'production';
+      
+      // Primary attempt with SameSite=None
+      try {
+        response.cookies.set('token', tokenFromUrl, {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+      } catch (error) {
+        // Fallback without SameSite for problematic browsers
+        response.cookies.set('token', tokenFromUrl, {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+      }
+      
+      // For iOS Chrome/Safari that are particularly stubborn, add additional headers
+      if (isIOSUserAgent) {
+        response.headers.set('X-iOS-Token', tokenFromUrl);
+        response.headers.set('X-iOS-Auth-Hint', 'token-available');
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Cookie and headers set in middleware redirect response');
+      }
+    }
+    
     return response;
   } catch (error) {
     // Invalid token, redirect to login
