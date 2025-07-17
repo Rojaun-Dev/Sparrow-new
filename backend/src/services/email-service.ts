@@ -9,16 +9,26 @@ export class EmailService {
   private fromEmail: string;
 
   private getTemplatePath(filename: string): string {
-    // In production (compiled), templates should be in src/templates
-    // In development, they're in src/templates
-    const isProduction = process.env.NODE_ENV === 'production';
-    if (isProduction) {
-      // Navigate from /opt/render/project/src/backend/dist/services to /opt/render/project/src/templates
-      return path.join(__dirname, '../../../templates', filename);
-    } else {
-      // In development, __dirname points to src/services
-      return path.join(__dirname, '../templates', filename);
+    // Try multiple possible template locations
+    const possiblePaths = [
+      // If templates were copied to dist/templates during build
+      path.join(__dirname, '../templates', filename),
+      // If running from development src/services
+      path.join(__dirname, '../templates', filename),
+      // If running from production dist/services but templates in src
+      path.join(__dirname, '../../../templates', filename),
+      // If running from production dist/services and templates in src/templates
+      path.join(__dirname, '../../src/templates', filename),
+    ];
+
+    for (const templatePath of possiblePaths) {
+      if (fs.existsSync(templatePath)) {
+        return templatePath;
+      }
     }
+
+    // If no template found, throw a more descriptive error
+    throw new Error(`Template not found: ${filename}. Searched in: ${possiblePaths.join(', ')}`);
   }
 
   constructor() {

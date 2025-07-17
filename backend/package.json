@@ -4,7 +4,7 @@
   "description": "Backend API for SparrowX platform",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs = require('fs'); const path = require('path'); const srcDir = 'src/templates'; const destDir = 'dist/templates'; if (fs.existsSync(srcDir)) { fs.mkdirSync(destDir, { recursive: true }); fs.readdirSync(srcDir).forEach(file => { fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file)); }); }\"",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "lint": "eslint . --ext .ts",
