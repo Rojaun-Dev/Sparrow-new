@@ -12,6 +12,54 @@ import {
 class AuthService {
   private baseUrl = '/auth';
 
+  // Detect iOS devices in iframe contexts
+  private isIOSInIframe(): boolean {
+    if (typeof window === 'undefined') return false;
+    
+    const isIframe = window.parent !== window;
+    const isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent);
+    
+    return isIOS && isIframe;
+  }
+
+  // Handle navigation for iOS iframe after successful login
+  private handleIOSIframeNavigation(userRole: string): void {
+    if (typeof window === 'undefined') return;
+    
+    // Determine the appropriate dashboard route based on user role
+    let dashboardRoute = '/';
+    switch (userRole) {
+      case 'customer':
+        dashboardRoute = '/customer';
+        break;
+      case 'admin_l1':
+      case 'admin_l2':
+        dashboardRoute = '/admin';
+        break;
+      case 'super_admin':
+        dashboardRoute = '/superadmin';
+        break;
+      default:
+        dashboardRoute = '/customer';
+    }
+    
+    console.log(`iOS iframe navigation to: ${dashboardRoute}`);
+    
+    // For iOS iframe, append token as query parameter for initial navigation
+    const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+    if (token) {
+      const url = new URL(dashboardRoute, window.location.origin);
+      url.searchParams.set('ios_token', token);
+      dashboardRoute = url.pathname + url.search;
+      console.log(`iOS iframe navigation with token to: ${dashboardRoute}`);
+    }
+    
+    // Navigate to the appropriate dashboard
+    if (window.location.pathname !== dashboardRoute.split('?')[0]) {
+      window.location.href = dashboardRoute;
+    }
+  }
+
   /**
    * Log in a user
    */
@@ -43,6 +91,27 @@ class AuthService {
         
         // Pass the rememberMe flag to setToken to adjust cookie expiration
         apiClient.setToken(response.accessToken, !!credentials.rememberMe);
+        
+        // For iOS iframe contexts, also trigger navigation after setting token
+        if (this.isIOSInIframe()) {
+          console.log('iOS iframe login - preparing navigation for role:', response.user.role);
+          
+          // Give the postMessage time to be sent and token to be stored before navigation
+          setTimeout(() => {
+            // Double-check token is available before navigation
+            const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+            if (token) {
+              console.log('iOS iframe - token confirmed, proceeding with navigation');
+              this.handleIOSIframeNavigation(response.user.role);
+            } else {
+              console.error('iOS iframe - token not found after login, retrying...');
+              // Retry navigation after a longer delay
+              setTimeout(() => {
+                this.handleIOSIframeNavigation(response.user.role);
+              }, 500);
+            }
+          }, 200);
+        }
       } else {
         console.error('No access token in response');
       }
