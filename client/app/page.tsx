@@ -16,7 +16,9 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
+import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 import { cn } from "@/lib/utils"
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp } from "@/lib/utils/iframe-detection"
 
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -89,7 +91,35 @@ export default function LoginPage() {
       // Determine which dashboard to redirect to based on role
       const redirectPath = getRouteFromRole(userRole);
       
-      // Show success notification
+      // Check if this is iOS mobile in iframe - redirect to main app instead
+      if (isIOSMobileInIframe()) {
+        // Show success notification for iOS mobile iframe users
+        toast({
+          title: "Login successful",
+          description: `Welcome back, ${loginResult.user.firstName}! Redirecting you to the main application...`,
+          variant: "default",
+        });
+        
+        // Ensure token is stored before redirect for iOS mobile iframe users
+        // Wait a bit longer to ensure token storage is complete
+        setTimeout(() => {
+          // Double-check token is available before redirecting
+          const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+          if (token) {
+            console.log('Token confirmed, redirecting iOS mobile iframe user to main app');
+            redirectIOSMobileToMainApp(redirectPath);
+          } else {
+            console.error('Token not found after login, retrying redirect...');
+            // Retry after a brief delay
+            setTimeout(() => {
+              redirectIOSMobileToMainApp(redirectPath);
+            }, 500);
+          }
+        }, 1500); // Increased delay to ensure token storage
+        return;
+      }
+      
+      // Show success notification for normal users
       toast({
         title: "Login successful",
         description: `Welcome back, ${loginResult.user.firstName}! Redirecting you to your dashboard...`,
@@ -326,6 +356,9 @@ export default function LoginPage() {
           © {new Date().getFullYear()} SparrowX. All rights reserved.
         </div>
       </div>
+      
+      {/* Floating Portal Button */}
+      <FloatingPortalButton />
     </div>
   )
 }

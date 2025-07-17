@@ -208,4 +208,81 @@ export async function seedUsers(db: NodePgDatabase<any>) {
     logger.error(error, 'Error seeding users');
     throw error;
   }
+}
+
+/**
+ * Seed only the superadmin user for production environments
+ */
+export async function seedProductionSuperAdmin(db: NodePgDatabase<any>) {
+  try {
+    logger.info('Seeding production superadmin...');
+    
+    // Check if superadmin already exists
+    const existingSuperAdmin = await db.select()
+      .from(users)
+      .where(eq(users.role, 'super_admin'));
+    
+    if (existingSuperAdmin.length > 0) {
+      logger.info('Superadmin already exists, skipping production seed');
+      return;
+    }
+    
+    // Create SparrowX company if it doesn't exist (required for superadmin)
+    const existingCompanies = await db.select().from(companies);
+    let sparrowCompanyId: string;
+    
+    if (existingCompanies.length === 0) {
+      // Create minimal SparrowX company for production
+      const sparrowCompany = await db.insert(companies).values({
+        name: 'SparrowX',
+        subdomain: 'sparrowx',
+        email: 'contact@sparrowx.com',
+        phone: '+1-876-555-0000',
+        address: 'Kingston, Jamaica',
+        description: 'SparrowX Platform'
+      }).returning();
+      
+      sparrowCompanyId = sparrowCompany[0].id;
+      logger.info('Created SparrowX company for production');
+    } else {
+      // Use existing company (prefer sparrowx subdomain or first available)
+      const sparrowCompany = existingCompanies.find(c => c.subdomain === 'sparrowx') || existingCompanies[0];
+      sparrowCompanyId = sparrowCompany.id;
+    }
+    
+    // Get production superadmin credentials from environment variables
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@sparrowx.com';
+    const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin123!';
+    const superAdminHash = await hashPassword(superAdminPassword);
+    const superAdminAuthId = process.env.SUPER_ADMIN_AUTH_ID || 'auth0|super-admin-prod';
+    const superAdminPhone = process.env.SUPER_ADMIN_PHONE || '+1-876-555-0000';
+    
+    // Generate unique internal ID
+    const usedInternalIds = new Set<string>();
+    const superAdminInternalId = generateInternalId(usedInternalIds);
+    const superAdminPrefId = formatPrefId('SPX', superAdminInternalId);
+    
+    // Create superadmin user
+    await db.insert(users).values({
+      companyId: sparrowCompanyId,
+      email: superAdminEmail,
+      firstName: 'Super',
+      lastName: 'Admin',
+      role: 'super_admin',
+      auth0Id: superAdminAuthId,
+      phone: superAdminPhone,
+      address: 'SparrowX HQ',
+      passwordHash: superAdminHash,
+      internalId: superAdminInternalId,
+      prefId: superAdminPrefId,
+    });
+    
+    logger.info('Production superadmin created successfully');
+    logger.info(`Superadmin email: ${superAdminEmail}`);
+    logger.info('NOTE: Ensure superadmin credentials are securely stored and changed after first login');
+    
+  } catch (error) {
+    logger.error(error, 'Error seeding production superadmin');
+    throw error;
+  }
 } 

@@ -64,6 +64,11 @@ export default function PackagesPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
+  // Debug: Log current filters whenever they change
+  useEffect(() => {
+    console.log('Current package filters:', filters);
+  }, [filters]);
+
   // Fetch packages with current filters
   const { 
     data: packagesData, 
@@ -78,14 +83,36 @@ export default function PackagesPage() {
       ...filters,
       page: 1, // Reset to first page when applying new filters
       search: searchTerm || undefined,
-      status: statusFilter !== 'all' ? statusFilter as any || undefined : undefined,
+      status: statusFilter && statusFilter !== 'all' ? statusFilter as any : undefined,
       dateFrom: fromDate || undefined,
       dateTo: toDate || undefined,
     };
     
+    console.log('Applying package filters:', {
+      ...newFilters,
+      dateFromFormatted: fromDate ? new Date(fromDate).toISOString() : undefined,
+      dateToFormatted: toDate ? new Date(toDate).toISOString() : undefined
+    });
     setFilters(newFilters);
-    // Manually trigger a refetch after setting filters
-    setTimeout(() => refetch(), 100);
+  };
+
+  // Handle status filter change (immediate filtering like invoices page)
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    
+    if (value === 'all') {
+      setFilters(prev => ({
+        ...prev,
+        status: undefined,
+        page: 1,
+      }));
+    } else {
+      setFilters(prev => ({
+        ...prev,
+        status: value as any,
+        page: 1,
+      }));
+    }
   };
 
   // Clear all filters
@@ -95,15 +122,14 @@ export default function PackagesPage() {
     setFromDate('');
     setToDate('');
     
-    setFilters({
+    const clearedFilters = {
       page: 1,
       limit: 10,
       sortBy: 'createdAt',
       sortOrder: 'desc'
-    });
+    };
     
-    // Manually trigger a refetch after clearing filters
-    setTimeout(() => refetch(), 100);
+    setFilters(clearedFilters);
   };
 
   // Function to format date
@@ -165,7 +191,7 @@ export default function PackagesPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -256,7 +282,7 @@ export default function PackagesPage() {
                 <TableBody>
                   {packagesData.data.map((pkg: PackageType) => (
                     <TableRow key={pkg.id}>
-                      <TableCell className="font-medium">{pkg.internalTrackingId}</TableCell>
+                      <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
                       <TableCell>{pkg.description}</TableCell>
                       <TableCell>
                         <Badge className={getStatusBadgeColor(pkg.status)}>
