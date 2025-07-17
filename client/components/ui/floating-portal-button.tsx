@@ -6,20 +6,19 @@ import { Button } from "@/components/ui/button"
 import { Home, ArrowRight } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp } from "@/lib/utils/iframe-detection"
 
 interface FloatingPortalButtonProps {
   className?: string
 }
 
 export function FloatingPortalButton({ className }: FloatingPortalButtonProps) {
-  const [isVisible, setIsVisible] = useState(false)
   const { user, isAuthenticated } = useAuth()
   const router = useRouter()
 
-  // Show button only when user is authenticated
-  useEffect(() => {
-    setIsVisible(isAuthenticated && !!user)
-  }, [isAuthenticated, user])
+  // Determine visibility based on authentication state
+  // This will update immediately when auth state changes (including logout)
+  const isVisible = isAuthenticated && !!user
 
   // Get portal route based on user role
   const getPortalRoute = (): string => {
@@ -40,7 +39,15 @@ export function FloatingPortalButton({ className }: FloatingPortalButtonProps) {
 
   const handleClick = () => {
     const route = getPortalRoute()
-    router.push(route)
+    
+    // Check if this is iOS mobile in iframe - use redirection to main app
+    if (isIOSMobileInIframe()) {
+      console.log('iOS mobile iframe detected - redirecting floating button to main app')
+      redirectIOSMobileToMainApp(route)
+    } else {
+      // Normal navigation for other devices/contexts
+      router.push(route)
+    }
   }
 
   if (!isVisible) return null
