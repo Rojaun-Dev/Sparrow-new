@@ -8,6 +8,7 @@ import {
   PasswordResetConfirm,
   User
 } from './types';
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp } from '@/lib/utils/iframe-detection';
 
 class AuthService {
   private baseUrl = '/auth';
@@ -45,6 +46,14 @@ class AuthService {
     
     console.log(`iOS iframe navigation to: ${dashboardRoute}`);
     
+    // NEW: For iOS mobile in iframe, redirect to main app instead of staying in iframe
+    if (isIOSMobileInIframe()) {
+      console.log('iOS mobile iframe detected - redirecting to main application');
+      redirectIOSMobileToMainApp(dashboardRoute);
+      return;
+    }
+    
+    // For non-mobile iOS iframe (iPad), continue with existing logic
     // For iOS iframe, append token as query parameter for initial navigation
     const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
     if (token) {
