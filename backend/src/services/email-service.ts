@@ -8,6 +8,25 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private fromEmail: string;
 
+  private getTemplatePath(filename: string): string {
+    // In production (compiled), templates are copied to dist/templates
+    // In development, they're in src/templates
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+      // Find the dist folder in the path and navigate to templates from there
+      const distIndex = __dirname.indexOf('dist');
+      if (distIndex !== -1) {
+        const distPath = __dirname.substring(0, distIndex + 4); // Include 'dist'
+        return path.join(distPath, 'templates', filename);
+      }
+      // Fallback to the original logic if 'dist' not found
+      return path.join(__dirname, '../templates', filename);
+    } else {
+      // In development, __dirname points to src/services
+      return path.join(__dirname, '../templates', filename);
+    }
+  }
+
   constructor() {
     // For production, you'd configure real email settings
     // For development, you might use a service like Ethereal (fake SMTP service) or a real service
@@ -46,7 +65,7 @@ export class EmailService {
       const fullResetUrl = `${resetUrl}?token=${resetToken}`;
       
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/reset-password.html');
+      const templatePath = this.getTemplatePath('reset-password.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -78,7 +97,7 @@ export class EmailService {
   async sendPasswordChangedEmail(to: string, firstName: string): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/password-changed.html');
+      const templatePath = this.getTemplatePath('password-changed.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -109,7 +128,7 @@ export class EmailService {
   async sendCompanyInvitation(to: string, invitationLink: string): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/company-invitation.html');
+      const templatePath = this.getTemplatePath('company-invitation.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -140,7 +159,7 @@ export class EmailService {
   async sendWelcomeEmail(to: string, firstName: string): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/company-welcome.html');
+      const templatePath = this.getTemplatePath('company-welcome.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -184,7 +203,7 @@ export class EmailService {
   ): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/package-added.html');
+      const templatePath = this.getTemplatePath('package-added.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -235,7 +254,7 @@ export class EmailService {
   ): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/prealert-matched.html');
+      const templatePath = this.getTemplatePath('prealert-matched.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -287,7 +306,7 @@ export class EmailService {
   ): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/invoice-generated.html');
+      const templatePath = this.getTemplatePath('invoice-generated.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
@@ -347,7 +366,7 @@ export class EmailService {
   ): Promise<void> {
     try {
       // Load the email template
-      const templatePath = path.join(__dirname, '../templates/payment-confirmation.html');
+      const templatePath = this.getTemplatePath('payment-confirmation.html');
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       
       // Compile the template
