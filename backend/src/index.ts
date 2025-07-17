@@ -31,7 +31,7 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true
 })); // CORS handling with credentials
-app.use(compression()); // Compress responses
+app.use(compression() as any); // Compress responses
 app.use(morgan('dev')); // HTTP request logging
 app.use(express.json({ limit: '50mb' })); // Parse JSON bodies with increased limit
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
