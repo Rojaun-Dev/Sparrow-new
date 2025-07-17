@@ -101,11 +101,17 @@ class AuthService {
         // Pass the rememberMe flag to setToken to adjust cookie expiration
         apiClient.setToken(response.accessToken, !!credentials.rememberMe);
         
-        // For iOS iframe contexts, also trigger navigation after setting token
+        // For iOS iframe contexts, ensure token is properly stored for mobile redirect
         if (this.isIOSInIframe()) {
-          console.log('iOS iframe login - preparing navigation for role:', response.user.role);
+          console.log('iOS iframe login - storing token for mobile redirect, role:', response.user.role);
           
-          // Give the postMessage time to be sent and token to be stored before navigation
+          // Store token in sessionStorage specifically for iOS iframe mobile redirect
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('ios_iframe_token', response.accessToken);
+            localStorage.setItem('token', response.accessToken); // Ensure it's in localStorage too
+          }
+          
+          // Give the token storage time to complete before navigation
           setTimeout(() => {
             // Double-check token is available before navigation
             const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
@@ -119,7 +125,7 @@ class AuthService {
                 this.handleIOSIframeNavigation(response.user.role);
               }, 500);
             }
-          }, 200);
+          }, 300); // Slightly longer delay to ensure storage completion
         }
       } else {
         console.error('No access token in response');

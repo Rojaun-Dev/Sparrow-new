@@ -100,10 +100,22 @@ export default function LoginPage() {
           variant: "default",
         });
         
-        // Redirect iOS mobile iframe users to main app dashboard
+        // Ensure token is stored before redirect for iOS mobile iframe users
+        // Wait a bit longer to ensure token storage is complete
         setTimeout(() => {
-          redirectIOSMobileToMainApp(redirectPath);
-        }, 1000);
+          // Double-check token is available before redirecting
+          const token = localStorage.getItem('token') || sessionStorage.getItem('ios_iframe_token');
+          if (token) {
+            console.log('Token confirmed, redirecting iOS mobile iframe user to main app');
+            redirectIOSMobileToMainApp(redirectPath);
+          } else {
+            console.error('Token not found after login, retrying redirect...');
+            // Retry after a brief delay
+            setTimeout(() => {
+              redirectIOSMobileToMainApp(redirectPath);
+            }, 500);
+          }
+        }, 1500); // Increased delay to ensure token storage
         return;
       }
       
