@@ -3,11 +3,13 @@ import { InvoicesRepository } from '../repositories/invoices-repository';
 import { InvoiceItemsRepository } from '../repositories/invoice-items-repository';
 import { PackagesRepository } from '../repositories/packages-repository';
 import { FeesRepository } from '../repositories/fees-repository';
+import { DutyFeesRepository } from '../repositories/duty-fees-repository';
 import { UsersRepository } from '../repositories/users-repository';
 import { CompanySettingsRepository } from '../repositories/company-settings-repository';
 import { invoiceStatusEnum } from '../db/schema/invoices';
 import { AppError } from '../utils/app-error';
 import { FeesService } from './fees-service';
+import { convertCurrency, getDisplayCurrency } from '../utils/currency-utils';
 import logger from '../utils/logger';
 
 // Validation schema for generating an invoice
@@ -25,6 +27,7 @@ export class BillingService {
   private invoiceItemsRepository: InvoiceItemsRepository;
   private packagesRepository: PackagesRepository;
   private feesRepository: FeesRepository;
+  private dutyFeesRepository: DutyFeesRepository;
   private usersRepository: UsersRepository;
   private companySettingsRepository: CompanySettingsRepository;
   private feesService: FeesService;
@@ -34,6 +37,7 @@ export class BillingService {
     this.invoiceItemsRepository = new InvoiceItemsRepository();
     this.packagesRepository = new PackagesRepository();
     this.feesRepository = new FeesRepository();
+    this.dutyFeesRepository = new DutyFeesRepository();
     this.usersRepository = new UsersRepository();
     this.companySettingsRepository = new CompanySettingsRepository();
     this.feesService = new FeesService();
@@ -186,10 +190,11 @@ export class BillingService {
       throw new AppError('Company settings not found', 400);
     }
     // Initialize fee totals
-    const result: { [key: string]: any; shipping: number; handling: number; customs: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
+    const result: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
       shipping: 0,
       handling: 0,
       customs: 0,
+      duty: 0,
       other: 0,
       taxes: 0,
       subtotal: 0,
@@ -232,13 +237,69 @@ export class BillingService {
         });
       }
     }
-    // 2. Calculate subtotal (before tax/percentage fees)
-    result.subtotal = Number(result.shipping) + Number(result.handling) + Number(result.customs) + Number(result.other);
+    
+    // 1.5. Add duty fees for this package
+    const dutyFees = await this.dutyFeesRepository.findByPackageId(packageId, companyId);
+    
+    // Get exchange rate settings for currency conversion
+    const defaultExchangeRateSettings = {
+      baseCurrency: 'USD' as 'USD',
+      targetCurrency: 'JMD' as 'JMD',
+      exchangeRate: 1,
+      autoUpdate: false,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    const exchangeRateSettings = (settings.exchangeRateSettings && 
+      typeof settings.exchangeRateSettings === 'object' &&
+      'baseCurrency' in settings.exchangeRateSettings)
+      ? settings.exchangeRateSettings as any
+      : defaultExchangeRateSettings;
+    
+    const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+    
+    for (const dutyFee of dutyFees) {
+      const originalAmount = parseFloat(dutyFee.amount);
+      
+      // Convert duty fee amount to display currency if needed
+      const convertedAmount = convertCurrency(
+        originalAmount, 
+        dutyFee.currency, 
+        displayCurrency, 
+        exchangeRateSettings
+      );
+      
+      result.duty += convertedAmount;
+      
+      // Create a display name for the duty fee
+      const displayName = dutyFee.feeType === 'Other' && dutyFee.customFeeType 
+        ? `${dutyFee.customFeeType} Duty` 
+        : `${dutyFee.feeType} Duty`;
+      
+      // Create description with currency conversion info if converted
+      let description = dutyFee.description ? `${displayName} - ${dutyFee.description}` : displayName;
+      if (dutyFee.currency !== displayCurrency) {
+        description += ` (${dutyFee.currency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+      }
+      
+      result.lineItems.push({
+        packageId: packageData.id,
+        description,
+        quantity: 1,
+        unitPrice: convertedAmount,
+        lineTotal: convertedAmount,
+        type: 'duty' as any,
+      });
+    }
+    
+    // 2. Calculate subtotal (before tax/percentage fees) - now includes duty fees
+    result.subtotal = Number(result.shipping) + Number(result.handling) + Number(result.customs) + Number(result.duty) + Number(result.other);
     // 3. Build context for percentage-based fees
-    const context: { [key: string]: any; shipping: number; handling: number; customs: number; other: number; subtotal: number; declaredValue: number } = {
+    const context: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; subtotal: number; declaredValue: number } = {
       shipping: result.shipping,
       handling: result.handling,
       customs: result.customs,
+      duty: result.duty,
       other: result.other,
       subtotal: result.subtotal,
       declaredValue: parseFloat(packageData.declaredValue || '0'),

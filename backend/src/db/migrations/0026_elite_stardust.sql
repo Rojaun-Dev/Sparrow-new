@@ -1,0 +1,1 @@
+ALTER TYPE "invoice_item_type" ADD VALUE 'duty';
