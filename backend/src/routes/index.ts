@@ -14,6 +14,7 @@ import paymentsRoutes from './payments-routes';
 import billingRoutes from './billing-routes';
 import importRoutes from './import-routes';
 import autoImportRoutes from './auto-import-routes';
+import { dutyFeesRoutes } from './duty-fees-routes';
 import { extractCompanyId, checkJwt } from '../middleware/auth';
 import { CompanySettingsController } from '../controllers/company-settings-controller';
 import { CompanyAssetsController } from '../controllers/company-assets-controller';
@@ -96,6 +97,9 @@ protectedRoutes.use('/company-settings', companySettingsRoutes);
 
 // Fees routes - scoped to company
 protectedRoutes.use('/companies/:companyId/fees', feesRoutes);
+
+// Duty fees routes - scoped to company
+protectedRoutes.use('/companies/:companyId/duty-fees', dutyFeesRoutes);
 
 // Billing routes - scoped to company
 protectedRoutes.use('/companies/:companyId/billing', billingRoutes);

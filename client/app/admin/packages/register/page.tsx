@@ -15,6 +15,7 @@ import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@
 import { useRouter } from "next/navigation";
 import { ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { dutyFeeService, DUTY_FEE_TYPES, CreateDutyFeeRequest } from "@/lib/api/dutyFeeService";
 
 const PREDEFINED_TAGS = [
   "fragile", "urgent", "oversized", "perishable", "high value", "documents", "general", "other"
@@ -48,6 +49,7 @@ export default function RegisterPackagePage() {
   const [customTag, setCustomTag] = useState("");
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerOptions, setCustomerOptions] = useState<any[]>([]);
+  const [dutyFees, setDutyFees] = useState<CreateDutyFeeRequest[]>([]);
   const router = useRouter();
 
   const defaultValues: Partial<PackageFormValues> = {
@@ -104,24 +106,61 @@ export default function RegisterPackagePage() {
     setSelectedTags(selectedTags.filter(t => t !== tag));
   };
 
+  // Duty fee management functions
+  const handleAddDutyFee = () => {
+    setDutyFees([...dutyFees, {
+      packageId: '', // Will be set after package creation
+      feeType: 'Electronics',
+      amount: 0,
+      currency: 'USD',
+      description: ''
+    }]);
+  };
+
+  const handleUpdateDutyFee = (index: number, field: keyof CreateDutyFeeRequest, value: any) => {
+    const updatedFees = [...dutyFees];
+    (updatedFees[index] as any)[field] = value;
+    setDutyFees(updatedFees);
+  };
+
+  const handleRemoveDutyFee = (index: number) => {
+    setDutyFees(dutyFees.filter((_, i) => i !== index));
+  };
+
   const mutation = useMutation({
-    mutationFn: (data: PackageFormValues) => {
+    mutationFn: async (data: PackageFormValues) => {
       const tagsArray = selectedTags.length > 0 ? selectedTags : undefined;
       const senderInfo = data.senderInfo && Object.values(data.senderInfo).some(Boolean) ? data.senderInfo : undefined;
       const dimensions = data.dimensions && Object.values(data.dimensions).some(v => v !== undefined && v !== null) ? data.dimensions : undefined;
-      return packageService.createPackage({
+      
+      // Create the package first
+      const newPackage = await packageService.createPackage({
         ...data,
         tags: tagsArray,
         senderInfo,
         dimensions,
         declaredValue: data.declaredValue === undefined || isNaN(data.declaredValue) ? undefined : data.declaredValue,
       });
+
+      // Create duty fees if any exist
+      if (dutyFees.length > 0) {
+        const dutyFeePromises = dutyFees.map(fee => 
+          dutyFeeService.createDutyFee({
+            ...fee,
+            packageId: newPackage.id
+          })
+        );
+        await Promise.all(dutyFeePromises);
+      }
+
+      return newPackage;
     },
     onSuccess: () => {
-      toast({ title: "Package registered", description: "A new package was registered." });
+      toast({ title: "Package registered", description: "Package and duty fees have been registered successfully." });
       reset(defaultValues);
       setSelectedTags([]);
       setCustomTag("");
+      setDutyFees([]);
       setValue("userId", "");
     },
     onError: (err: any) => {
@@ -287,6 +326,100 @@ export default function RegisterPackagePage() {
               <label className="block text-sm font-medium mb-2">Notes</label>
               <Input {...register("notes")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
               {errors.notes && <div className="text-red-600 text-sm mt-1">{errors.notes.message}</div>}
+            </div>
+
+            {/* Duty Fees Section */}
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <label className="block text-sm font-medium">Duty Fees</label>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddDutyFee} className="h-8 px-3">
+                  Add Duty Fee
+                </Button>
+              </div>
+              
+              {dutyFees.length === 0 && (
+                <p className="text-gray-500 text-sm">No duty fees added.</p>
+              )}
+
+              <div className="space-y-4">
+                {dutyFees.map((fee, index) => (
+                  <div key={index} className="border border-gray-200 rounded-md p-4 bg-gray-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Fee Type</label>
+                        <select 
+                          value={fee.feeType}
+                          onChange={(e) => handleUpdateDutyFee(index, 'feeType', e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 h-10 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        >
+                          {DUTY_FEE_TYPES.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {fee.feeType === 'Other' && (
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Custom Fee Type</label>
+                          <Input 
+                            value={fee.customFeeType || ''}
+                            onChange={(e) => handleUpdateDutyFee(index, 'customFeeType', e.target.value)}
+                            placeholder="Enter custom fee type"
+                            className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Amount</label>
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={fee.amount}
+                          onChange={(e) => handleUpdateDutyFee(index, 'amount', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Currency</label>
+                        <select 
+                          value={fee.currency}
+                          onChange={(e) => handleUpdateDutyFee(index, 'currency', e.target.value as 'USD' | 'JMD')}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 h-10 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="JMD">JMD</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1">Description (Optional)</label>
+                        <Input 
+                          value={fee.description || ''}
+                          onChange={(e) => handleUpdateDutyFee(index, 'description', e.target.value)}
+                          placeholder="Additional details about this fee"
+                          className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 flex justify-end">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleRemoveDutyFee(index)}
+                        className="h-8 px-3 text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {mutation.isError && <div className="text-red-600 text-sm">{(mutation.error as any)?.message || "Failed to register package"}</div>}
