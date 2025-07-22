@@ -7,6 +7,7 @@ import { payments } from '../db/schema/payments';
 import { users } from '../db/schema/users';
 import { companies } from '../db/schema/companies';
 import { companySettings } from '../db/schema/company-settings';
+import { dutyFees } from '../db/schema/duty-fees';
 import { getMonthRange, getPreviousMonthRange } from '../utils/date-utils';
 
 export class StatisticsRepository {
@@ -293,6 +294,12 @@ export class StatisticsRepository {
     // Get monthly revenue trend with currency conversion
     const monthlyRevenueTrend = await this.getMonthlyRevenueTrend(companyId, 6, currency);
 
+    // Get duty fee statistics
+    const dutyFeeStats = await this.getDutyFeeStatistics(companyId, currency);
+
+    // Get monthly duty fee trend
+    const monthlyDutyFeeTrend = await this.getMonthlyDutyFeeTrend(companyId, 6, currency);
+
     return {
       totalPackages: packageCountResult.count || 0,
       packagesThisMonth: packagesThisMonth.count || 0,
@@ -312,8 +319,10 @@ export class StatisticsRepository {
           ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100 
           : 0
       },
+      dutyFees: dutyFeeStats,
       customerCount: customerCountResult.count || 0,
       monthlyRevenueTrend,
+      monthlyDutyFeeTrend,
       currency: currency, // Include the currency in the response
       exchangeRate: exchangeRate // Include the exchange rate for client-side calculations if needed
     };
@@ -697,5 +706,176 @@ export class StatisticsRepository {
       lastUpdated: new Date().toISOString(),
       autoUpdate: false
     };
+  }
+
+  /**
+   * Get duty fee statistics for a company
+   */
+  async getDutyFeeStatistics(companyId: string, currency: 'USD' | 'JMD' = 'USD') {
+    const { startDate, endDate } = getMonthRange();
+    const { startDate: prevStartDate, endDate: prevEndDate } = getPreviousMonthRange();
+
+    // Get exchange rate settings for currency conversion
+    const exchangeRateSettings = await this.getExchangeRateSettings(companyId);
+    const exchangeRate = exchangeRateSettings?.exchangeRate || 1;
+
+    // Total duty fees this month by type with currency conversion
+    const dutyFeesThisMonth = await this.db
+      .select({
+        feeType: dutyFees.feeType,
+        customFeeType: dutyFees.customFeeType,
+        amount: dutyFees.amount,
+        currency: dutyFees.currency,
+        count: sql<number>`count(*)`
+      })
+      .from(dutyFees)
+      .where(
+        and(
+          eq(dutyFees.companyId, companyId),
+          gte(dutyFees.createdAt, startDate),
+          lt(dutyFees.createdAt, endDate)
+        )
+      )
+      .groupBy(dutyFees.feeType, dutyFees.customFeeType, dutyFees.amount, dutyFees.currency);
+
+    // Total duty fees last month
+    const dutyFeesLastMonth = await this.db
+      .select({
+        amount: dutyFees.amount,
+        currency: dutyFees.currency
+      })
+      .from(dutyFees)
+      .where(
+        and(
+          eq(dutyFees.companyId, companyId),
+          gte(dutyFees.createdAt, prevStartDate),
+          lt(dutyFees.createdAt, prevEndDate)
+        )
+      );
+
+    // Convert and sum current month duty fee revenue
+    let currentMonthDutyRevenue = 0;
+    const dutyFeesByType = new Map<string, { count: number; total: number }>();
+    
+    dutyFeesThisMonth.forEach(fee => {
+      let amount = parseFloat(fee.amount.toString());
+      
+      // Convert to requested currency
+      if (fee.currency !== currency) {
+        if (fee.currency === 'JMD' && currency === 'USD') {
+          amount = amount / exchangeRate;
+        } else if (fee.currency === 'USD' && currency === 'JMD') {
+          amount = amount * exchangeRate;
+        }
+      }
+      
+      currentMonthDutyRevenue += amount;
+      
+      // Track by fee type
+      const feeTypeDisplay = fee.feeType === 'Other' && fee.customFeeType 
+        ? fee.customFeeType 
+        : fee.feeType;
+      
+      const existing = dutyFeesByType.get(feeTypeDisplay) || { count: 0, total: 0 };
+      dutyFeesByType.set(feeTypeDisplay, {
+        count: existing.count + fee.count,
+        total: existing.total + amount
+      });
+    });
+
+    // Convert and sum previous month duty fee revenue
+    let previousMonthDutyRevenue = 0;
+    dutyFeesLastMonth.forEach(fee => {
+      let amount = parseFloat(fee.amount.toString());
+      
+      if (fee.currency !== currency) {
+        if (fee.currency === 'JMD' && currency === 'USD') {
+          amount = amount / exchangeRate;
+        } else if (fee.currency === 'USD' && currency === 'JMD') {
+          amount = amount * exchangeRate;
+        }
+      }
+      
+      previousMonthDutyRevenue += amount;
+    });
+
+    // Get top duty fee types
+    const topDutyFeeTypes = Array.from(dutyFeesByType.entries())
+      .map(([type, stats]) => ({ type, ...stats }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    return {
+      currentMonth: {
+        revenue: currentMonthDutyRevenue,
+        count: dutyFeesThisMonth.reduce((sum, fee) => sum + fee.count, 0)
+      },
+      previousMonth: {
+        revenue: previousMonthDutyRevenue,
+        count: dutyFeesLastMonth.length
+      },
+      growth: previousMonthDutyRevenue > 0
+        ? ((currentMonthDutyRevenue - previousMonthDutyRevenue) / previousMonthDutyRevenue) * 100
+        : currentMonthDutyRevenue > 0 ? 100 : 0,
+      byType: topDutyFeeTypes,
+      currency
+    };
+  }
+
+  /**
+   * Get monthly duty fee revenue trend
+   */
+  async getMonthlyDutyFeeTrend(companyId: string, months: number, currency: 'USD' | 'JMD' = 'USD') {
+    const result = [];
+    const today = new Date();
+    
+    // Get exchange rate settings for currency conversion
+    const exchangeRateSettings = await this.getExchangeRateSettings(companyId);
+    const exchangeRate = exchangeRateSettings?.exchangeRate || 1;
+    
+    for (let i = months - 1; i >= 0; i--) {
+      const month = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+      
+      // Get duty fees for the month
+      const dutyFeesForMonth = await this.db
+        .select({
+          amount: dutyFees.amount,
+          currency: dutyFees.currency
+        })
+        .from(dutyFees)
+        .where(
+          and(
+            eq(dutyFees.companyId, companyId),
+            gte(dutyFees.createdAt, month),
+            lt(dutyFees.createdAt, nextMonth)
+          )
+        );
+      
+      // Calculate revenue with currency conversion
+      let monthlyDutyRevenue = 0;
+      dutyFeesForMonth.forEach(fee => {
+        let amount = parseFloat(fee.amount.toString());
+        
+        // Convert to requested currency
+        if (fee.currency !== currency) {
+          if (fee.currency === 'JMD' && currency === 'USD') {
+            amount = amount / exchangeRate;
+          } else if (fee.currency === 'USD' && currency === 'JMD') {
+            amount = amount * exchangeRate;
+          }
+        }
+        
+        monthlyDutyRevenue += amount;
+      });
+      
+      result.push({
+        month: month.toLocaleString('default', { month: 'short' }),
+        revenue: monthlyDutyRevenue,
+        count: dutyFeesForMonth.length
+      });
+    }
+    
+    return result;
   }
 } 

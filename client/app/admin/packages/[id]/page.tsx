@@ -25,6 +25,9 @@ import { useGenerateInvoice } from '@/hooks/useInvoices'
 import { AssignUserModal } from "@/components/packages/AssignUserModal"
 import { useQueryClient } from "@tanstack/react-query"
 import { useUser } from "@/hooks/useUsers"
+import { DutyFeeModal } from "@/components/duty-fee-modal"
+import { useQuery } from "@tanstack/react-query"
+import { dutyFeeService } from "@/lib/api/dutyFeeService"
 
 const PACKAGE_STATUS_OPTIONS: PackageStatus[] = [
   "pre_alert",
@@ -75,6 +78,16 @@ export default function AdminPackageDetailPage() {
   
   // Add state for assign user modal
   const [assignUserModalOpen, setAssignUserModalOpen] = useState(false);
+  
+  // Add state for duty fee modal
+  const [dutyFeeModalOpen, setDutyFeeModalOpen] = useState(false);
+  
+  // Fetch duty fees for this package
+  const { data: dutyFees, isLoading: isDutyFeesLoading } = useQuery({
+    queryKey: ['duty-fees', id],
+    queryFn: () => dutyFeeService.getDutyFeesByPackageId(id),
+    enabled: !!id,
+  });
 
   if (!packageData) {
     return null;
@@ -416,10 +429,11 @@ export default function AdminPackageDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Tabs for Related Prealerts and Related Invoice */}
+          {/* Tabs for Related Prealerts, Duty Fees, and Related Invoice */}
           <Tabs defaultValue="prealerts" className="w-full mt-4">
             <TabsList className="mb-2">
               <TabsTrigger value="prealerts">Related Prealerts</TabsTrigger>
+              <TabsTrigger value="duty-fees">Duty Fees</TabsTrigger>
               <TabsTrigger value="invoice">Related Invoice</TabsTrigger>
             </TabsList>
             <TabsContent value="prealerts">
@@ -470,6 +484,91 @@ export default function AdminPackageDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            
+            <TabsContent value="duty-fees">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Duty Fees</CardTitle>
+                    <CardDescription>Fees associated with this package for customs and duties.</CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setDutyFeeModalOpen(true)}
+                    className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                    variant="outline"
+                  >
+                    Add Duty Fee
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {isDutyFeesLoading ? (
+                    <Skeleton className="h-8 w-full" />
+                  ) : dutyFees && dutyFees.length > 0 ? (
+                    <div className="space-y-3">
+                      {dutyFees.map((fee: any) => (
+                        <div key={fee.id} className="border rounded-lg p-4 bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-2">
+                              <div>
+                                <span className="font-medium">
+                                  {fee.feeType === 'Other' && fee.customFeeType ? fee.customFeeType : fee.feeType}
+                                </span>
+                                <span className="ml-2 text-sm text-gray-500">
+                                  {fee.currency} {parseFloat(fee.amount).toFixed(2)}
+                                </span>
+                              </div>
+                              {fee.description && (
+                                <p className="text-sm text-gray-600">{fee.description}</p>
+                              )}
+                              <p className="text-xs text-gray-500">
+                                Added on {new Date(fee.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge variant="outline">
+                              {fee.currency} {parseFloat(fee.amount).toFixed(2)}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-3 border-t">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span>Total USD:</span>
+                          <span>
+                            ${dutyFees
+                              .filter((fee: any) => fee.currency === 'USD')
+                              .reduce((sum: number, fee: any) => sum + parseFloat(fee.amount), 0)
+                              .toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm font-medium">
+                          <span>Total JMD:</span>
+                          <span>
+                            J${dutyFees
+                              .filter((fee: any) => fee.currency === 'JMD')
+                              .reduce((sum: number, fee: any) => sum + parseFloat(fee.amount), 0)
+                              .toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 py-8">
+                      <p className="text-muted-foreground">No duty fees have been added to this package.</p>
+                      <Button
+                        size="sm"
+                        onClick={() => setDutyFeeModalOpen(true)}
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                        variant="outline"
+                      >
+                        Add Duty Fee
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
             <TabsContent value="invoice">
               {isLoadingInvoice ? (
                 <Card>
@@ -623,6 +722,14 @@ export default function AdminPackageDetailPage() {
         packageId={id}
         onSuccess={handleAssignSuccess}
         companyId={packageData?.companyId}
+      />
+      
+      {/* Add the DutyFeeModal at the end of the component */}
+      <DutyFeeModal
+        isOpen={dutyFeeModalOpen}
+        onClose={() => setDutyFeeModalOpen(false)}
+        packageId={id}
+        packageStatus={packageData?.status || ''}
       />
     </div>
   );

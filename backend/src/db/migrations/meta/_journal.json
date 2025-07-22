@@ -176,6 +176,20 @@
       "when": 1751760486436,
       "tag": "0024_illegal_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1753205169323,
+      "tag": "0025_aspiring_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1753205802445,
+      "tag": "0026_elite_stardust",
+      "breakpoints": true
     }
   ]
 }

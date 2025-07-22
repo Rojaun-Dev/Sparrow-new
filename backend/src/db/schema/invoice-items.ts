@@ -9,6 +9,7 @@ export const invoiceItemTypeEnum = pgEnum('invoice_item_type', [
   'handling',
   'customs',
   'tax',
+  'duty',
   'other',
 ]);
 
