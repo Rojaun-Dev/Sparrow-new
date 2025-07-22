@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { dutyFeeService, DUTY_FEE_TYPES, CreateDutyFeeRequest } from "@/lib/api/dutyFeeService";
+import { dutyFeeService, DUTY_FEE_TYPES, CreateDutyFeeRequest, UpdateDutyFeeRequest, DutyFee } from "@/lib/api/dutyFeeService";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -40,9 +40,10 @@ interface DutyFeeModalProps {
   onClose: () => void;
   packageId: string;
   packageStatus: string;
+  editingFee?: DutyFee | null;
 }
 
-export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus }: DutyFeeModalProps) {
+export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editingFee }: DutyFeeModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -52,7 +53,13 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus }: Duty
 
   const form = useForm<DutyFeeFormValues>({
     resolver: zodResolver(dutyFeeSchema),
-    defaultValues: {
+    defaultValues: editingFee ? {
+      feeType: editingFee.feeType as any,
+      customFeeType: editingFee.customFeeType || '',
+      amount: parseFloat(editingFee.amount.toString()),
+      currency: editingFee.currency,
+      description: editingFee.description || '',
+    } : {
       feeType: 'Electronics',
       customFeeType: '',
       amount: 0,
@@ -64,22 +71,54 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus }: Duty
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = form;
   const selectedFeeType = watch('feeType');
 
-  const createMutation = useMutation({
+  // Reset form when editing fee changes
+  useEffect(() => {
+    if (editingFee) {
+      reset({
+        feeType: editingFee.feeType as any,
+        customFeeType: editingFee.customFeeType || '',
+        amount: parseFloat(editingFee.amount.toString()),
+        currency: editingFee.currency,
+        description: editingFee.description || '',
+      });
+    } else {
+      reset({
+        feeType: 'Electronics',
+        customFeeType: '',
+        amount: 0,
+        currency: 'USD',
+        description: '',
+      });
+    }
+  }, [editingFee, reset]);
+
+  const saveMutation = useMutation({
     mutationFn: (data: DutyFeeFormValues) => {
-      const createData: CreateDutyFeeRequest = {
-        packageId,
-        feeType: data.feeType,
-        customFeeType: data.feeType === 'Other' ? data.customFeeType : undefined,
-        amount: data.amount,
-        currency: data.currency,
-        description: data.description || undefined,
-      };
-      return dutyFeeService.createDutyFee(createData);
+      if (editingFee) {
+        const updateData: UpdateDutyFeeRequest = {
+          feeType: data.feeType,
+          customFeeType: data.feeType === 'Other' ? data.customFeeType : undefined,
+          amount: data.amount,
+          currency: data.currency,
+          description: data.description || undefined,
+        };
+        return dutyFeeService.updateDutyFee(editingFee.id, updateData);
+      } else {
+        const createData: CreateDutyFeeRequest = {
+          packageId,
+          feeType: data.feeType,
+          customFeeType: data.feeType === 'Other' ? data.customFeeType : undefined,
+          amount: data.amount,
+          currency: data.currency,
+          description: data.description || undefined,
+        };
+        return dutyFeeService.createDutyFee(createData);
+      }
     },
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Duty fee has been added successfully.",
+        description: editingFee ? "Duty fee has been updated successfully." : "Duty fee has been added successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ['duty-fees', packageId] });
       queryClient.invalidateQueries({ queryKey: ['package', packageId] });
@@ -89,14 +128,14 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus }: Duty
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to add duty fee.",
+        description: error.message || (editingFee ? "Failed to update duty fee." : "Failed to add duty fee."),
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: DutyFeeFormValues) => {
-    createMutation.mutate(data);
+    saveMutation.mutate(data);
   };
 
   const handleClose = () => {
@@ -130,7 +169,7 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus }: Duty
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Duty Fee</DialogTitle>
+          <DialogTitle>{editingFee ? 'Edit Duty Fee' : 'Add Duty Fee'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
@@ -209,8 +248,8 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus }: Duty
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Adding..." : "Add Duty Fee"}
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? (editingFee ? "Updating..." : "Adding...") : (editingFee ? "Update Duty Fee" : "Add Duty Fee")}
             </Button>
           </DialogFooter>
         </form>
