@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useInvoices } from "@/hooks/useInvoices";
+import { useInvoices, useCancelInvoice } from "@/hooks/useInvoices";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -41,6 +41,10 @@ export default function InvoicesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteInvoiceId, setDeleteInvoiceId] = useState<string | null>(null);
   const [sendNotification, setSendNotification] = useState(false);
+  
+  // Cancel invoice state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelInvoiceId, setCancelInvoiceId] = useState<string | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async ({ id, notify }: { id: string; notify: boolean }) => {
@@ -59,6 +63,8 @@ export default function InvoicesPage() {
     },
   });
 
+  const cancelMutation = useCancelInvoice();
+
   const handleExport = async () => {
     await exportCsv(async () => invoiceService.exportInvoicesCsv({ ...filters }), undefined, "invoices.csv");
   };
@@ -71,6 +77,33 @@ export default function InvoicesPage() {
   const confirmDelete = () => {
     if (deleteInvoiceId) {
       deleteMutation.mutate({ id: deleteInvoiceId, notify: sendNotification });
+    }
+  };
+
+  const handleCancel = (id: string) => {
+    setCancelInvoiceId(id);
+    setCancelDialogOpen(true);
+  };
+
+  const confirmCancel = () => {
+    if (cancelInvoiceId) {
+      cancelMutation.mutate(cancelInvoiceId, {
+        onSuccess: () => {
+          toast({ 
+            title: 'Invoice cancelled', 
+            description: 'The invoice has been cancelled and all packages have been unlinked. These packages can now be included in new invoices.' 
+          });
+          setCancelDialogOpen(false);
+          setCancelInvoiceId(null);
+        },
+        onError: (error: any) => {
+          toast({ 
+            title: 'Error', 
+            description: error?.message || 'Failed to cancel invoice', 
+            variant: 'destructive' 
+          });
+        },
+      });
     }
   };
 
@@ -112,6 +145,11 @@ export default function InvoicesPage() {
   const handlePrint = (id: string) => {
     setPrintInvoiceId(id);
     setPrintDialogOpen(true);
+  };
+
+  // Helper function to check if invoice can be cancelled
+  const canCancelInvoice = (status: string) => {
+    return ['draft', 'issued', 'overdue'].includes(status);
   };
 
   return (
@@ -173,6 +211,7 @@ export default function InvoicesPage() {
                             <Badge variant={
                               inv.status === 'paid' ? 'success' : 
                               inv.status === 'overdue' ? 'destructive' : 
+                              inv.status === 'cancelled' ? 'destructive' :
                               inv.status === 'draft' ? 'outline' : 
                               'secondary'
                             }>
@@ -211,6 +250,11 @@ export default function InvoicesPage() {
                         <Button size="sm" variant="outline" onClick={() => handlePrint(inv.id)}>
                           Print
                         </Button>
+                        {canCancelInvoice(inv.status) && (
+                          <Button size="sm" variant="secondary" onClick={() => handleCancel(inv.id)}>
+                            Cancel
+                          </Button>
+                        )}
                         {inv.status === 'draft' && (
                           <Button size="sm" variant="destructive" onClick={() => handleDelete(inv.id)}>
                             Delete
@@ -251,7 +295,19 @@ export default function InvoicesPage() {
                             </Link>
                           ) : inv.userId}
                         </TableCell>
-                        <TableCell>{inv.status}</TableCell>
+                        <TableCell>
+                          {inv.status && (
+                            <Badge variant={
+                              inv.status === 'paid' ? 'success' : 
+                              inv.status === 'overdue' ? 'destructive' : 
+                              inv.status === 'cancelled' ? 'destructive' :
+                              inv.status === 'draft' ? 'outline' : 
+                              'secondary'
+                            }>
+                              {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
                         <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
                         <TableCell>{inv.totalAmount ? convertAndFormat(Number(inv.totalAmount)) : "-"}</TableCell>
@@ -263,6 +319,11 @@ export default function InvoicesPage() {
                             <Button size="sm" variant="outline" onClick={() => handlePrint(inv.id)}>
                               Print
                             </Button>
+                            {canCancelInvoice(inv.status) && (
+                              <Button size="sm" variant="secondary" onClick={() => handleCancel(inv.id)}>
+                                Cancel
+                              </Button>
+                            )}
                             {inv.status === 'draft' && (
                               <Button size="sm" variant="destructive" onClick={() => handleDelete(inv.id)}>
                                 Delete
@@ -365,6 +426,26 @@ export default function InvoicesPage() {
           ) : (
             <div className="py-8 text-center">Loading invoice data...</div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Invoice Dialog */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Invoice?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this invoice? This action cannot be undone. 
+              Cancelled invoices will be excluded from all revenue calculations and statistics.
+              All packages will be unlinked from this invoice and can be included in new invoices.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmCancel} disabled={cancelMutation.isPending}>
+              {cancelMutation.isPending ? 'Cancelling...' : 'Cancel Invoice'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

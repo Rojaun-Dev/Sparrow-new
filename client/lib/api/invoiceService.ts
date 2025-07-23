@@ -177,6 +177,14 @@ class InvoiceService {
     if (options?.notify !== undefined) params.notify = options.notify;
     await apiClient.delete(`${this.baseUrl}/${cId}/invoices/${id}`, { params });
   }
+
+  /**
+   * Cancel an invoice by ID
+   */
+  async cancelInvoice(id: string, companyId?: string): Promise<Invoice> {
+    const cId = companyId || await this.getCompanyId();
+    return apiClient.post<Invoice>(`${this.baseUrl}/${cId}/invoices/${id}/cancel`);
+  }
 }
 
 // Export as singleton
