@@ -19,9 +19,9 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/comp
 
 const FEE_TYPES: FeeType[] = ["tax", "service", "shipping", "handling", "customs", "other", "threshold"];
 const CALC_METHODS: CalculationMethod[] = [
-  "fixed", "percentage", "per_weight", "per_item", "threshold", "timed" // TODO: Add dimensional and tiered when functionality is implemented.
+  "fixed", "percentage", "per_weight", "per_item", "dimensional", "tiered", "threshold", "timed"
 ];
-const PERCENTAGE_BASES = ["subtotal", "customs", "handling", "other"]; // TODO: Add shipping when functionality is implemented. 
+const PERCENTAGE_BASES = ["subtotal", "customs", "handling", "other"]; 
 const PACKAGE_TAGS = [
   "general", "fragile", "urgent", "oversized", "perishable", "high value", "documents", "other"
 ];
@@ -73,8 +73,12 @@ function FeeForm({
     if (form.code && !/^[A-Z0-9_]+$/.test(form.code)) errs.code = "Code must be uppercase letters, numbers, and underscores only";
     if (!form.feeType) errs.feeType = "Type is required";
     if (!form.calculationMethod) errs.calculationMethod = "Calculation method is required";
-    if (form.amount === undefined || form.amount === null || isNaN(Number(form.amount)) || Number(form.amount) <= 0) errs.amount = "Amount must be a positive number";
-    if (!form.currency || form.currency.length !== 3) errs.currency = "Currency must be a 3-letter code";
+    if (form.amount === undefined || form.amount === null || isNaN(Number(form.amount)) || Number(form.amount) < 0) {
+      errs.amount = form.calculationMethod === 'tiered' 
+        ? "Amount must be a non-negative number (acts as minimum fee for tiered calculation)"
+        : "Amount must be a positive number";
+    }
+    if (!form.currency) errs.currency = "Currency is required";
     if (form.calculationMethod === "percentage") {
       if (!form.metadata?.baseAttribute || form.metadata.baseAttribute.length < 2) errs["metadata.baseAttribute"] = "Select what this percentage is of";
     }
@@ -186,13 +190,38 @@ function FeeForm({
           {errors.calculationMethod && <div className="text-xs text-red-600">{errors.calculationMethod}</div>}
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1">Amount</label>
-          <Input type="number" value={form.amount} onChange={e => handleChange("amount", e.target.value === '' ? undefined : Number(e.target.value))} />
+          <div className="flex items-center gap-1 mb-1">
+            <label className="block text-xs font-medium">Amount</label>
+            {form.calculationMethod === 'tiered' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="w-64 text-xs">For tiered calculation, this amount acts as a minimum fee guarantee. The final fee will be the higher of the tier rate or this minimum amount.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+          <Input 
+            type="number" 
+            value={form.amount} 
+            onChange={e => handleChange("amount", e.target.value === '' ? undefined : Number(e.target.value))} 
+            placeholder={form.calculationMethod === 'tiered' ? 'Minimum fee (0 for no minimum)' : undefined}
+          />
           {errors.amount && <div className="text-xs text-red-600">{errors.amount}</div>}
         </div>
         <div>
           <label className="block text-xs font-medium mb-1">Currency</label>
-          <Input value={form.currency} onChange={e => handleChange("currency", e.target.value)} />
+          <Select value={form.currency} onValueChange={v => handleChange("currency", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD - US Dollar</SelectItem>
+              <SelectItem value="JMD">JMD - Jamaican Dollar</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {form.calculationMethod === "percentage" && (
           <div>
@@ -270,11 +299,11 @@ function FeeForm({
                 <SelectTrigger><SelectValue placeholder="Select attribute" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="weight">Weight</SelectItem>
-                  <SelectItem value="weight">Weight</SelectItem>
+                  <SelectItem value="declaredValue">Declared Value</SelectItem>
                   <SelectItem value="itemCount">Item Count</SelectItem>
                   <SelectItem value="customsDuty">Customs Duty</SelectItem>
                   <SelectItem value="date">Date</SelectItem>
-                  {form.metadata?.tierAttribute && !["weight","itemCount","customsDuty","date"].includes(form.metadata.tierAttribute) && (
+                  {form.metadata?.tierAttribute && !["weight","declaredValue","itemCount","customsDuty","date"].includes(form.metadata.tierAttribute) && (
                     <SelectItem value={form.metadata.tierAttribute} disabled>
                       {form.metadata.tierAttribute} (legacy/custom)
                     </SelectItem>
