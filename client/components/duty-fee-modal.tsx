@@ -42,15 +42,16 @@ interface DutyFeeModalProps {
   packageStatus: string;
   editingFee?: DutyFee | null;
   onDelete?: (feeId: string) => void;
+  hasInvoice?: boolean;
 }
 
-export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editingFee, onDelete }: DutyFeeModalProps) {
+export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editingFee, onDelete, hasInvoice }: DutyFeeModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Check if package allows duty fee modifications
   const restrictedStatuses = ['ready_for_pickup', 'delivered'];
-  const canModifyFees = !restrictedStatuses.includes(packageStatus);
+  const canModifyFees = !restrictedStatuses.includes(packageStatus) && !hasInvoice;
 
   const form = useForm<DutyFeeFormValues>({
     resolver: zodResolver(dutyFeeSchema),
@@ -177,11 +178,14 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editin
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Cannot Add Duty Fee</DialogTitle>
+            <DialogTitle>Cannot Modify Duty Fees</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-gray-600">
-              Duty fees cannot be added to packages that are ready for pickup or already delivered.
+              {hasInvoice 
+                ? "Duty fees cannot be modified for packages that have an associated invoice."
+                : "Duty fees cannot be modified for packages that are ready for pickup or already delivered."
+              }
             </p>
           </div>
           <DialogFooter>

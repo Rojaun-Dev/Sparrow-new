@@ -207,9 +207,10 @@ export default function AdminPackageDetailPage() {
     }
   };
 
-  // Check if package status allows fee deletion
+  // Check if package status allows fee modifications
   const restrictedStatuses = ['ready_for_pickup', 'delivered'];
-  const canDeleteFees = !restrictedStatuses.includes(packageData?.status || '');
+  const hasInvoice = relatedInvoice && !isInvoiceError;
+  const canModifyFees = !restrictedStatuses.includes(packageData?.status || '') && !hasInvoice;
 
   if (isLoading) {
     return <Skeleton className="h-96 w-full" />;
@@ -534,14 +535,16 @@ export default function AdminPackageDetailPage() {
                     <CardTitle>Duty Fees</CardTitle>
                     <CardDescription>Fees associated with this package for customs and duties.</CardDescription>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => setDutyFeeModalOpen(true)}
-                    className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                    variant="outline"
-                  >
-                    Add Duty Fee
-                  </Button>
+                  {canModifyFees && (
+                    <Button
+                      size="sm"
+                      onClick={() => setDutyFeeModalOpen(true)}
+                      className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                      variant="outline"
+                    >
+                      Add Duty Fee
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {isDutyFeesLoading ? (
@@ -571,7 +574,7 @@ export default function AdminPackageDetailPage() {
                               <Badge variant="outline">
                                 {fee.currency} {parseFloat(fee.amount).toFixed(2)}
                               </Badge>
-                              {canDeleteFees && (
+                              {canModifyFees && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -605,18 +608,37 @@ export default function AdminPackageDetailPage() {
                           </span>
                         </div>
                       </div>
+                      {!canModifyFees && (
+                        <div className="pt-3 border-t">
+                          <p className="text-sm text-gray-500 text-center">
+                            {hasInvoice 
+                              ? "Cannot modify duty fees - package has an associated invoice."
+                              : "Cannot modify duty fees - package is ready for pickup or delivered."
+                            }
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-4 py-8">
                       <p className="text-muted-foreground">No duty fees have been added to this package.</p>
-                      <Button
-                        size="sm"
-                        onClick={() => setDutyFeeModalOpen(true)}
-                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                        variant="outline"
-                      >
-                        Add Duty Fee
-                      </Button>
+                      {canModifyFees ? (
+                        <Button
+                          size="sm"
+                          onClick={() => setDutyFeeModalOpen(true)}
+                          className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                          variant="outline"
+                        >
+                          Add Duty Fee
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-gray-500">
+                          {hasInvoice 
+                            ? "Cannot modify duty fees - package has an associated invoice."
+                            : "Cannot modify duty fees - package is ready for pickup or delivered."
+                          }
+                        </p>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -784,6 +806,7 @@ export default function AdminPackageDetailPage() {
         onClose={() => setDutyFeeModalOpen(false)}
         packageId={id}
         packageStatus={packageData?.status || ''}
+        hasInvoice={hasInvoice}
       />
       
       {/* Delete Confirmation Dialog */}
