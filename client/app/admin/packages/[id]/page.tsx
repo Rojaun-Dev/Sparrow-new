@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PackageStatus } from "@/lib/api/types"
 import { toast } from "@/components/ui/use-toast"
-import { Pencil, UserPlus } from "lucide-react"
+import { Pencil, UserPlus, Trash2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useGenerateInvoice } from '@/hooks/useInvoices'
@@ -26,7 +26,7 @@ import { AssignUserModal } from "@/components/packages/AssignUserModal"
 import { useQueryClient } from "@tanstack/react-query"
 import { useUser } from "@/hooks/useUsers"
 import { DutyFeeModal } from "@/components/duty-fee-modal"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { dutyFeeService } from "@/lib/api/dutyFeeService"
 
 const PACKAGE_STATUS_OPTIONS: PackageStatus[] = [
@@ -82,11 +82,36 @@ export default function AdminPackageDetailPage() {
   // Add state for duty fee modal
   const [dutyFeeModalOpen, setDutyFeeModalOpen] = useState(false);
   
+  // Add state for delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [feeToDelete, setFeeToDelete] = useState<any>(null);
+  
   // Fetch duty fees for this package
   const { data: dutyFees, isLoading: isDutyFeesLoading } = useQuery({
     queryKey: ['duty-fees', id],
     queryFn: () => dutyFeeService.getDutyFeesByPackageId(id),
     enabled: !!id,
+  });
+
+  // Delete duty fee mutation
+  const deleteDutyFeeMutation = useMutation({
+    mutationFn: (feeId: string) => dutyFeeService.deleteDutyFee(feeId),
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Duty fee has been removed successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['duty-fees', id] });
+      setDeleteConfirmOpen(false);
+      setFeeToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove duty fee.",
+        variant: "destructive",
+      });
+    },
   });
 
   if (!packageData) {
@@ -168,6 +193,23 @@ export default function AdminPackageDetailPage() {
     // Refresh package data
     queryClient.invalidateQueries({ queryKey: ['packages', 'detail', id] });
   };
+
+  // Handle delete fee button click
+  const handleDeleteFee = (fee: any) => {
+    setFeeToDelete(fee);
+    setDeleteConfirmOpen(true);
+  };
+
+  // Handle confirm delete
+  const handleConfirmDelete = () => {
+    if (feeToDelete) {
+      deleteDutyFeeMutation.mutate(feeToDelete.id);
+    }
+  };
+
+  // Check if package status allows fee deletion
+  const restrictedStatuses = ['ready_for_pickup', 'delivered'];
+  const canDeleteFees = !restrictedStatuses.includes(packageData?.status || '');
 
   if (isLoading) {
     return <Skeleton className="h-96 w-full" />;
@@ -525,9 +567,21 @@ export default function AdminPackageDetailPage() {
                                 Added on {new Date(fee.createdAt).toLocaleDateString()}
                               </p>
                             </div>
-                            <Badge variant="outline">
-                              {fee.currency} {parseFloat(fee.amount).toFixed(2)}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {fee.currency} {parseFloat(fee.amount).toFixed(2)}
+                              </Badge>
+                              {canDeleteFees && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDeleteFee(fee)}
+                                  className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -731,6 +785,53 @@ export default function AdminPackageDetailPage() {
         packageId={id}
         packageStatus={packageData?.status || ''}
       />
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove Duty Fee</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to remove this duty fee? This action cannot be undone.
+            </p>
+            {feeToDelete && (
+              <div className="bg-gray-50 rounded-lg p-3 border">
+                <div className="font-medium">
+                  {feeToDelete.feeType === 'Other' && feeToDelete.customFeeType 
+                    ? feeToDelete.customFeeType 
+                    : feeToDelete.feeType}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {feeToDelete.currency} {parseFloat(feeToDelete.amount).toFixed(2)}
+                </div>
+                {feeToDelete.description && (
+                  <div className="text-sm text-gray-600 mt-1">
+                    {feeToDelete.description}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleteDutyFeeMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleConfirmDelete}
+              disabled={deleteDutyFeeMutation.isPending}
+            >
+              {deleteDutyFeeMutation.isPending ? "Removing..." : "Remove Fee"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

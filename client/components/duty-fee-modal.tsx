@@ -41,9 +41,10 @@ interface DutyFeeModalProps {
   packageId: string;
   packageStatus: string;
   editingFee?: DutyFee | null;
+  onDelete?: (feeId: string) => void;
 }
 
-export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editingFee }: DutyFeeModalProps) {
+export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editingFee, onDelete }: DutyFeeModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -134,6 +135,26 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editin
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (feeId: string) => dutyFeeService.deleteDutyFee(feeId),
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Duty fee has been deleted successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['duty-fees', packageId] });
+      queryClient.invalidateQueries({ queryKey: ['package', packageId] });
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete duty fee.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: DutyFeeFormValues) => {
     saveMutation.mutate(data);
   };
@@ -141,6 +162,14 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editin
   const handleClose = () => {
     reset();
     onClose();
+  };
+
+  const handleDelete = () => {
+    if (editingFee && onDelete) {
+      onDelete(editingFee.id);
+    } else if (editingFee) {
+      deleteMutation.mutate(editingFee.id);
+    }
   };
 
   if (!canModifyFees) {
@@ -244,13 +273,28 @@ export function DutyFeeModal({ isOpen, onClose, packageId, packageStatus, editin
             )}
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? (editingFee ? "Updating..." : "Adding...") : (editingFee ? "Update Duty Fee" : "Add Duty Fee")}
-            </Button>
+          <DialogFooter className="flex flex-row justify-between items-center">
+            <div className="flex gap-2">
+              {editingFee && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={saveMutation.isPending || deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saveMutation.isPending || deleteMutation.isPending}>
+                {saveMutation.isPending ? (editingFee ? "Updating..." : "Adding...") : (editingFee ? "Update Duty Fee" : "Add Duty Fee")}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
