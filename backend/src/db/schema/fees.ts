@@ -32,7 +32,7 @@ export const fees = pgTable('fees', {
   code: varchar('code', { length: 50 }).notNull(),
   feeType: feeTypeEnum('fee_type').notNull(),
   calculationMethod: calculationMethodEnum('calculation_method').notNull(), 
-  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(), // For tiered calculation: acts as minimum fee guarantee
   currency: varchar('currency', { length: 3 }).notNull().default('USD'),
   appliesTo: jsonb('applies_to').default('[]'),
   metadata: jsonb('metadata').default('{}'),
