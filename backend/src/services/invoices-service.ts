@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { InvoicesRepository } from '../repositories/invoices-repository';
+import { InvoiceItemsRepository } from '../repositories/invoice-items-repository';
 import { UsersRepository } from '../repositories/users-repository';
+import { PackagesService } from './packages-service';
 import { AppError } from '../utils/app-error';
 import { invoiceStatusEnum } from '../db/schema/invoices';
 
@@ -41,11 +43,15 @@ export interface Invoice {
 
 export class InvoicesService {
   private invoicesRepository: InvoicesRepository;
+  private invoiceItemsRepository: InvoiceItemsRepository;
   private usersRepository: UsersRepository;
+  private packagesService: PackagesService;
 
   constructor() {
     this.invoicesRepository = new InvoicesRepository();
+    this.invoiceItemsRepository = new InvoiceItemsRepository();
     this.usersRepository = new UsersRepository();
+    this.packagesService = new PackagesService();
   }
 
   /**
@@ -226,7 +232,33 @@ export class InvoicesService {
       throw AppError.badRequest('Cannot cancel paid invoices');
     }
     
-    return this.invoicesRepository.update(id, { status: 'cancelled' }, companyId);
+    // Get packages associated with this invoice before unlinking
+    const packages = await this.packagesService.getPackagesByInvoiceId(id, companyId);
+    
+    // Delete all invoice items to unlink packages from the cancelled invoice
+    await this.invoiceItemsRepository.deleteByInvoiceId(id, companyId);
+    
+    // Revert package statuses back to 'processed' if they were 'ready_for_pickup'
+    // This allows them to be included in future invoices
+    if (packages && packages.length > 0) {
+      const revertPromises = packages
+        .filter(pkg => pkg.status === 'ready_for_pickup')
+        .map(pkg => 
+          this.packagesService.updatePackage(pkg.id, { status: 'processed' }, companyId)
+        );
+      
+      if (revertPromises.length > 0) {
+        await Promise.all(revertPromises);
+        console.log(`Reverted ${revertPromises.length} packages back to 'processed' status after invoice cancellation`);
+      }
+    }
+    
+    // Update the invoice status to cancelled
+    const updatedInvoice = await this.invoicesRepository.update(id, { status: 'cancelled' }, companyId);
+    
+    console.log(`Cancelled invoice ${id} and unlinked ${packages?.length || 0} packages`);
+    
+    return updatedInvoice;
   }
 
   /**
