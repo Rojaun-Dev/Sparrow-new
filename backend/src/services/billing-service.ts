@@ -189,6 +189,24 @@ export class BillingService {
     if (!settings) {
       throw new AppError('Company settings not found', 400);
     }
+    
+    // Get exchange rate settings for currency conversion
+    const defaultExchangeRateSettings = {
+      baseCurrency: 'USD' as 'USD',
+      targetCurrency: 'JMD' as 'JMD',
+      exchangeRate: 1,
+      autoUpdate: false,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    const exchangeRateSettings = (settings.exchangeRateSettings && 
+      typeof settings.exchangeRateSettings === 'object' &&
+      'baseCurrency' in settings.exchangeRateSettings)
+      ? settings.exchangeRateSettings as any
+      : defaultExchangeRateSettings;
+    
+    const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+    
     // Initialize fee totals
     const result: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
       shipping: 0,
@@ -221,15 +239,24 @@ export class BillingService {
         if (type === 'customs') {
           baseAmount = parseFloat(packageData.declaredValue || '0');
         }
-        // Always parse fee.amount as number
-        const amount = Number(this.feesService.calculateFeeAmount(fee, baseAmount, packageData));
+        // Calculate original amount first (without currency conversion)
+        const originalAmount = Number(this.feesService.calculateFeeAmount(fee, baseAmount, packageData));
+        // Calculate converted amount
+        const amount = Number(this.feesService.calculateFeeAmount(fee, baseAmount, packageData, undefined, exchangeRateSettings, displayCurrency));
         const finalAmount = Number(this.applyLimits(amount, fee.metadata));
         // Map 'service' to 'other' for DB enum
         const itemType = type === 'service' ? 'other' : type;
         result[itemType] += finalAmount;
+        
+        // Create description with currency conversion info if converted
+        let description = fee.name;
+        if (fee.currency !== displayCurrency) {
+          description += ` (${fee.currency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+        }
+        
         result.lineItems.push({
           packageId: packageData.id,
-          description: fee.name,
+          description,
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
@@ -240,23 +267,6 @@ export class BillingService {
     
     // 1.5. Add duty fees for this package
     const dutyFees = await this.dutyFeesRepository.findByPackageId(packageId, companyId);
-    
-    // Get exchange rate settings for currency conversion
-    const defaultExchangeRateSettings = {
-      baseCurrency: 'USD' as 'USD',
-      targetCurrency: 'JMD' as 'JMD',
-      exchangeRate: 1,
-      autoUpdate: false,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    const exchangeRateSettings = (settings.exchangeRateSettings && 
-      typeof settings.exchangeRateSettings === 'object' &&
-      'baseCurrency' in settings.exchangeRateSettings)
-      ? settings.exchangeRateSettings as any
-      : defaultExchangeRateSettings;
-    
-    const displayCurrency = getDisplayCurrency(exchangeRateSettings);
     
     for (const dutyFee of dutyFees) {
       const originalAmount = parseFloat(dutyFee.amount);
@@ -316,12 +326,22 @@ export class BillingService {
           base = context[baseAttr] ?? 0;
         }
         if (!base) continue; // skip if base is 0
-        const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
+        // Calculate original amount first (without currency conversion)
+        const originalAmount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
+        // Calculate converted amount
+        const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context, exchangeRateSettings, displayCurrency));
         const finalAmount = Number(this.applyLimits(amount, fee.metadata));
         result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
+        
+        // Create description with currency conversion info if converted
+        let description = fee.name;
+        if (fee.currency !== displayCurrency) {
+          description += ` (${fee.currency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+        }
+        
         result.lineItems.push({
           packageId: packageData.id,
-          description: fee.name,
+          description,
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
@@ -332,12 +352,22 @@ export class BillingService {
     // 5. Calculate percentage-of-subtotal fees (if any)
     for (const fee of percentageFeesByType['subtotal'] || []) {
       if (!context.subtotal) continue;
-      const amount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context));
+      // Calculate original amount first (without currency conversion)
+      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context));
+      // Calculate converted amount
+      const amount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context, exchangeRateSettings, displayCurrency));
       const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
+      
+      // Create description with currency conversion info if converted
+      let description = fee.name;
+      if (fee.currency !== displayCurrency) {
+        description += ` (${fee.currency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+      }
+      
       result.lineItems.push({
         packageId: packageData.id,
-        description: fee.name,
+        description,
         quantity: 1,
         unitPrice: finalAmount,
         lineTotal: finalAmount,
@@ -356,12 +386,22 @@ export class BillingService {
         }
       }
       if (!base) continue;
-      const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
+      // Calculate original amount first (without currency conversion)
+      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
+      // Calculate converted amount
+      const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context, exchangeRateSettings, displayCurrency));
       const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result.taxes += finalAmount;
+      
+      // Create description with currency conversion info if converted
+      let description = fee.name;
+      if (fee.currency !== displayCurrency) {
+        description += ` (${fee.currency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+      }
+      
       result.lineItems.push({
         packageId: packageData.id,
-        description: fee.name,
+        description,
         quantity: 1,
         unitPrice: finalAmount,
         lineTotal: finalAmount,
