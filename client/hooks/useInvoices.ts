@@ -131,3 +131,30 @@ export function useAutoBill() {
     mutationFn: () => invoiceService.autoBill(),
   });
 }
+
+// Hook for cancelling an invoice
+export function useCancelInvoice() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => invoiceService.cancelInvoice(id),
+    onSuccess: (cancelledInvoice: Invoice) => {
+      // Update the specific invoice in the cache
+      queryClient.setQueryData(
+        invoiceKeys.detail(cancelledInvoice.id),
+        cancelledInvoice
+      );
+      
+      // Invalidate all invoice lists to refresh status displays
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.outstanding() });
+      
+      // Invalidate user invoice lists as well
+      queryClient.invalidateQueries({ queryKey: [...invoiceKeys.lists(), 'user'] });
+      
+      // Invalidate package-related queries since packages are now unlinked
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
+      queryClient.invalidateQueries({ queryKey: [...invoiceKeys.lists(), 'invoice', cancelledInvoice.id] });
+    },
+  });
+}
