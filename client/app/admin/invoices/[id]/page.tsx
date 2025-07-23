@@ -1,6 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
-import { useInvoice, useDownloadInvoicePdf } from "@/hooks/useInvoices";
+import { useInvoice, useDownloadInvoicePdf, useCancelInvoice } from "@/hooks/useInvoices";
 import { useGenerateInvoicePdf } from "@/hooks/useGenerateInvoicePdf";
 import { useState } from "react";
 import Link from 'next/link';
@@ -61,6 +61,7 @@ function getStatusBadgeColor(status: string) {
     case "paid": return "bg-green-500";
     case "unpaid": return "bg-amber-500";
     case "overdue": return "bg-red-500";
+    case "cancelled": return "bg-red-500";
     case "draft": return "bg-gray-500";
     case "pre_alert": return "bg-gray-500";
     case "received": return "bg-blue-500";
@@ -77,6 +78,7 @@ function getStatusLabel(status: string) {
     case "paid": return "Paid";
     case "unpaid": return "Unpaid";
     case "overdue": return "Overdue";
+    case "cancelled": return "Cancelled";
     case "draft": return "Draft";
     case "pre_alert": return "Pre-Alert";
     case "received": return "Received";
@@ -115,9 +117,42 @@ export default function InvoiceDetailPage() {
   // Deliver packages modal state
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   
+  // Cancel invoice state
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const cancelMutation = useCancelInvoice();
+  
   // Prefill payment amount with total invoice amount
   const handleOpenPaymentDialog = () => {
     setShowPaymentDialog(true);
+  };
+
+  // Handle cancel invoice
+  const handleCancelInvoice = () => {
+    if (!invoice?.id) return;
+    
+    cancelMutation.mutate(invoice.id, {
+      onSuccess: () => {
+        toast({
+          title: "Invoice cancelled",
+          description: "The invoice has been cancelled and all packages have been unlinked. These packages can now be included in new invoices.",
+        });
+        setShowCancelDialog(false);
+        refetch(); // Refresh invoice data
+        refetchPackages(); // Refresh packages data to show they're no longer linked
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to cancel invoice",
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  // Helper function to check if invoice can be cancelled
+  const canCancelInvoice = (status: string) => {
+    return ['draft', 'issued', 'overdue'].includes(status);
   };
 
   // Remove deduplication and recalculation logic
@@ -224,7 +259,12 @@ export default function InvoiceDetailPage() {
               </SelectContent>
             </Select>
           </div>
-          {invoice && customer && company ? (
+          {invoice?.status === 'cancelled' ? (
+            <Button variant="outline" size="sm" disabled>
+              <Printer className="mr-2 h-4 w-4" />
+              Cancelled - Cannot Print
+            </Button>
+          ) : invoice && customer && company ? (
             <InvoicePDFRenderer
               invoice={{ ...invoice, items }}
               packages={packages || []}
@@ -240,6 +280,11 @@ export default function InvoiceDetailPage() {
             <Button variant="outline" size="sm" disabled>
               <Printer className="mr-2 h-4 w-4" />
               Print
+            </Button>
+          )}
+          {canCancelInvoice(invoice.status) && (
+            <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)}>
+              Cancel Invoice
             </Button>
           )}
           <Button variant="secondary" disabled>Email to Customer</Button>
@@ -460,6 +505,32 @@ export default function InvoiceDetailPage() {
               disabled={updatePackageStatus.isPending}
             >
               {updatePackageStatus.isPending ? "Marking as delivered..." : "Yes, mark as delivered"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Invoice Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Invoice?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this invoice? This action cannot be undone. 
+              Cancelled invoices will be excluded from all revenue calculations and statistics.
+              All packages will be unlinked from this invoice and can be included in new invoices.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
+              Keep Invoice
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleCancelInvoice} 
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? 'Cancelling...' : 'Cancel Invoice'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -248,6 +248,18 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
   currency = 'USD',
   exchangeRateSettings
 }) => {
+  // Add validation for required props
+  if (!invoice || !user || !company) {
+    console.warn('InvoicePDF: Missing required props', { invoice: !!invoice, user: !!user, company: !!company });
+    return (
+      <Document>
+        <Page size="A4" style={styles.page}>
+          <Text>Error: Missing required data for PDF generation</Text>
+        </Page>
+      </Document>
+    );
+  }
+
   // Remove deduplication and recalculation logic
   const items = invoice?.items || [];
   const subtotal = invoice?.subtotal ?? 0;
@@ -261,20 +273,24 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
   
   // Use app base URL from env
   const appBaseUrl = typeof process !== 'undefined' && process.env && process.env.APP_BASE_URL ? process.env.APP_BASE_URL : '';
-  // Only show each package once in the Related Packages section
-  const uniquePackages = Array.isArray(packages)
-    ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
+  // Only show each package once in the Related Packages section - handle null/undefined packages
+  const uniquePackages = Array.isArray(packages) && packages.length > 0
+    ? packages.filter((pkg, idx, arr) => pkg && pkg.id && arr.findIndex(p => p && p.id === pkg.id) === idx)
     : [];
-  // Group items by description and type, summing their lineTotal values
+  // Group items by description and type, summing their lineTotal values - with validation
   const groupedItemsMap = new Map();
   for (const item of items) {
+    if (!item || !item.type || !item.description) {
+      console.warn('InvoicePDF: Skipping invalid item', item);
+      continue;
+    }
     const key = `${item.type}||${item.description}`;
     if (!groupedItemsMap.has(key)) {
       groupedItemsMap.set(key, { ...item });
     } else {
       const existing = groupedItemsMap.get(key);
-      existing.lineTotal += Number(item.lineTotal);
-      existing.quantity += Number(item.quantity);
+      existing.lineTotal += Number(item.lineTotal) || 0;
+      existing.quantity += Number(item.quantity) || 0;
     }
   }
   const groupedItems = Array.from(groupedItemsMap.values());

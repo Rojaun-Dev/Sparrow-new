@@ -33,6 +33,26 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
   currency = 'USD',
   exchangeRateSettings
 }) => {
+  // Validate required props
+  if (!invoice || !user || !company) {
+    console.warn('InvoicePDFRenderer: Missing required props', { 
+      invoice: !!invoice, 
+      user: !!user, 
+      company: !!company 
+    });
+    return (
+      <Button 
+        variant="outline" 
+        size="sm"
+        disabled
+        {...buttonProps}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Data Missing
+      </Button>
+    );
+  }
+
   // Fallback for direct download without PDFDownloadLink
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -73,7 +93,7 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
       document={
         <InvoicePDF 
           invoice={invoice}
-          packages={packages}
+          packages={packages || []}
           user={user}
           company={company}
           currency={currency}
@@ -83,6 +103,7 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
     >
       {({ loading, url, error }) => {
         if (error) {
+          console.error('InvoicePDFRenderer: PDF generation error', error);
           return (
             <Button 
               variant="outline" 
@@ -92,7 +113,7 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
               {...buttonProps}
             >
               <Download className="mr-2 h-4 w-4" />
-              {isGenerating ? 'Generating...' : buttonText}
+              {isGenerating ? 'Generating...' : 'PDF Error - Retry'}
             </Button>
           );
         }
