@@ -521,68 +521,149 @@ export default function FeesManagementPage() {
           ) : error ? (
             <div className="py-8 text-center text-red-600">Failed to load fees</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Calculation</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Currency</TableHead>
-                    <TableHead>Calculation Details</TableHead>
-                    <TableHead>Applies To</TableHead>
-                    <TableHead>Status</TableHead>
-                    {isAdminL2 && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fees && fees.length > 0 ? fees.map(fee => (
-                    <TableRow key={fee.id}>
-                      <TableCell>{fee.name}</TableCell>
-                      <TableCell>{fee.code}</TableCell>
-                      <TableCell><Badge>{fee.feeType}</Badge></TableCell>
-                      <TableCell className="max-w-32 truncate">{fee.calculationMethod.replace(/_/g, ' ')}</TableCell>
-                      <TableCell>{fee.amount}</TableCell>
-                      <TableCell>{fee.currency}</TableCell>
-                      <TableCell>{fee.calculationMethod === "percentage"
-                        ? fee.metadata?.baseAttribute
-                        : fee.calculationMethod === "tiered"
-                          ? (fee.metadata?.tiers ? 
-                              <span className="truncate block max-w-48">
-                                {fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ")}
-                              </span> : "-")
-                          : fee.calculationMethod === "threshold"
-                            ? `${fee.metadata?.attribute ?? ''} ${fee.metadata?.application ?? ''} [${fee.metadata?.min ?? ''} - ${fee.metadata?.max ?? '∞'}]`
-                            : fee.calculationMethod === "timed"
-                              ? `${fee.metadata?.application ?? ''} ${fee.metadata?.days ?? ''} days`
-                              : "-"}</TableCell>
-                      <TableCell>{fee.appliesTo?.join(", ")}</TableCell>
-                      <TableCell>
-                        <Badge variant={fee.isActive ? "success" : "secondary"}>{fee.isActive ? "Active" : "Inactive"}</Badge>
-                      </TableCell>
-                      {isAdminL2 && (
-                        <TableCell className="flex gap-2">
-                          <Button size="icon" variant="ghost" onClick={() => handleEdit(fee)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" onClick={() => handleDelete(fee.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )) : (
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                        No fees found.
-                      </TableCell>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Calculation</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Currency</TableHead>
+                      <TableHead>Calculation Details</TableHead>
+                      <TableHead>Applies To</TableHead>
+                      <TableHead>Status</TableHead>
+                      {isAdminL2 && <TableHead>Actions</TableHead>}
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              {/* Calculation Details Legend */}
-              <div className="mt-2 text-xs text-muted-foreground">
-                <strong>Calculation Details:</strong> For percentage fees, shows the base attribute. For tiered fees, shows the tier structure. For threshold fees, shows the attribute, application, and range.
+                  </TableHeader>
+                  <TableBody>
+                    {fees && fees.length > 0 ? fees.map(fee => (
+                      <TableRow key={fee.id}>
+                        <TableCell>{fee.name}</TableCell>
+                        <TableCell>{fee.code}</TableCell>
+                        <TableCell><Badge>{fee.feeType}</Badge></TableCell>
+                        <TableCell className="max-w-32 truncate">{fee.calculationMethod.replace(/_/g, ' ')}</TableCell>
+                        <TableCell>{fee.amount}</TableCell>
+                        <TableCell>{fee.currency}</TableCell>
+                        <TableCell>{fee.calculationMethod === "percentage"
+                          ? fee.metadata?.baseAttribute
+                          : fee.calculationMethod === "tiered"
+                            ? (fee.metadata?.tiers ? 
+                                <span className="truncate block max-w-48">
+                                  {fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ")}
+                                </span> : "-")
+                            : fee.calculationMethod === "threshold"
+                              ? `${fee.metadata?.attribute ?? ''} ${fee.metadata?.application ?? ''} [${fee.metadata?.min ?? ''} - ${fee.metadata?.max ?? '∞'}]`
+                              : fee.calculationMethod === "timed"
+                                ? `${fee.metadata?.application ?? ''} ${fee.metadata?.days ?? ''} days`
+                                : "-"}</TableCell>
+                        <TableCell>{fee.appliesTo?.join(", ")}</TableCell>
+                        <TableCell>
+                          <Badge variant={fee.isActive ? "success" : "secondary"}>{fee.isActive ? "Active" : "Inactive"}</Badge>
+                        </TableCell>
+                        {isAdminL2 && (
+                          <TableCell className="flex gap-2">
+                            <Button size="icon" variant="ghost" onClick={() => handleEdit(fee)}><Pencil className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(fee.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                          No fees found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+                {/* Calculation Details Legend */}
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <strong>Calculation Details:</strong> For percentage fees, shows the base attribute. For tiered fees, shows the tier structure. For threshold fees, shows the attribute, application, and range.
+                </div>
               </div>
-            </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4">
+                {fees && fees.length > 0 ? fees.map(fee => (
+                  <Card key={fee.id} className="border border-border">
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg">{fee.name}</h3>
+                          <p className="text-sm text-muted-foreground">Code: {fee.code}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={fee.isActive ? "success" : "secondary"}>
+                            {fee.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                          {isAdminL2 && (
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => handleEdit(fee)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" onClick={() => handleDelete(fee.id)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="font-medium text-muted-foreground">Type:</span>
+                          <div><Badge>{fee.feeType}</Badge></div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">Method:</span>
+                          <div>{fee.calculationMethod.replace(/_/g, ' ')}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">Amount:</span>
+                          <div>{fee.amount} {fee.currency}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">Applies To:</span>
+                          <div className="truncate">{fee.appliesTo?.join(", ") || "All"}</div>
+                        </div>
+                      </div>
+                      
+                      {(fee.calculationMethod === "percentage" || 
+                        fee.calculationMethod === "tiered" || 
+                        fee.calculationMethod === "threshold" || 
+                        fee.calculationMethod === "timed") && (
+                        <div className="mt-3 pt-3 border-t">
+                          <span className="font-medium text-muted-foreground text-sm">Details:</span>
+                          <div className="text-sm mt-1">
+                            {fee.calculationMethod === "percentage"
+                              ? fee.metadata?.baseAttribute
+                              : fee.calculationMethod === "tiered"
+                                ? (fee.metadata?.tiers ? 
+                                    <span className="truncate block">
+                                      {fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ")}
+                                    </span>
+                                    : "-")
+                                : fee.calculationMethod === "threshold"
+                                  ? `${fee.metadata?.attribute ?? ''} ${fee.metadata?.application ?? ''} [${fee.metadata?.min ?? ''} - ${fee.metadata?.max ?? '∞'}]`
+                                  : fee.calculationMethod === "timed"
+                                    ? `${fee.metadata?.application ?? ''} ${fee.metadata?.days ?? ''} days`
+                                    : "-"}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No fees found.
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
