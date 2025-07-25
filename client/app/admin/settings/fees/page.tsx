@@ -549,7 +549,10 @@ export default function FeesManagementPage() {
                       <TableCell>{fee.calculationMethod === "percentage"
                         ? fee.metadata?.baseAttribute
                         : fee.calculationMethod === "tiered"
-                          ? (fee.metadata?.tiers ? fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ") : "-")
+                          ? (fee.metadata?.tiers ? 
+                              <span className="truncate block max-w-48">
+                                {fee.metadata.tiers.map((t: any) => `${t.min}-${t.max ?? '∞'}: ${t.rate}`).join(", ")}
+                              </span> : "-")
                           : fee.calculationMethod === "threshold"
                             ? `${fee.metadata?.attribute ?? ''} ${fee.metadata?.application ?? ''} [${fee.metadata?.min ?? ''} - ${fee.metadata?.max ?? '∞'}]`
                             : fee.calculationMethod === "timed"
