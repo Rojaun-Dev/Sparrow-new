@@ -586,7 +586,7 @@ export default function FeesManagementPage() {
 
       {/* Add/Edit Fee Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Fee" : "Add Fee"}</DialogTitle>
           </DialogHeader>
