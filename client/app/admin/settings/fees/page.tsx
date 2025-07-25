@@ -543,7 +543,7 @@ export default function FeesManagementPage() {
                       <TableCell>{fee.name}</TableCell>
                       <TableCell>{fee.code}</TableCell>
                       <TableCell><Badge>{fee.feeType}</Badge></TableCell>
-                      <TableCell>{fee.calculationMethod.replace(/_/g, ' ')}</TableCell>
+                      <TableCell className="max-w-32 truncate">{fee.calculationMethod.replace(/_/g, ' ')}</TableCell>
                       <TableCell>{fee.amount}</TableCell>
                       <TableCell>{fee.currency}</TableCell>
                       <TableCell>{fee.calculationMethod === "percentage"
