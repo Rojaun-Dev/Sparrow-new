@@ -15,17 +15,12 @@ const config = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup/setupTests.ts'],
   
   // Module name mapping for absolute imports and CSS modules
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
     '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
     '^@/app/(.*)$': '<rootDir>/app/$1',
-  },
-  
-  // Handle CSS and static file imports
-  moduleNameMapping: {
-    '^@/(.*)$': '<rootDir>/$1',
     '^.+\\.(css|sass|scss|png|jpg|jpeg|gif|webp|avif|ico|bmp|svg)$': '<rootDir>/__mocks__/fileMock.js',
   },
   

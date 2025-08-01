@@ -1,4 +1,5 @@
-import { v4 as uuidv4 } from 'uuid'
+// Simple UUID mock for tests
+const mockUuid = () => `test-uuid-${Math.random().toString(36).substr(2, 9)}`
 
 // Company test data
 export const testCompanies = {
@@ -87,7 +88,7 @@ export const testUsers = {
 
 // Helper functions
 export const createMockUser = (overrides: Partial<typeof testUsers.acmeCustomer> = {}) => ({
-  id: uuidv4(),
+  id: mockUuid(),
   companyId: testCompanies.acmeLogistics.id,
   email: 'test@example.com',
   firstName: 'Test',
@@ -102,7 +103,7 @@ export const createMockUser = (overrides: Partial<typeof testUsers.acmeCustomer>
 })
 
 export const createMockCompany = (overrides: Partial<typeof testCompanies.acmeLogistics> = {}) => ({
-  id: uuidv4(),
+  id: mockUuid(),
   name: 'Test Company',
   email: 'test@company.com',
   phone: '+1-876-555-0000',
