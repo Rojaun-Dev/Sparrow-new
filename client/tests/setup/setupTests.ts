@@ -1,6 +1,9 @@
 // Import Jest DOM matchers
 import '@testing-library/jest-dom'
 
+// Setup MSW server
+import '../mocks/server'
+
 // Mock Next.js router
 import { jest } from '@jest/globals'
 

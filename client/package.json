@@ -7,6 +7,10 @@
     "build": "node scripts/server.js build",
     "start": "node scripts/server.js start",
     "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
     "env:check": "node scripts/load-env.js",
     "setup": "node scripts/setup-env.js"
   },
