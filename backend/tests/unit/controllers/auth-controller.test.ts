@@ -183,7 +183,7 @@ describe('AuthController', () => {
     });
   });
 
-  describe('register', () => {
+  describe('signup', () => {
     const validRegisterData = {
       email: 'newuser@example.com',
       password: 'password123',
@@ -192,7 +192,7 @@ describe('AuthController', () => {
       companyId: testCompanyId
     };
 
-    it('should register new user successfully', async () => {
+    it('should signup new user successfully', async () => {
       const hashedPassword = 'hashed-password';
       const newUser = {
         ...testUser,
@@ -201,18 +201,18 @@ describe('AuthController', () => {
         last_name: validRegisterData.lastName
       };
 
-      mockUsersService.getUserByEmail = jest.fn().mockResolvedValue(null);
+      mockUsersService.getUserByEmailWithPassword = jest.fn().mockResolvedValue(null);
       mockedBcrypt.hash = jest.fn().mockResolvedValue(hashedPassword);
       mockUsersService.createUser = jest.fn().mockResolvedValue(newUser);
 
       const req = mockRequest({
-        body: validRegisterData
+        body: { ...validRegisterData, companyId: testCompanyId }
       });
       const res = mockResponse();
 
-      await controller.register(req as any, res as any, mockNext);
+      await controller.signup(req as any, res as any, mockNext);
 
-      expect(mockUsersService.getUserByEmail).toHaveBeenCalledWith(validRegisterData.email);
+      expect(mockUsersService.getUserByEmailWithPassword).toHaveBeenCalledWith(validRegisterData.email);
       expect(mockedBcrypt.hash).toHaveBeenCalledWith(validRegisterData.password, 10);
       expect(mockUsersService.createUser).toHaveBeenCalledWith(
         {
@@ -222,7 +222,7 @@ describe('AuthController', () => {
           role: 'customer',
           passwordHash: hashedPassword
         },
-        validRegisterData.companyId
+        testCompanyId
       );
       expect(MockedApiResponse.success).toHaveBeenCalledWith(
         res,
@@ -234,29 +234,31 @@ describe('AuthController', () => {
             lastName: newUser.last_name,
             role: newUser.role,
             companyId: newUser.company_id
-          }
+          },
+          accessToken: expect.any(String),
+          refreshToken: expect.any(String)
         },
-        'Registration successful',
+        'User created successfully',
         201
       );
     });
 
-    it('should reject registration with existing email', async () => {
-      mockUsersService.getUserByEmail = jest.fn().mockResolvedValue(testUser);
+    it('should reject signup with existing email', async () => {
+      mockUsersService.getUserByEmailWithPassword = jest.fn().mockResolvedValue(testUser);
 
       const req = mockRequest({
-        body: validRegisterData
+        body: { ...validRegisterData, companyId: testCompanyId }
       });
       const res = mockResponse();
 
-      await controller.register(req as any, res as any, mockNext);
+      await controller.signup(req as any, res as any, mockNext);
 
       expect(MockedApiResponse.badRequest).toHaveBeenCalledWith(res, 'User with this email already exists');
       expect(mockedBcrypt.hash).not.toHaveBeenCalled();
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
     });
 
-    it('should handle registration validation errors', async () => {
+    it('should handle signup validation errors', async () => {
       const invalidRegisterData = {
         email: 'invalid-email',
         password: '123', // too short
@@ -270,14 +272,14 @@ describe('AuthController', () => {
       });
       const res = mockResponse();
 
-      await controller.register(req as any, res as any, mockNext);
+      await controller.signup(req as any, res as any, mockNext);
 
       expect(MockedApiResponse.validationError).toHaveBeenCalled();
-      expect(mockUsersService.getUserByEmail).not.toHaveBeenCalled();
+      expect(mockUsersService.getUserByEmailWithPassword).not.toHaveBeenCalled();
     });
   });
 
-  describe('getCurrentUser', () => {
+  describe('getProfile', () => {
     it('should return current user info', async () => {
       mockUsersService.getUserById = jest.fn().mockResolvedValue(testUser);
 
@@ -288,7 +290,7 @@ describe('AuthController', () => {
       });
       const res = mockResponse();
 
-      await controller.getCurrentUser(req as any, res as any, mockNext);
+      await controller.getProfile(req as any, res as any, mockNext);
 
       expect(mockUsersService.getUserById).toHaveBeenCalledWith(testUserId, testCompanyId);
       expect(MockedApiResponse.success).toHaveBeenCalledWith(res, {
@@ -314,7 +316,7 @@ describe('AuthController', () => {
       });
       const res = mockResponse();
 
-      await controller.getCurrentUser(req as any, res as any, mockNext);
+      await controller.getProfile(req as any, res as any, mockNext);
 
       expect(MockedApiResponse.notFound).toHaveBeenCalledWith(res, 'User not found');
     });

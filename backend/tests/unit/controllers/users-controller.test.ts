@@ -2,7 +2,7 @@ import { UsersController } from '../../../src/controllers/users-controller';
 import { UsersService } from '../../../src/services/users-service';
 import { AuditLogsService } from '../../../src/services/audit-logs-service';
 import { ApiResponse } from '../../../src/utils/response';
-import { mockRequest, mockResponse, createTestUser, withTenant, withAdminTenant, expectError } from '../../helpers/test-utils';
+import { mockRequest, mockResponse, createTestUser, withTenant, withAdminTenant } from '../../helpers/test-utils';
 import bcrypt from 'bcrypt';
 
 // Mock dependencies

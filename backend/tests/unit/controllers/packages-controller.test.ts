@@ -5,7 +5,7 @@ import { EmailService } from '../../../src/services/email-service';
 import { CompaniesService } from '../../../src/services/companies-service';
 import { AuditLogsService } from '../../../src/services/audit-logs-service';
 import { ApiResponse } from '../../../src/utils/response';
-import { mockRequest, mockResponse, createTestPackage, createTestUser, withTenant, withAdminTenant } from '../../helpers/test-utils';
+import { mockRequest, mockResponse, createTestPackage, withTenant, withAdminTenant } from '../../helpers/test-utils';
 
 // Mock dependencies
 jest.mock('../../../src/services/packages-service');
@@ -25,10 +25,6 @@ const MockedApiResponse = ApiResponse as jest.Mocked<typeof ApiResponse>;
 describe('PackagesController', () => {
   let controller: PackagesController;
   let mockPackagesService: jest.Mocked<PackagesService>;
-  let mockUsersService: jest.Mocked<UsersService>;
-  let mockEmailService: jest.Mocked<EmailService>;
-  let mockCompaniesService: jest.Mocked<CompaniesService>;
-  let mockAuditLogsService: jest.Mocked<AuditLogsService>;
   let mockNext: jest.Mock;
 
   const testCompanyId = 'test-company-id';
@@ -48,10 +44,6 @@ describe('PackagesController', () => {
     
     controller = new PackagesController();
     mockPackagesService = MockedPackagesService.mock.instances[0] as jest.Mocked<PackagesService>;
-    mockUsersService = MockedUsersService.mock.instances[0] as jest.Mocked<UsersService>;
-    mockEmailService = MockedEmailService.mock.instances[0] as jest.Mocked<EmailService>;
-    mockCompaniesService = MockedCompaniesService.mock.instances[0] as jest.Mocked<CompaniesService>;
-    mockAuditLogsService = MockedAuditLogsService.mock.instances[0] as jest.Mocked<AuditLogsService>;
     mockNext = jest.fn();
 
     // Mock ApiResponse methods
