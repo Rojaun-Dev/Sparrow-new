@@ -2,7 +2,19 @@ import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
 // Mock Express Request/Response helpers
-export const mockRequest = (overrides: Partial<Request> = {}): Partial<Request> => ({
+interface AuthRequest extends Request {
+  companyId?: string;
+  userId?: string;
+  userRole?: string;
+  user?: {
+    user_id: string;
+    company_id: string;
+    role: string;
+    email: string;
+  };
+}
+
+export const mockRequest = (overrides: Partial<AuthRequest> = {}): Partial<AuthRequest> => ({
   params: {},
   query: {},
   body: {},

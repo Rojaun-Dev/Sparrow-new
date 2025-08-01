@@ -34,7 +34,6 @@ describe('PackagesController', () => {
   const testCompanyId = 'test-company-id';
   const testUserId = 'test-user-id';
   const testPackage = createTestPackage(testCompanyId, testUserId);
-  const testUser = createTestUser(testCompanyId);
 
   beforeEach(() => {
     // Reset all mocks

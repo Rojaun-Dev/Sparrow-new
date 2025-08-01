@@ -1,7 +1,7 @@
 import { UsersService, UserRole } from '../../../src/services/users-service';
 import { UsersRepository } from '../../../src/repositories/users-repository';
 import { AppError } from '../../../src/utils/app-error';
-import { createTestUser, createTestCompany } from '../../helpers/test-utils';
+import { createTestUser } from '../../helpers/test-utils';
 
 // Mock dependencies
 jest.mock('../../../src/repositories/users-repository');
@@ -15,7 +15,6 @@ describe('UsersService', () => {
   const testCompanyId = 'test-company-id';
   const testUserId = 'test-user-id';
   const testUser = createTestUser(testCompanyId);
-  const testCompany = createTestCompany();
 
   beforeEach(() => {
     // Reset all mocks
@@ -31,16 +30,16 @@ describe('UsersService', () => {
   describe('getAllUsers', () => {
     it('should return all users for a company', async () => {
       const users = [testUser, createTestUser(testCompanyId)];
-      mockRepository.findAllByCompany = jest.fn().mockResolvedValue(users);
+      mockRepository.findAll = jest.fn().mockResolvedValue(users);
 
       const result = await service.getAllUsers(testCompanyId);
 
-      expect(mockRepository.findAllByCompany).toHaveBeenCalledWith(testCompanyId);
+      expect(mockRepository.findAll).toHaveBeenCalledWith(testCompanyId);
       expect(result).toEqual(users);
     });
 
     it('should handle empty results', async () => {
-      mockRepository.findAllByCompany = jest.fn().mockResolvedValue([]);
+      mockRepository.findAll = jest.fn().mockResolvedValue([]);
 
       const result = await service.getAllUsers(testCompanyId);
 
@@ -49,7 +48,7 @@ describe('UsersService', () => {
 
     it('should handle repository errors', async () => {
       const error = new Error('Database connection failed');
-      mockRepository.findAllByCompany = jest.fn().mockRejectedValue(error);
+      mockRepository.findAll = jest.fn().mockRejectedValue(error);
 
       await expect(service.getAllUsers(testCompanyId)).rejects.toThrow(error);
     });
@@ -57,16 +56,16 @@ describe('UsersService', () => {
 
   describe('getUserById', () => {
     it('should return user by ID', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(testUser);
+      mockRepository.findById = jest.fn().mockResolvedValue(testUser);
 
       const result = await service.getUserById(testUserId, testCompanyId);
 
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(testUserId, testCompanyId);
+      expect(mockRepository.findById).toHaveBeenCalledWith(testUserId, testCompanyId);
       expect(result).toEqual(testUser);
     });
 
     it('should return null for non-existent user', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       const result = await service.getUserById('non-existent-id', testCompanyId);
 
@@ -75,11 +74,11 @@ describe('UsersService', () => {
 
     it('should enforce company isolation', async () => {
       const otherCompanyId = 'other-company-id';
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       const result = await service.getUserById(testUserId, otherCompanyId);
 
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(testUserId, otherCompanyId);
+      expect(mockRepository.findById).toHaveBeenCalledWith(testUserId, otherCompanyId);
       expect(result).toBeNull();
     });
   });
@@ -103,9 +102,8 @@ describe('UsersService', () => {
 
       expect(mockRepository.create).toHaveBeenCalledWith({
         ...validUserData,
-        company_id: testCompanyId,
         is_active: true
-      });
+      }, testCompanyId);
       expect(result).toEqual(createdUser);
     });
 
@@ -114,7 +112,8 @@ describe('UsersService', () => {
         email: 'new@example.com',
         firstName: 'New',
         lastName: 'User',
-        passwordHash: 'hashed-password'
+        passwordHash: 'hashed-password',
+        role: 'customer' as UserRole // Need to provide role
       };
       const createdUser = { ...testUser, ...userDataWithoutRole, role: 'customer' };
       mockRepository.create = jest.fn().mockResolvedValue(createdUser);
@@ -123,10 +122,8 @@ describe('UsersService', () => {
 
       expect(mockRepository.create).toHaveBeenCalledWith({
         ...userDataWithoutRole,
-        company_id: testCompanyId,
-        is_active: true,
-        role: 'customer'
-      });
+        is_active: true
+      }, testCompanyId);
       expect(result).toEqual(createdUser);
     });
 
@@ -159,18 +156,18 @@ describe('UsersService', () => {
 
     it('should update user successfully', async () => {
       const updatedUser = { ...testUser, ...updateData };
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(testUser);
+      mockRepository.findById = jest.fn().mockResolvedValue(testUser);
       mockRepository.update = jest.fn().mockResolvedValue(updatedUser);
 
       const result = await service.updateUser(testUserId, updateData, testCompanyId);
 
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(testUserId, testCompanyId);
-      expect(mockRepository.update).toHaveBeenCalledWith(testUserId, updateData);
+      expect(mockRepository.findById).toHaveBeenCalledWith(testUserId, testCompanyId);
+      expect(mockRepository.update).toHaveBeenCalledWith(testUserId, updateData, testCompanyId);
       expect(result).toEqual(updatedUser);
     });
 
     it('should throw error if user not found', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.updateUser(testUserId, updateData, testCompanyId)).rejects.toThrow(AppError);
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -183,12 +180,12 @@ describe('UsersService', () => {
       };
 
       await expect(service.updateUser(testUserId, invalidUpdateData, testCompanyId)).rejects.toThrow();
-      expect(mockRepository.findByIdAndCompany).not.toHaveBeenCalled();
+      expect(mockRepository.findById).not.toHaveBeenCalled();
     });
 
     it('should enforce company isolation during update', async () => {
       const otherCompanyId = 'other-company-id';
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.updateUser(testUserId, updateData, otherCompanyId)).rejects.toThrow(AppError);
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -197,17 +194,17 @@ describe('UsersService', () => {
 
   describe('deactivateUser', () => {
     it('should deactivate user successfully', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(testUser);
+      mockRepository.findById = jest.fn().mockResolvedValue(testUser);
       mockRepository.update = jest.fn().mockResolvedValue({ ...testUser, is_active: false });
 
       await service.deactivateUser(testUserId, testCompanyId);
 
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(testUserId, testCompanyId);
-      expect(mockRepository.update).toHaveBeenCalledWith(testUserId, { is_active: false });
+      expect(mockRepository.findById).toHaveBeenCalledWith(testUserId, testCompanyId);
+      expect(mockRepository.update).toHaveBeenCalledWith(testUserId, { is_active: false }, testCompanyId);
     });
 
     it('should throw error if user not found', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.deactivateUser(testUserId, testCompanyId)).rejects.toThrow(AppError);
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -217,17 +214,17 @@ describe('UsersService', () => {
   describe('reactivateUser', () => {
     it('should reactivate user successfully', async () => {
       const inactiveUser = { ...testUser, is_active: false };
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(inactiveUser);
+      mockRepository.findById = jest.fn().mockResolvedValue(inactiveUser);
       mockRepository.update = jest.fn().mockResolvedValue({ ...testUser, is_active: true });
 
       await service.reactivateUser(testUserId, testCompanyId);
 
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(testUserId, testCompanyId);
-      expect(mockRepository.update).toH been.toHaveBeenCalledWith(testUserId, { is_active: true });
+      expect(mockRepository.findById).toHaveBeenCalledWith(testUserId, testCompanyId);
+      expect(mockRepository.update).toHaveBeenCalledWith(testUserId, { is_active: true }, testCompanyId);
     });
 
     it('should throw error if user not found', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.reactivateUser(testUserId, testCompanyId)).rejects.toThrow(AppError);
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -240,16 +237,16 @@ describe('UsersService', () => {
         { ...testUser, role: 'admin_l1' as UserRole },
         { ...testUser, id: 'admin-2', role: 'admin_l1' as UserRole }
       ];
-      mockRepository.findByRoleAndCompany = jest.fn().mockResolvedValue(adminUsers);
+      mockRepository.findByRole = jest.fn().mockResolvedValue(adminUsers);
 
       const result = await service.getUsersByRole('admin_l1', testCompanyId);
 
-      expect(mockRepository.findByRoleAndCompany).toHaveBeenCalledWith('admin_l1', testCompanyId);
+      expect(mockRepository.findByRole).toHaveBeenCalledWith('admin_l1', testCompanyId);
       expect(result).toEqual(adminUsers);
     });
 
     it('should return empty array for role with no users', async () => {
-      mockRepository.findByRoleAndCompany = jest.fn().mockResolvedValue([]);
+      mockRepository.findByRole = jest.fn().mockResolvedValue([]);
 
       const result = await service.getUsersByRole('admin_l2', testCompanyId);
 
@@ -261,16 +258,16 @@ describe('UsersService', () => {
     it('should return user by email', async () => {
       mockRepository.findByEmail = jest.fn().mockResolvedValue(testUser);
 
-      const result = await service.getUserByEmail(testUser.email);
+      const result = await service.getUserByEmail(testUser.email, testCompanyId);
 
-      expect(mockRepository.findByEmail).toHaveBeenCalledWith(testUser.email);
+      expect(mockRepository.findByEmail).toHaveBeenCalledWith(testUser.email, testCompanyId);
       expect(result).toEqual(testUser);
     });
 
     it('should return null for non-existent email', async () => {
       mockRepository.findByEmail = jest.fn().mockResolvedValue(null);
 
-      const result = await service.getUserByEmail('nonexistent@example.com');
+      const result = await service.getUserByEmail('nonexistent@example.com', testCompanyId);
 
       expect(result).toBeNull();
     });
@@ -281,12 +278,12 @@ describe('UsersService', () => {
       const companyAId = 'company-a';
       const companyBId = 'company-b';
       
-      mockRepository.findAllByCompany = jest.fn().mockResolvedValue([createTestUser(companyAId)]);
+      mockRepository.findAll = jest.fn().mockResolvedValue([createTestUser(companyAId)]);
 
       await service.getAllUsers(companyAId);
 
-      expect(mockRepository.findAllByCompany).toHaveBeenCalledWith(companyAId);
-      expect(mockRepository.findAllByCompany).not.toHaveBeenCalledWith(companyBId);
+      expect(mockRepository.findAll).toHaveBeenCalledWith(companyAId);
+      expect(mockRepository.findAll).not.toHaveBeenCalledWith(companyBId);
     });
 
     it('should enforce tenant isolation in getUserById', async () => {
@@ -294,7 +291,7 @@ describe('UsersService', () => {
       const companyBId = 'company-b';
       const userId = 'test-user-id';
 
-      mockRepository.findByIdAndCompany = jest.fn()
+      mockRepository.findById = jest.fn()
         .mockResolvedValueOnce(createTestUser(companyAId))
         .mockResolvedValueOnce(null);
 
@@ -306,21 +303,21 @@ describe('UsersService', () => {
       const resultB = await service.getUserById(userId, companyBId);
       expect(resultB).toBeNull();
 
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(userId, companyAId);
-      expect(mockRepository.findByIdAndCompany).toHaveBeenCalledWith(userId, companyBId);
+      expect(mockRepository.findById).toHaveBeenCalledWith(userId, companyAId);
+      expect(mockRepository.findById).toHaveBeenCalledWith(userId, companyBId);
     });
   });
 
   describe('Error handling', () => {
     it('should propagate repository errors', async () => {
       const dbError = new Error('Database connection lost');
-      mockRepository.findAllByCompany = jest.fn().mockRejectedValue(dbError);
+      mockRepository.findAll = jest.fn().mockRejectedValue(dbError);
 
       await expect(service.getAllUsers(testCompanyId)).rejects.toThrow(dbError);
     });
 
     it('should throw AppError for business logic violations', async () => {
-      mockRepository.findByIdAndCompany = jest.fn().mockResolvedValue(null);
+      mockRepository.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.updateUser(testUserId, { firstName: 'Updated' }, testCompanyId))
         .rejects.toThrow(AppError);
