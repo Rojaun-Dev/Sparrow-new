@@ -130,7 +130,7 @@ export function ShippingInfoCard() {
                 </div>
               </div>
               <div className="absolute top-2 right-2">
-                <Badge variant="outline" className="text-xs bg-background/80 backdrop-blur-sm">
+                <Badge variant="outline" className="text-xs bg-background/80 backdrop-blur-sm hidden sm:flex">
                   <Info className="h-3 w-3 mr-1" />
                   Shipping Address
                 </Badge>
