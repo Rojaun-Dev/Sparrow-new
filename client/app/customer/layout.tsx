@@ -7,6 +7,8 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Menu } from "lucide-react"
 import { useState } from "react"
+import { useIOSParentUrl } from "@/hooks/useIOSParentUrl"
+import { IOSDebugInfo } from "@/components/ios/IOSDebugInfo"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -17,8 +19,12 @@ export default function CustomerLayout({
   children: React.ReactNode
 }>) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  
+  // Ensure iOS parent URL is detected and stored on customer pages
+  const { storedParentUrl } = useIOSParentUrl()
   return (
     <div className="flex min-h-screen flex-col">
+      <IOSDebugInfo />
       <div className="flex flex-1">
         <CustomerSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">

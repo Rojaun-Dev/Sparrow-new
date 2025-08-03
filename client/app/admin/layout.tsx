@@ -5,6 +5,8 @@ import "../globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AdminSidebarDesktop, AdminSidebarMobile } from "@/components/admin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
+import { IOSParentUrlDetector } from "@/components/ios/IOSParentUrlDetector"
+import { IOSDebugInfo } from "@/components/ios/IOSDebugInfo"
 
 // Config to prevent static optimization
 export const dynamic = 'force-dynamic';
@@ -26,6 +28,8 @@ export default function AdminLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <IOSParentUrlDetector />
+          <IOSDebugInfo />
           <div className="flex min-h-screen flex-col">
             <AdminSidebarMobile />
             <div className="flex flex-1">
