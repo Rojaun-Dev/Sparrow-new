@@ -188,35 +188,38 @@ export async function middleware(request: NextRequest) {
       url.searchParams.delete('parent_url');
       response = NextResponse.redirect(url);
       
-      // For iOS Chrome/Safari iframe contexts, try multiple cookie strategies
-      const isSecure = process.env.NODE_ENV === 'production';
-      
-      // Primary attempt with SameSite=None
-      try {
-        response.cookies.set('token', tokenFromUrl, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
-          maxAge: 60 * 60 * 24 * 7 // 7 days
-        });
-      } catch (error) {
-        // Fallback without SameSite for problematic browsers
-        response.cookies.set('token', tokenFromUrl, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
-          maxAge: 60 * 60 * 24 * 7 // 7 days
-        });
-      }
-      
-      // For iOS Chrome/Safari that are particularly stubborn, add additional headers
-      if (isIOSUserAgent) {
-        response.headers.set('X-iOS-Token', tokenFromUrl);
-        response.headers.set('X-iOS-Auth-Hint', 'token-available');
-      }
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Cookie and headers set in middleware redirect response');
+      // Only set cookies if there's actually a token
+      if (tokenFromUrl) {
+        // For iOS Chrome/Safari iframe contexts, try multiple cookie strategies
+        const isSecure = process.env.NODE_ENV === 'production';
+        
+        // Primary attempt with SameSite=None
+        try {
+          response.cookies.set('token', tokenFromUrl, {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+            maxAge: 60 * 60 * 24 * 7 // 7 days
+          });
+        } catch (error) {
+          // Fallback without SameSite for problematic browsers
+          response.cookies.set('token', tokenFromUrl, {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+            maxAge: 60 * 60 * 24 * 7 // 7 days
+          });
+        }
+        
+        // For iOS Chrome/Safari that are particularly stubborn, add additional headers
+        if (isIOSUserAgent) {
+          response.headers.set('X-iOS-Token', tokenFromUrl);
+          response.headers.set('X-iOS-Auth-Hint', 'token-available');
+        }
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Cookie and headers set in middleware redirect response');
+        }
       }
     }
     
