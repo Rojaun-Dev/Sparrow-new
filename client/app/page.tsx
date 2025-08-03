@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
 import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 import { cn } from "@/lib/utils"
-import { isIOSMobileInIframe, redirectIOSMobileToMainApp, storeParentWebsiteUrl } from "@/lib/utils/iframe-detection"
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp, storeParentWebsiteUrl, isIOSMobile } from "@/lib/utils/iframe-detection"
 
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -42,10 +42,26 @@ export default function LoginPage() {
   // Handle parent URL storage for iOS users redirected from iframe
   useEffect(() => {
     const parentUrl = searchParams.get('parent_url');
-    if (parentUrl && isIOSMobileInIframe()) {
+    const iosToken = searchParams.get('ios_token');
+    
+    if (parentUrl && isIOSMobile()) {
       // Store the parent URL for later use during logout
+      // This works for both current iframe context AND users redirected from iframe
       storeParentWebsiteUrl(parentUrl);
-      console.log('Stored parent URL for iOS iframe user:', parentUrl);
+      console.log('Stored parent URL for iOS user:', parentUrl);
+      
+      // Additional logging to debug the flow
+      if (iosToken) {
+        console.log('iOS user was redirected from iframe with token - parent URL stored');
+      } else if (isIOSMobileInIframe()) {
+        console.log('iOS user currently in iframe - parent URL stored');
+      } else {
+        console.log('iOS user with parent URL parameter - parent URL stored');
+      }
+    } else if (parentUrl && !isIOSMobile()) {
+      console.log('Parent URL found but not iOS device - not storing:', parentUrl);
+    } else if (!parentUrl && isIOSMobile()) {
+      console.log('iOS device but no parent URL parameter');
     }
   }, [searchParams]);
 

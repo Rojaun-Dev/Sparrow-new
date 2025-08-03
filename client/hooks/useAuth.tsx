@@ -166,18 +166,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Check if this is an iOS user who was redirected from a parent website
         const parentUrl = getStoredParentWebsiteUrl();
+        const isIOSDevice = isIOSMobile();
+        
+        console.log('Logout redirect check:', {
+          parentUrl,
+          isIOSDevice,
+          hasParentUrl: !!parentUrl,
+          shouldRedirectToParent: !!(parentUrl && isIOSDevice)
+        });
         
         let redirectUrl: string;
-        if (parentUrl && isIOSMobile()) {
+        if (parentUrl && isIOSDevice) {
           // iOS user came from parent website - redirect back to parent
           console.log('Redirecting iOS user back to parent website:', parentUrl);
           redirectUrl = parentUrl;
           // Clear the stored parent URL since we're redirecting back
           clearStoredParentWebsiteUrl();
+          console.log('Cleared stored parent URL after setting redirect');
         } else {
           // Normal users or iOS users who accessed app directly - redirect to app home
           const storedSlug = localStorage.getItem('companySlug');
           redirectUrl = storedSlug ? `/?company=${storedSlug}` : '/';
+          console.log('Redirecting to app home page:', redirectUrl);
+          
+          // Debug info for troubleshooting
+          if (!parentUrl && isIOSDevice) {
+            console.log('iOS device but no stored parent URL - redirecting to app home');
+          } else if (parentUrl && !isIOSDevice) {
+            console.log('Parent URL found but not iOS device - redirecting to app home');
+          } else if (!parentUrl && !isIOSDevice) {
+            console.log('Normal user logout - redirecting to app home');
+          }
         }
         
         // Force a page reload to clear any memory cache or React state
@@ -205,18 +224,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Check if this is an iOS user who was redirected from a parent website (error case)
         const parentUrl = getStoredParentWebsiteUrl();
+        const isIOSDevice = isIOSMobile();
+        
+        console.log('Logout redirect check (error case):', {
+          parentUrl,
+          isIOSDevice,
+          hasParentUrl: !!parentUrl,
+          shouldRedirectToParent: !!(parentUrl && isIOSDevice)
+        });
         
         let redirectUrl2: string;
-        if (parentUrl && isIOSMobile()) {
+        if (parentUrl && isIOSDevice) {
           // iOS user came from parent website - redirect back to parent
           console.log('Redirecting iOS user back to parent website (error case):', parentUrl);
           redirectUrl2 = parentUrl;
           // Clear the stored parent URL since we're redirecting back
           clearStoredParentWebsiteUrl();
+          console.log('Cleared stored parent URL after setting redirect (error case)');
         } else {
           // Normal users or iOS users who accessed app directly - redirect to app home
           const storedSlug2 = localStorage.getItem('companySlug');
           redirectUrl2 = storedSlug2 ? `/?company=${storedSlug2}` : '/';
+          console.log('Redirecting to app home page (error case):', redirectUrl2);
         }
         
         // Force a page reload to clear any memory cache
