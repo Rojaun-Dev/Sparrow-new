@@ -116,6 +116,9 @@ export async function middleware(request: NextRequest) {
   // Check for token in URL parameters (for iOS iframe navigation)
   const tokenFromUrl = request.nextUrl.searchParams.get('ios_token');
   
+  // Check for parent URL parameter (for iOS iframe logout redirect)
+  const parentUrlFromQuery = request.nextUrl.searchParams.get('parent_url');
+  
   // Check if this is an iOS iframe context by looking at User-Agent and headers
   const userAgent = request.headers.get('user-agent') || '';
   const isIOSUserAgent = /iPad|iPhone|iPod/.test(userAgent);
@@ -175,13 +178,14 @@ export async function middleware(request: NextRequest) {
 
     // User has correct role, proceed
     // If token was passed via URL (iOS iframe), clean it up and set as cookie for subsequent requests
-    if (tokenFromUrl) {
+    if (tokenFromUrl || parentUrlFromQuery) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('iOS iframe token detected in URL, cleaning up and setting cookie');
+        console.log('iOS iframe parameters detected in URL, cleaning up and setting cookie');
       }
       
       const url = request.nextUrl.clone();
       url.searchParams.delete('ios_token');
+      url.searchParams.delete('parent_url');
       response = NextResponse.redirect(url);
       
       // For iOS Chrome/Safari iframe contexts, try multiple cookie strategies

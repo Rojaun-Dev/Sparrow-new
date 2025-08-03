@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
 import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 import { cn } from "@/lib/utils"
-import { isIOSMobileInIframe, redirectIOSMobileToMainApp } from "@/lib/utils/iframe-detection"
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp, storeParentWebsiteUrl } from "@/lib/utils/iframe-detection"
 
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -38,6 +38,16 @@ export default function LoginPage() {
   useEffect(() => {
     forceRefresh();
   }, [forceRefresh]);
+
+  // Handle parent URL storage for iOS users redirected from iframe
+  useEffect(() => {
+    const parentUrl = searchParams.get('parent_url');
+    if (parentUrl && isIOSMobileInIframe()) {
+      // Store the parent URL for later use during logout
+      storeParentWebsiteUrl(parentUrl);
+      console.log('Stored parent URL for iOS iframe user:', parentUrl);
+    }
+  }, [searchParams]);
 
   // Initialize form with React Hook Form and Zod resolver
   const form = useForm<LoginFormValues>({

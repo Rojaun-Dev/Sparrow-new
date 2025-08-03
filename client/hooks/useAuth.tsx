@@ -7,6 +7,7 @@ import { User } from '@/lib/api/types';
 import { API_BASE_URL } from '@/lib/api/apiClient';
 import { apiClient } from '@/lib/api/apiClient';
 import { useQueryClient } from '@tanstack/react-query';
+import { getStoredParentWebsiteUrl, clearStoredParentWebsiteUrl, isIOSMobile } from '@/lib/utils/iframe-detection';
 
 // Use the User type directly from types.ts
 // export type User = UserProfile;
@@ -163,9 +164,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Logout complete, all tokens removed');
         console.log('Token in localStorage after logout:', localStorage.getItem('token'));
         
+        // Check if this is an iOS user who was redirected from a parent website
+        const parentUrl = getStoredParentWebsiteUrl();
+        
+        let redirectUrl: string;
+        if (parentUrl && isIOSMobile()) {
+          // iOS user came from parent website - redirect back to parent
+          console.log('Redirecting iOS user back to parent website:', parentUrl);
+          redirectUrl = parentUrl;
+          // Clear the stored parent URL since we're redirecting back
+          clearStoredParentWebsiteUrl();
+        } else {
+          // Normal users or iOS users who accessed app directly - redirect to app home
+          const storedSlug = localStorage.getItem('companySlug');
+          redirectUrl = storedSlug ? `/?company=${storedSlug}` : '/';
+        }
+        
         // Force a page reload to clear any memory cache or React state
-        const storedSlug = localStorage.getItem('companySlug');
-        const redirectUrl = storedSlug ? `/?company=${storedSlug}` : '/';
         setTimeout(() => {
           window.location.href = redirectUrl;
         }, 100);
@@ -188,9 +203,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Still clear cache on error
         queryClient.clear();
         
+        // Check if this is an iOS user who was redirected from a parent website (error case)
+        const parentUrl = getStoredParentWebsiteUrl();
+        
+        let redirectUrl2: string;
+        if (parentUrl && isIOSMobile()) {
+          // iOS user came from parent website - redirect back to parent
+          console.log('Redirecting iOS user back to parent website (error case):', parentUrl);
+          redirectUrl2 = parentUrl;
+          // Clear the stored parent URL since we're redirecting back
+          clearStoredParentWebsiteUrl();
+        } else {
+          // Normal users or iOS users who accessed app directly - redirect to app home
+          const storedSlug2 = localStorage.getItem('companySlug');
+          redirectUrl2 = storedSlug2 ? `/?company=${storedSlug2}` : '/';
+        }
+        
         // Force a page reload to clear any memory cache
-        const storedSlug2 = localStorage.getItem('companySlug');
-        const redirectUrl2 = storedSlug2 ? `/?company=${storedSlug2}` : '/';
         setTimeout(() => {
           window.location.href = redirectUrl2;
         }, 100);
