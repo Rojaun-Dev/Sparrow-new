@@ -3,3 +3,6 @@ node_modules
 temp
 .env.local
 CLAUDE.md
+client/coverage/
+client/test-results/
+client/playwright-report/
