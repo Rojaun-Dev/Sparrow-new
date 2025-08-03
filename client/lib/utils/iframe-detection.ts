@@ -57,6 +57,39 @@ export function getParentWebsiteUrl(): string | null {
 }
 
 /**
+ * Gets parent URL from cookie (set by middleware) or URL parameter (fallback)
+ */
+export function getParentUrlFromCookieOrUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    // First, try to get from cookie (set by middleware)
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'ios_parent_url') {
+        const parentUrl = decodeURIComponent(value);
+        console.log('Found parent URL in cookie:', parentUrl);
+        return parentUrl;
+      }
+    }
+    
+    // Fallback: try URL parameters (for direct access)
+    const urlParams = new URLSearchParams(window.location.search);
+    const parentUrlFromParam = urlParams.get('parent_url');
+    if (parentUrlFromParam) {
+      console.log('Found parent URL in URL parameter:', parentUrlFromParam);
+      return parentUrlFromParam;
+    }
+    
+    return null;
+  } catch (e) {
+    console.warn('Error getting parent URL from cookie or URL:', e);
+    return null;
+  }
+}
+
+/**
  * Stores the parent website URL in sessionStorage for iOS iframe users
  */
 export function storeParentWebsiteUrl(parentUrl: string): void {
@@ -67,6 +100,20 @@ export function storeParentWebsiteUrl(parentUrl: string): void {
     console.log('Stored parent URL for iOS iframe user:', parentUrl);
   } catch (e) {
     console.warn('Error storing parent URL:', e);
+  }
+}
+
+/**
+ * Clears the parent URL cookie
+ */
+export function clearParentUrlCookie(): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    document.cookie = 'ios_parent_url=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    console.log('Cleared parent URL cookie');
+  } catch (e) {
+    console.warn('Error clearing parent URL cookie:', e);
   }
 }
 

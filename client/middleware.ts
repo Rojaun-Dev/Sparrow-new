@@ -188,7 +188,7 @@ export async function middleware(request: NextRequest) {
       url.searchParams.delete('parent_url');
       response = NextResponse.redirect(url);
       
-      // Only set cookies if there's actually a token
+      // Set cookies for token and parent URL
       if (tokenFromUrl) {
         // For iOS Chrome/Safari iframe contexts, try multiple cookie strategies
         const isSecure = process.env.NODE_ENV === 'production';
@@ -218,7 +218,25 @@ export async function middleware(request: NextRequest) {
         }
         
         if (process.env.NODE_ENV === 'development') {
-          console.log('Cookie and headers set in middleware redirect response');
+          console.log('Token cookie and headers set in middleware redirect response');
+        }
+      }
+      
+      // Store parent URL in cookie if provided (for iOS iframe logout redirect)
+      if (parentUrlFromQuery) {
+        try {
+          response.cookies.set('ios_parent_url', parentUrlFromQuery, {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+            maxAge: 60 * 60 * 24 // 1 day (shorter than token)
+          });
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Parent URL cookie set in middleware:', parentUrlFromQuery);
+          }
+        } catch (error) {
+          console.warn('Failed to set parent URL cookie:', error);
         }
       }
     }

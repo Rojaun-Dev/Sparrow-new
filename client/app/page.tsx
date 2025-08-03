@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
 import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 import { cn } from "@/lib/utils"
-import { isIOSMobileInIframe, redirectIOSMobileToMainApp, storeParentWebsiteUrl, isIOSMobile } from "@/lib/utils/iframe-detection"
+import { isIOSMobileInIframe, redirectIOSMobileToMainApp, storeParentWebsiteUrl, isIOSMobile, getParentUrlFromCookieOrUrl } from "@/lib/utils/iframe-detection"
 
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -41,7 +41,8 @@ export default function LoginPage() {
 
   // Handle parent URL storage for iOS users redirected from iframe
   useEffect(() => {
-    const parentUrl = searchParams.get('parent_url');
+    // Check for parent URL from cookie (set by middleware) or URL parameters (fallback)
+    const parentUrl = getParentUrlFromCookieOrUrl();
     const iosToken = searchParams.get('ios_token');
     
     if (parentUrl && isIOSMobile()) {
@@ -52,16 +53,16 @@ export default function LoginPage() {
       
       // Additional logging to debug the flow
       if (iosToken) {
-        console.log('iOS user was redirected from iframe with token - parent URL stored');
+        console.log('iOS user was redirected from iframe with token - parent URL stored from cookie/URL');
       } else if (isIOSMobileInIframe()) {
-        console.log('iOS user currently in iframe - parent URL stored');
+        console.log('iOS user currently in iframe - parent URL stored from cookie/URL');
       } else {
-        console.log('iOS user with parent URL parameter - parent URL stored');
+        console.log('iOS user with parent URL - parent URL stored from cookie/URL');
       }
     } else if (parentUrl && !isIOSMobile()) {
       console.log('Parent URL found but not iOS device - not storing:', parentUrl);
     } else if (!parentUrl && isIOSMobile()) {
-      console.log('iOS device but no parent URL parameter');
+      console.log('iOS device but no parent URL found in cookie or URL');
     }
   }, [searchParams]);
 

@@ -7,7 +7,7 @@ import { User } from '@/lib/api/types';
 import { API_BASE_URL } from '@/lib/api/apiClient';
 import { apiClient } from '@/lib/api/apiClient';
 import { useQueryClient } from '@tanstack/react-query';
-import { getStoredParentWebsiteUrl, clearStoredParentWebsiteUrl, isIOSMobile } from '@/lib/utils/iframe-detection';
+import { getStoredParentWebsiteUrl, clearStoredParentWebsiteUrl, isIOSMobile, clearParentUrlCookie } from '@/lib/utils/iframe-detection';
 
 // Use the User type directly from types.ts
 // export type User = UserProfile;
@@ -180,9 +180,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // iOS user came from parent website - redirect back to parent
           console.log('Redirecting iOS user back to parent website:', parentUrl);
           redirectUrl = parentUrl;
-          // Clear the stored parent URL since we're redirecting back
+          // Clear the stored parent URL and cookie since we're redirecting back
           clearStoredParentWebsiteUrl();
-          console.log('Cleared stored parent URL after setting redirect');
+          clearParentUrlCookie();
+          console.log('Cleared stored parent URL and cookie after setting redirect');
         } else {
           // Normal users or iOS users who accessed app directly - redirect to app home
           const storedSlug = localStorage.getItem('companySlug');
@@ -238,9 +239,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // iOS user came from parent website - redirect back to parent
           console.log('Redirecting iOS user back to parent website (error case):', parentUrl);
           redirectUrl2 = parentUrl;
-          // Clear the stored parent URL since we're redirecting back
+          // Clear the stored parent URL and cookie since we're redirecting back
           clearStoredParentWebsiteUrl();
-          console.log('Cleared stored parent URL after setting redirect (error case)');
+          clearParentUrlCookie();
+          console.log('Cleared stored parent URL and cookie after setting redirect (error case)');
         } else {
           // Normal users or iOS users who accessed app directly - redirect to app home
           const storedSlug2 = localStorage.getItem('companySlug');
