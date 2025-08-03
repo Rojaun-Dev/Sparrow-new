@@ -261,34 +261,12 @@ export default function PaymentsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Payments</h1>
-        <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button disabled>
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Manage Payment Methods
-                  <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">Coming Soon</Badge>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Payment methods management will be available in a future release</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button variant="outline" size="icon">
-            <Download className="h-4 w-4" />
-            <span className="sr-only">Download</span>
-          </Button>
-        </div>
       </div>
 
       <Tabs defaultValue="history" className="w-full" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="history">Payment History</TabsTrigger>
-          <TabsTrigger value="methods">Payment Methods</TabsTrigger>
-        </TabsList>
-        
+
+        {/* NOTE: this used to be a tabinated page, hence why its in tabs, 
+        its now just a page dedicated to Payments and not setting up payment methods */}
         <TabsContent value="history" className="mt-6">
           <Card>
             <CardHeader>
