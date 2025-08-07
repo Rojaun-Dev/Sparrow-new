@@ -13,6 +13,9 @@ RUN npm ci --omit=dev
 # Copy source code
 COPY . .
 
+# Install Playwright browsers (since we have the deps pre-installed)
+RUN npx playwright install --with-deps
+
 # Build the application
 RUN npm run build
 
