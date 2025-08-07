@@ -5,9 +5,7 @@ FROM mcr.microsoft.com/playwright:v1.48.0-jammy
 WORKDIR /app
 
 # Copy package files for dependency installation
-COPY package*.json ../
-COPY client/package*.json ../client/
-COPY backend/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm ci --omit=dev
