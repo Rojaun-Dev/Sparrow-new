@@ -3,8 +3,6 @@ services:
     name: sparrowx-backend
     runtime: docker
     dockerfilePath: ./Dockerfile
-    buildCommand: ""
-    startCommand: "npm start"
     envVars:
       - key: NODE_ENV
         value: production
