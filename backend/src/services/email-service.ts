@@ -221,7 +221,7 @@ export class EmailService {
         description: packageData.description || 'No description provided',
         weight: packageData.weight || 'N/A',
         dateAdded: packageData.dateAdded,
-        packageUrl: `${process.env.CLIENT_URL}/packages/${packageData.packageId}`,
+        packageUrl: `${process.env.CLIENT_URL}/customer/packages/${packageData.packageId}`,
         companyName: packageData.companyName || 'SparrowX',
         year: new Date().getFullYear()
       });
@@ -273,7 +273,7 @@ export class EmailService {
         description: matchData.description || 'No description provided',
         status: matchData.status,
         receivedDate: matchData.receivedDate || 'N/A',
-        packageUrl: `${process.env.CLIENT_URL}/packages/${matchData.packageId}`,
+        packageUrl: `${process.env.CLIENT_URL}/customer/packages/${matchData.packageId}`,
         companyName: matchData.companyName || 'SparrowX',
         year: new Date().getFullYear()
       });
@@ -325,7 +325,7 @@ export class EmailService {
         status: invoiceData.status,
         amount: invoiceData.amount,
         packageCount: invoiceData.packageCount,
-        invoiceUrl: `${process.env.CLIENT_URL}/invoices/${invoiceData.invoiceId}`,
+        invoiceUrl: `${process.env.CLIENT_URL}/customer/invoices/${invoiceData.invoiceId}`,
         companyName: invoiceData.companyName || 'SparrowX',
         year: new Date().getFullYear()
       });
@@ -419,8 +419,8 @@ export class EmailService {
         paymentDate: paymentData.paymentDate,
         transactionId: paymentData.transactionId || 'N/A',
         status: paymentData.status,
-        invoiceUrl: `${process.env.CLIENT_URL}/invoices/${paymentData.invoiceId}`,
-        receiptUrl: `${process.env.CLIENT_URL}/payments/${paymentData.paymentId}`,
+        invoiceUrl: `${process.env.CLIENT_URL}/customer/invoices/${paymentData.invoiceId}`,
+        receiptUrl: `${process.env.CLIENT_URL}/customer/payments/${paymentData.paymentId}`,
         companyName: paymentData.companyName || 'SparrowX',
         year: new Date().getFullYear(),
         
