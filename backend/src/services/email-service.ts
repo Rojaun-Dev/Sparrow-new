@@ -34,7 +34,7 @@ export class EmailService {
   constructor() {
     // For production, you'd configure real email settings
     // For development, you might use a service like Ethereal (fake SMTP service) or a real service
-    this.fromEmail = process.env.EMAIL_FROM || 'noreply@cautious-robot.com';
+    this.fromEmail = process.env.EMAIL_FROM || 'noreply@sparrowx.com';
 
     // Check if we're in development
     if (process.env.NODE_ENV === 'development') {
@@ -84,7 +84,7 @@ export class EmailService {
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"Cautious Robot" <${this.fromEmail}>`,
+        from: `"SparrowX" <${this.fromEmail}>`,
         to,
         subject: 'Reset Your Password',
         html
@@ -115,7 +115,7 @@ export class EmailService {
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"Cautious Robot" <${this.fromEmail}>`,
+        from: `"SparrowX" <${this.fromEmail}>`,
         to,
         subject: 'Your Password Has Been Changed',
         html
@@ -146,7 +146,7 @@ export class EmailService {
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"Cautious Robot" <${this.fromEmail}>`,
+        from: `"SparrowX" <${this.fromEmail}>`,
         to,
         subject: 'Invitation to Register Your Company',
         html
@@ -172,15 +172,15 @@ export class EmailService {
       // Replace variables in the template
       const html = template({
         firstName,
-        loginUrl: `${process.env.FRONTEND_URL}/login`,
+        loginUrl: `${process.env.CLIENT_URL}/`,
         year: new Date().getFullYear()
       });
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"Cautious Robot" <${this.fromEmail}>`,
+        from: `"SparrowX" <${this.fromEmail}>`,
         to,
-        subject: 'Welcome to Cautious Robot!',
+        subject: 'Welcome to SparrowX!',
         html
       });
     } catch (error) {
@@ -221,14 +221,14 @@ export class EmailService {
         description: packageData.description || 'No description provided',
         weight: packageData.weight || 'N/A',
         dateAdded: packageData.dateAdded,
-        packageUrl: `${process.env.FRONTEND_URL}/packages/${packageData.packageId}`,
-        companyName: packageData.companyName || 'Cautious Robot',
+        packageUrl: `${process.env.CLIENT_URL}/customer/packages/${packageData.packageId}`,
+        companyName: packageData.companyName || 'SparrowX',
         year: new Date().getFullYear()
       });
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"${packageData.companyName || 'Cautious Robot'}" <${this.fromEmail}>`,
+        from: `"${packageData.companyName || 'SparrowX'}" <${this.fromEmail}>`,
         to,
         subject: 'New Package Added',
         html
@@ -273,14 +273,14 @@ export class EmailService {
         description: matchData.description || 'No description provided',
         status: matchData.status,
         receivedDate: matchData.receivedDate || 'N/A',
-        packageUrl: `${process.env.FRONTEND_URL}/packages/${matchData.packageId}`,
-        companyName: matchData.companyName || 'Cautious Robot',
+        packageUrl: `${process.env.CLIENT_URL}/customer/packages/${matchData.packageId}`,
+        companyName: matchData.companyName || 'SparrowX',
         year: new Date().getFullYear()
       });
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"${matchData.companyName || 'Cautious Robot'}" <${this.fromEmail}>`,
+        from: `"${matchData.companyName || 'SparrowX'}" <${this.fromEmail}>`,
         to,
         subject: 'Pre-Alert Matched to Package',
         html
@@ -325,14 +325,14 @@ export class EmailService {
         status: invoiceData.status,
         amount: invoiceData.amount,
         packageCount: invoiceData.packageCount,
-        invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${invoiceData.invoiceId}`,
-        companyName: invoiceData.companyName || 'Cautious Robot',
+        invoiceUrl: `${process.env.CLIENT_URL}/customer/invoices/${invoiceData.invoiceId}`,
+        companyName: invoiceData.companyName || 'SparrowX',
         year: new Date().getFullYear()
       });
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"${invoiceData.companyName || 'Cautious Robot'}" <${this.fromEmail}>`,
+        from: `"${invoiceData.companyName || 'SparrowX'}" <${this.fromEmail}>`,
         to,
         subject: 'New Invoice Generated',
         html
@@ -419,9 +419,9 @@ export class EmailService {
         paymentDate: paymentData.paymentDate,
         transactionId: paymentData.transactionId || 'N/A',
         status: paymentData.status,
-        invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${paymentData.invoiceId}`,
-        receiptUrl: `${process.env.FRONTEND_URL}/payments/${paymentData.paymentId}`,
-        companyName: paymentData.companyName || 'Cautious Robot',
+        invoiceUrl: `${process.env.CLIENT_URL}/customer/invoices/${paymentData.invoiceId}`,
+        receiptUrl: `${process.env.CLIENT_URL}/customer/payments/${paymentData.paymentId}`,
+        companyName: paymentData.companyName || 'SparrowX',
         year: new Date().getFullYear(),
         
         // Currency information
@@ -435,7 +435,7 @@ export class EmailService {
       
       // Send the email
       await this.transporter.sendMail({
-        from: `"${paymentData.companyName || 'Cautious Robot'}" <${this.fromEmail}>`,
+        from: `"${paymentData.companyName || 'SparrowX'}" <${this.fromEmail}>`,
         to,
         subject: 'Payment Confirmation',
         html

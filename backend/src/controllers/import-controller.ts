@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { ImportService } from '../services/import-service';
 import { AuditLogsService } from '../services/audit-logs-service';
 import { UploadedFile } from 'express-fileupload';
@@ -38,13 +39,16 @@ export class ImportController {
         });
       }
       
+      // Generate unique batch ID for this import operation
+      const batchId = randomUUID();
+      
       // Log import start
       await this.auditLogsService.createLog({
         companyId,
         userId: req.userId as string,
         action: 'import_started',
         entityType: 'package',
-        entityId: 'batch',
+        entityId: batchId,
         details: { 
           targetUserId: userId,
           method: 'csv_content',
@@ -65,7 +69,7 @@ export class ImportController {
         userId: req.userId as string,
         action: 'import_completed',
         entityType: 'package',
-        entityId: 'batch',
+        entityId: batchId,
         details: {
           totalRecords: result.totalRecords,
           successCount: result.successCount,
@@ -94,16 +98,16 @@ export class ImportController {
       const { userId } = req.body;
       
       // Check for file
-      if (!req.files || !req.files.file) {
+      if (!req.files || !req.files.csvFile) {
         return res.status(400).json({
           success: false,
           message: 'No file uploaded'
         });
       }
       
-      const file = Array.isArray(req.files.file) 
-        ? req.files.file[0] 
-        : req.files.file;
+      const file = Array.isArray(req.files.csvFile) 
+        ? req.files.csvFile[0] 
+        : req.files.csvFile;
       
       if (!file.name.toLowerCase().endsWith('.csv')) {
         return res.status(400).json({
@@ -115,13 +119,16 @@ export class ImportController {
       // Read file content
       const csvContent = file.data.toString('utf-8');
       
+      // Generate unique batch ID for this import operation
+      const batchId = randomUUID();
+      
       // Log import start
       await this.auditLogsService.createLog({
         companyId,
         userId: req.userId as string,
         action: 'import_started',
         entityType: 'package',
-        entityId: 'batch',
+        entityId: batchId,
         details: { 
           targetUserId: userId,
           method: 'file_upload',
@@ -143,7 +150,7 @@ export class ImportController {
         userId: req.userId as string,
         action: 'import_completed',
         entityType: 'package',
-        entityId: 'batch',
+        entityId: batchId,
         details: {
           totalRecords: result.totalRecords,
           successCount: result.successCount,
