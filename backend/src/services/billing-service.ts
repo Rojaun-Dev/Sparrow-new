@@ -12,15 +12,31 @@ import { FeesService } from './fees-service';
 import { convertCurrency, getDisplayCurrency } from '../utils/currency-utils';
 import logger from '../utils/logger';
 
+// Custom line item schema
+export const customLineItemSchema = z.object({
+  description: z.string().min(1).max(255),
+  quantity: z.number().min(0),
+  unitPrice: z.number().min(0),
+  packageId: z.string().uuid().optional(), // Optional package association
+});
+
 // Validation schema for generating an invoice
 export const generateInvoiceSchema = z.object({
   userId: z.string().uuid(),
-  packageIds: z.array(z.string().uuid()).min(1),
+  packageIds: z.array(z.string().uuid()).optional().default([]), // Made optional for custom invoices
+  customLineItems: z.array(customLineItemSchema).optional().default([]), // New custom line items
   notes: z.string().optional(),
   dueDate: z.coerce.date().optional(),
   additionalCharge: z.number().optional(),
   additionalChargeCurrency: z.enum(['USD', 'JMD']).optional(),
   sendNotification: z.boolean().optional(),
+  generateFees: z.boolean().optional().default(true), // Whether to generate predefined fees
+  isDraft: z.boolean().optional().default(false), // Whether to create as draft
+}).refine((data) => {
+  // At least one of packageIds, customLineItems, or additionalCharge must be provided
+  return data.packageIds.length > 0 || data.customLineItems.length > 0 || (data.additionalCharge && data.additionalCharge > 0);
+}, {
+  message: "At least one package, custom line item, or additional charge must be provided"
 });
 
 export class BillingService {
