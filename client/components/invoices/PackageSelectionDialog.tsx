@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ interface PackageSelectionDialogProps {
   customerId: string | null;
   companyId?: string;
   onPackagesSelected: (packages: any[]) => void;
+  preSelectedPackageIds?: string[];
 }
 
 export function PackageSelectionDialog({
@@ -22,7 +23,8 @@ export function PackageSelectionDialog({
   onOpenChange,
   customerId,
   companyId,
-  onPackagesSelected
+  onPackagesSelected,
+  preSelectedPackageIds = []
 }: PackageSelectionDialogProps) {
   const [selectedPackageIds, setSelectedPackageIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,6 +34,17 @@ export function PackageSelectionDialog({
     companyId
   );
 
+  // Initialize with preselected packages when modal opens, clear when closes
+  useEffect(() => {
+    if (open) {
+      // When modal opens, always set to preselected packages (or empty if none)
+      setSelectedPackageIds(preSelectedPackageIds);
+    } else {
+      // When modal closes, clear selections (except when handleConfirm already cleared them)
+      setSelectedPackageIds([]);
+    }
+  }, [open, preSelectedPackageIds]);
+
   // Filter packages based on search term
   const filteredPackages = unbilledPackages.filter(pkg =>
     pkg.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -39,11 +52,14 @@ export function PackageSelectionDialog({
   );
 
   const handlePackageToggle = (packageId: string) => {
-    setSelectedPackageIds(prev =>
-      prev.includes(packageId)
+    console.log('Toggling package:', packageId);
+    setSelectedPackageIds(prev => {
+      const newIds = prev.includes(packageId)
         ? prev.filter(id => id !== packageId)
-        : [...prev, packageId]
-    );
+        : [...prev, packageId];
+      console.log('New selectedPackageIds:', newIds);
+      return newIds;
+    });
   };
 
   const handleSelectAll = () => {
@@ -55,12 +71,19 @@ export function PackageSelectionDialog({
   };
 
   const handleConfirm = () => {
-    const selectedPackages = filteredPackages.filter(pkg =>
+    console.log('handleConfirm called');
+    console.log('selectedPackageIds:', selectedPackageIds);
+    console.log('unbilledPackages:', unbilledPackages);
+    
+    const selectedPackages = unbilledPackages.filter(pkg =>
       selectedPackageIds.includes(pkg.id)
     );
+    
+    console.log('selectedPackages:', selectedPackages);
+    
     onPackagesSelected(selectedPackages);
     setSelectedPackageIds([]);
-    onOpenChange(false);
+    // Let the parent handle closing the dialog to prevent state conflicts
   };
 
   const handleCancel = () => {
@@ -163,7 +186,12 @@ export function PackageSelectionDialog({
             Cancel
           </Button>
           <Button 
-            onClick={handleConfirm}
+            onClick={() => {
+              console.log('Button clicked!');
+              console.log('Button disabled?', selectedPackageIds.length === 0);
+              console.log('selectedPackageIds length:', selectedPackageIds.length);
+              handleConfirm();
+            }}
             disabled={selectedPackageIds.length === 0}
           >
             Add {selectedPackageIds.length} Package{selectedPackageIds.length === 1 ? '' : 's'}

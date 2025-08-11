@@ -88,28 +88,37 @@ export function InvoiceCreator({
   ]);
 
   // Package selection state
-  const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedPackages, setSelectedPackages] = useState<any[]>([]);
   const [generatingFees, setGeneratingFees] = useState(false);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   
-  // Track which packages have had fees generated to prevent duplicates
-  const [packagesWithFees, setPackagesWithFees] = useState<Set<string>>(new Set());
+  // Track which packages have fees generated (computed from line items for consistency)
+  const packagesWithFees = useMemo(() => {
+    return new Set(
+      lineItems
+        .filter(item => item.packageId && ['fee', 'shipping', 'handling', 'customs', 'duty', 'tax'].includes(item.type))
+        .map(item => item.packageId!)
+    );
+  }, [lineItems]);
   
-  // Fee calculation dialog state
-  const [feeDialogOpen, setFeeDialogOpen] = useState(false);
-  const [pendingPackages, setPendingPackages] = useState<any[]>([]);
+  // Single dialog state manager to prevent conflicts
+  const [activeDialog, setActiveDialog] = useState<'package' | 'fee' | 'currency' | null>(null);
   
-  // Currency mismatch dialog state
-  const [currencyMismatchDialog, setCurrencyMismatchDialog] = useState<{
-    isOpen: boolean;
+  // Dialog state computed from single source
+  const packageDialogOpen = activeDialog === 'package';
+  const feeDialogOpen = activeDialog === 'fee';
+  const currencyMismatchDialogOpen = activeDialog === 'currency';
+  
+  // Dialog state for currency mismatch
+  const [currencyMismatchData, setCurrencyMismatchData] = useState<{
     feeCurrency: SupportedCurrency;
     pendingFees: LineItem[];
   }>({
-    isOpen: false,
     feeCurrency: 'USD',
     pendingFees: []
   });
+  
+  const [pendingPackages, setPendingPackages] = useState<any[]>([]);
   
   // Track if there are any actual tax line items
   const hasTaxItems = useMemo(() => {
@@ -152,8 +161,6 @@ export function InvoiceCreator({
   useEffect(() => {
     if (!invoiceData.customerId) {
       setSelectedCustomer(null);
-      // Reset package fee tracking when customer is cleared
-      setPackagesWithFees(new Set());
     }
   }, [invoiceData.customerId]);
 
@@ -195,14 +202,21 @@ export function InvoiceCreator({
   };
 
   const addPackagesAsLineItems = (packages: any[]) => {
+    console.log('addPackagesAsLineItems called with:', packages);
     setPendingPackages(packages);
-    setFeeDialogOpen(true);
+    // Close package dialog first, then open fee dialog
+    setActiveDialog(null);
+    // Use setTimeout to ensure the state updates are processed before opening the fee dialog
+    setTimeout(() => {
+      setActiveDialog('fee');
+    }, 0);
   };
   
   const handleCalculateFees = async () => {
     setSelectedPackages(pendingPackages);
     await generateFeesForPackages(pendingPackages);
     setPendingPackages([]);
+    setActiveDialog(null);
   };
   
   const handleSkipFees = () => {
@@ -219,6 +233,7 @@ export function InvoiceCreator({
     
     setLineItems(prev => [...prev, ...packageItems]);
     setPendingPackages([]);
+    setActiveDialog(null);
   };
 
   const generateFeesForPackages = async (packages?: any[]) => {
@@ -301,23 +316,16 @@ export function InvoiceCreator({
         // Check for currency mismatch before adding fees
         if (hasCurrencyMismatch && detectedFeeCurrency) {
           // Show currency mismatch dialog
-          setCurrencyMismatchDialog({
-            isOpen: true,
+          setCurrencyMismatchData({
             feeCurrency: detectedFeeCurrency,
             pendingFees: feeItems
           });
+          setActiveDialog('currency');
         } else {
           // No mismatch, add fees directly
           setLineItems(prev => [...prev, ...feeItems]);
           
-          // Track that these packages now have fees
           const packageIdsWithNewFees = Array.from(new Set(feeItems.map(item => item.packageId).filter(Boolean)));
-          setPackagesWithFees(prev => {
-            const newSet = new Set(prev);
-            packageIdsWithNewFees.forEach(id => newSet.add(id));
-            return newSet;
-          });
-          
           toast({
             title: 'Fees Generated',
             description: `Generated ${feeItems.length} fee line items from ${packageIdsWithNewFees.length} packages`,
@@ -353,7 +361,7 @@ export function InvoiceCreator({
 
   // Currency mismatch dialog handlers
   const handleChangeInvoiceCurrency = () => {
-    const { feeCurrency, pendingFees } = currencyMismatchDialog;
+    const { feeCurrency, pendingFees } = currencyMismatchData;
     
     // Update invoice currency to match fees
     updateInvoiceData('currency', feeCurrency);
@@ -362,16 +370,8 @@ export function InvoiceCreator({
     // Add the fees with their original currency (now matching invoice)
     setLineItems(prev => [...prev, ...pendingFees]);
     
-    // Track that these packages now have fees
-    const packageIdsWithNewFees = Array.from(new Set(pendingFees.map(item => item.packageId).filter(Boolean)));
-    setPackagesWithFees(prev => {
-      const newSet = new Set(prev);
-      packageIdsWithNewFees.forEach(id => newSet.add(id));
-      return newSet;
-    });
-    
     // Close dialog and show success message
-    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    setActiveDialog(null);
     toast({
       title: 'Invoice Currency Updated',
       description: `Invoice currency changed to ${feeCurrency === 'USD' ? 'US Dollar' : 'Jamaican Dollar'} and ${pendingFees.length} fees added.`,
@@ -379,7 +379,7 @@ export function InvoiceCreator({
   };
 
   const handleConvertFees = () => {
-    const { pendingFees } = currencyMismatchDialog;
+    const { pendingFees } = currencyMismatchData;
     
     // Convert all fees to invoice currency
     const convertedFees = pendingFees.map(fee => ({
@@ -391,16 +391,8 @@ export function InvoiceCreator({
     // Add the converted fees
     setLineItems(prev => [...prev, ...convertedFees]);
     
-    // Track that these packages now have fees
-    const packageIdsWithNewFees = Array.from(new Set(convertedFees.map(item => item.packageId).filter(Boolean)));
-    setPackagesWithFees(prev => {
-      const newSet = new Set(prev);
-      packageIdsWithNewFees.forEach(id => newSet.add(id));
-      return newSet;
-    });
-    
     // Close dialog and show success message
-    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    setActiveDialog(null);
     toast({
       title: 'Fees Converted',
       description: `${convertedFees.length} fees converted to ${invoiceData.currency === 'USD' ? 'US Dollar' : 'Jamaican Dollar'} and added.`,
@@ -408,7 +400,7 @@ export function InvoiceCreator({
   };
 
   const handleCloseCurrencyDialog = () => {
-    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    setActiveDialog(null);
   };
 
   // Helper function to get currency symbol
@@ -647,7 +639,19 @@ export function InvoiceCreator({
                 </div>
                 <div className="text-right mt-2">
                   <button 
-                    onClick={() => updateInvoiceData('customerId', null)}
+                    onClick={() => {
+                      updateInvoiceData('customerId', null);
+                      // Reset packages and line items when changing customer
+                      setSelectedPackages([]);
+                      setLineItems([{
+                        id: '1',
+                        description: '',
+                        quantity: 1,
+                        unitPrice: 0,
+                        currency: selectedCurrency,
+                        type: 'custom'
+                      }]);
+                    }}
                     className="text-xs text-blue-600 hover:underline"
                   >
                     Change Customer
@@ -666,7 +670,7 @@ export function InvoiceCreator({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPackageDialogOpen(true)}
+                    onClick={() => setActiveDialog('package')}
                     className="text-xs"
                   >
                     <Package className="h-3 w-3 mr-1" />
@@ -706,12 +710,6 @@ export function InvoiceCreator({
                         onClick={() => {
                           setSelectedPackages(prev => prev.filter(p => p.id !== pkg.id));
                           setLineItems(prev => prev.filter(item => item.packageId !== pkg.id));
-                          // Remove from packages with fees tracking
-                          setPackagesWithFees(prev => {
-                            const newSet = new Set(prev);
-                            newSet.delete(pkg.id);
-                            return newSet;
-                          });
                         }}
                         className="text-red-600 hover:underline ml-2"
                       >
@@ -866,16 +864,21 @@ export function InvoiceCreator({
         {/* Package Selection Dialog */}
         <PackageSelectionDialog
           open={packageDialogOpen}
-          onOpenChange={setPackageDialogOpen}
+          onOpenChange={(open) => {
+            if (!open && activeDialog === 'package') {
+              setActiveDialog(null);
+            }
+          }}
           customerId={invoiceData.customerId}
           companyId={company?.id}
           onPackagesSelected={addPackagesAsLineItems}
+          preSelectedPackageIds={selectedPackages.map(pkg => pkg.id)}
         />
 
         {/* Fee Calculation Dialog */}
         <FeeCalculationDialog
           open={feeDialogOpen}
-          onOpenChange={setFeeDialogOpen}
+          onOpenChange={(open) => setActiveDialog(open ? 'fee' : null)}
           onCalculateFees={handleCalculateFees}
           onSkipFees={handleSkipFees}
           packageCount={pendingPackages.length}
@@ -883,13 +886,13 @@ export function InvoiceCreator({
 
         {/* Currency Mismatch Dialog */}
         <CurrencyMismatchDialog
-          isOpen={currencyMismatchDialog.isOpen}
+          isOpen={currencyMismatchDialogOpen}
           onClose={handleCloseCurrencyDialog}
           invoiceCurrency={invoiceData.currency}
-          feeCurrency={currencyMismatchDialog.feeCurrency}
+          feeCurrency={currencyMismatchData.feeCurrency}
           onChangeInvoiceCurrency={handleChangeInvoiceCurrency}
           onConvertFees={handleConvertFees}
-          affectedFeesCount={currencyMismatchDialog.pendingFees.length}
+          affectedFeesCount={currencyMismatchData.pendingFees.length}
         />
       </div>
     </div>
