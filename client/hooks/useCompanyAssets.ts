@@ -120,7 +120,7 @@ export function useCompanyAssets() {
   };
 }
 
-// Helper hook specifically for getting company logo for invoices
+// Helper hook specifically for getting company logo/banner for invoices
 export function useCompanyLogo(companyId?: string) {
   const { data: assets = [], isLoading, error } = useQuery({
     queryKey: ['company-assets', companyId],
@@ -132,18 +132,33 @@ export function useCompanyLogo(companyId?: string) {
   });
 
   const logoAsset = assets.find(asset => asset.type === 'logo');
+  const bannerAsset = assets.find(asset => asset.type === 'banner');
   
-  // Convert base64 to data URL if available
-  let logoUrl = null;
-  if (logoAsset?.imageData) {
+  // Helper function to convert base64 to data URL
+  const convertToDataUrl = (imageData: string) => {
     // Remove data URL prefix if it exists, then add our own
-    const base64Data = logoAsset.imageData.replace(/^data:image\/[a-z]+;base64,/, '');
-    logoUrl = `data:image/png;base64,${base64Data}`;
+    const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+    return `data:image/png;base64,${base64Data}`;
+  };
+  
+  // Use logo if available, otherwise fallback to banner
+  let logoUrl = null;
+  let usedAsset = null;
+  
+  if (logoAsset?.imageData) {
+    logoUrl = convertToDataUrl(logoAsset.imageData);
+    usedAsset = logoAsset;
+  } else if (bannerAsset?.imageData) {
+    logoUrl = convertToDataUrl(bannerAsset.imageData);
+    usedAsset = bannerAsset;
   }
   
   return {
     logoUrl,
     logoAsset,
+    bannerAsset,
+    usedAsset,
+    isUsingBanner: usedAsset?.type === 'banner',
     isLoading,
     error
   };

@@ -28,6 +28,11 @@ const styles = StyleSheet.create({
     height: 60,
     objectFit: 'contain',
   },
+  banner: {
+    width: 200,
+    height: 60,
+    objectFit: 'contain',
+  },
   companyInfo: {
     flexDirection: 'column',
     alignItems: 'flex-end',
@@ -237,6 +242,7 @@ interface InvoicePDFProps {
   user: any;
   company: any;
   companyLogo?: string | null; // Base64 or data URL
+  isUsingBanner?: boolean; // Whether the logo is actually a banner
   currency?: SupportedCurrency;
   exchangeRateSettings?: ExchangeRateSettings;
 }
@@ -247,6 +253,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
   user, 
   company,
   companyLogo,
+  isUsingBanner = false,
   currency = 'USD',
   exchangeRateSettings
 }) => {
@@ -303,7 +310,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
         <View style={styles.header}>
           <View>
             {companyLogo ? (
-              <Image src={companyLogo} style={styles.logo} />
+              <Image src={companyLogo} style={isUsingBanner ? styles.banner : styles.logo} />
             ) : (
               <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
             )}
