@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Plus, Trash2, Package, Calculator, User } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CalendarIcon, Plus, Trash2, Package, Calculator, User, AlertTriangle } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -23,6 +26,8 @@ import { FeeCalculationDialog } from './FeeCalculationDialog';
 import { CurrencyMismatchDialog } from './CurrencyMismatchDialog';
 import { invoiceService } from '@/lib/api/invoiceService';
 import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/hooks/useUsers';
+import { usePackage } from '@/hooks/usePackages';
 
 interface LineItem {
   id: string;
@@ -59,11 +64,20 @@ export function InvoiceCreator({
   onGenerate
 }: InvoiceCreatorProps) {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  
+  // Get URL parameters for pre-selection
+  const preSelectedCustomerId = searchParams?.get('customerId');
+  const preSelectedPackageId = searchParams?.get('packageId');
   
   // Company and user data
   const { data: company } = useMyAdminCompany();
   const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
   const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
+  
+  // Fetch pre-selected customer and package data
+  const { data: preSelectedCustomer } = useUser(preSelectedCustomerId || undefined);
+  const { data: preSelectedPackage } = usePackage(preSelectedPackageId || undefined);
 
   // Invoice state
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
@@ -514,11 +528,70 @@ export function InvoiceCreator({
     }
   }, [selectedCurrency, invoiceData.currency]);
 
+  // Handle URL parameter pre-selection
+  useEffect(() => {
+    // Pre-select customer if provided in URL
+    if (preSelectedCustomerId && preSelectedCustomer && !invoiceData.customerId) {
+      setInvoiceData(prev => ({ ...prev, customerId: preSelectedCustomerId }));
+      setSelectedCustomer(preSelectedCustomer);
+    }
+  }, [preSelectedCustomerId, preSelectedCustomer, invoiceData.customerId]);
+
+  // Handle pre-selected package
+  useEffect(() => {
+    if (preSelectedPackageId && preSelectedPackage && !selectedPackages.some(pkg => pkg.id === preSelectedPackageId)) {
+      // Add the pre-selected package to the selected packages
+      setSelectedPackages([preSelectedPackage]);
+    }
+  }, [preSelectedPackageId, preSelectedPackage, selectedPackages]);
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-4xl mx-auto">
-        {/* PDF-Like Invoice Form */}
-        <Card className="bg-white shadow-lg" style={{ width: '8.5in', minHeight: '11in', margin: '0 auto', padding: '30px' }}>
+      <div className="mx-auto">
+        {/* Beta Warning Alert */}
+        <Alert className="mb-6 border-amber-200 bg-amber-50">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            <strong>Beta Feature:</strong> This invoice creator is currently in beta and may have some bugs. Please review all generated invoices carefully before finalizing.
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex gap-6">
+          {/* Main Invoice Form - Fixed Paper Width */}
+          <div className="flex-shrink-0 relative">
+            {/* Paper Stack Effect - Bottom layers */}
+            <div 
+              className="absolute bg-gray-100 border border-gray-300" 
+              style={{ 
+                width: '11in', 
+                minHeight: '14in', 
+                top: '6px', 
+                left: '6px',
+                zIndex: 1 
+              }}
+            />
+            <div 
+              className="absolute bg-gray-50 border border-gray-300" 
+              style={{ 
+                width: '11in', 
+                minHeight: '14in', 
+                top: '3px', 
+                left: '3px',
+                zIndex: 2 
+              }}
+            />
+            {/* Main Paper */}
+            <Card 
+              className="bg-white border border-gray-300 relative" 
+              style={{ 
+                width: '11in', 
+                minHeight: '14in', 
+                padding: '40px',
+                zIndex: 3,
+                borderRadius: '0px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+              }}
+            >
           
           {/* Header with Logo and Company Info - Exact PDF Layout */}
           <div className="flex justify-between mb-5" style={{ marginBottom: '20px' }}>
@@ -552,13 +625,6 @@ export function InvoiceCreator({
           <div style={{ marginBottom: '20px' }}>
             <div className="flex justify-between items-center mb-2">
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600">Currency:</span>
-                <CurrencySelector 
-                  value={invoiceData.currency} 
-                  onValueChange={(currency) => updateInvoiceData('currency', currency)}
-                />
-              </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px' }}>
               <div>Invoice #: 
@@ -676,20 +742,6 @@ export function InvoiceCreator({
                     <Package className="h-3 w-3 mr-1" />
                     Add Packages
                   </Button>
-                  {selectedPackages.length > 0 && invoiceData.customerId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateFeesForPackages()}
-                      disabled={generatingFees || getPackagesAvailableForFees.length === 0}
-                      className="text-xs"
-                    >
-                      <Calculator className="h-3 w-3 mr-1" />
-                      {generatingFees ? 'Generating...' : 
-                        getPackagesAvailableForFees.length === 0 ? 'All Fees Generated' :
-                        `Get Fees (${getPackagesAvailableForFees.length})`}
-                    </Button>
-                  )}
                 </div>
               </div>
               {selectedPackages.length > 0 ? (
@@ -843,23 +895,80 @@ export function InvoiceCreator({
             />
           </div>
 
-          {/* Actions - Fixed at bottom */}
-          <div className="mt-8 pt-4 border-t border-gray-300 flex justify-center gap-4">
-            <Button
-              onClick={() => handleGenerate(false)}
-              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim()) || generatingInvoice}
-            >
-              {generatingInvoice ? 'Generating...' : 'Generate Invoice'}
-            </Button>
-            <Button
-              onClick={handlePreview}
-              variant="outline"
-              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
-            >
-              Preview
-            </Button>
+            </Card>
           </div>
-        </Card>
+
+          {/* Right Panel - Actions and Controls - Flexible Width */}
+          <div className="flex-1 min-w-80">
+            <div className="sticky top-6">
+              {/* Unified Control Panel */}
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold mb-6">Invoice Controls</h2>
+                
+                {/* Currency Selector Section */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium mb-3 text-gray-700">Currency</h3>
+                  <CurrencySelector 
+                    value={invoiceData.currency} 
+                    onValueChange={(currency) => updateInvoiceData('currency', currency)}
+                  />
+                </div>
+
+                {/* Package Actions Section */}
+                {selectedCustomer && selectedPackages.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium mb-3 text-gray-700">Package Actions</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateFeesForPackages()}
+                      disabled={generatingFees || getPackagesAvailableForFees.length === 0}
+                      className="w-full"
+                    >
+                      <Calculator className="h-4 w-4 mr-2" />
+                      {generatingFees ? 'Generating...' : 
+                        getPackagesAvailableForFees.length === 0 ? 'All Fees Generated' :
+                        `Generate Fees (${getPackagesAvailableForFees.length})`}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Invoice Summary Section */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium mb-3 text-gray-700">Summary</h3>
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</span>
+                    </div>
+                    {(hasTaxItems || calculations.taxAmount > 0) && (
+                      <div className="flex justify-between">
+                        <span>Tax:</span>
+                        <span className="font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-base font-semibold border-t border-gray-200 pt-2">
+                      <span>Total:</span>
+                      <span>{convertAndFormat(calculations.total, invoiceData.currency)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action Section */}
+                <div>
+                  <Button
+                    onClick={() => handleGenerate(false)}
+                    disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim()) || generatingInvoice}
+                    className="w-full h-12 text-base font-medium"
+                    size="lg"
+                  >
+                    {generatingInvoice ? 'Creating...' : 'Create Invoice'}
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </div>
 
         {/* Package Selection Dialog */}
         <PackageSelectionDialog

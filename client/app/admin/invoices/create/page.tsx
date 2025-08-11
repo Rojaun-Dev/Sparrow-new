@@ -74,11 +74,20 @@ export default function CreateInvoicePage() {
   };
 
   return (
-    <InvoiceCreator
-      mode="create"
-      onSave={handleSave}
-      onPreview={handlePreview}
-      onGenerate={handleGenerate}
-    />
+    <div className="flex flex-col">
+      <div className='p-6'>
+        <h1 className="text-3xl font-bold tracking-tight">Create Invoice</h1>
+        <p className="text-muted-foreground">
+          Create a new invoice for your customers with detailed package information and fees.
+        </p>
+      </div>
+
+      <InvoiceCreator
+        mode="create"
+        onSave={handleSave}
+        onPreview={handlePreview}
+        onGenerate={handleGenerate}
+      />
+    </div>
   );
 } 
