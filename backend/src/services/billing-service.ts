@@ -33,6 +33,7 @@ export const generateInvoiceSchema = z.object({
   sendNotification: z.boolean().optional(),
   generateFees: z.boolean().optional().default(true), // Whether to generate predefined fees
   isDraft: z.boolean().optional().default(false), // Whether to create as draft
+  preferredCurrency: z.enum(['USD', 'JMD']).optional(), // Currency preference for fees
 }).refine((data) => {
   // At least one of packageIds, customLineItems, or additionalCharge must be provided
   return data.packageIds.length > 0 || data.customLineItems.length > 0 || (data.additionalCharge && data.additionalCharge > 0);
@@ -196,7 +197,7 @@ export class BillingService {
   /**
    * Calculate total fees for a package
    */
-  async calculatePackageFees(packageId: string, companyId: string, fixedFeesApplied: Set<string> = new Set()) {
+  async calculatePackageFees(packageId: string, companyId: string, fixedFeesApplied: Set<string> = new Set(), preferredCurrency?: string) {
     // Get package details
     const packageData = await this.packagesRepository.findById(packageId, companyId);
     if (!packageData) {
@@ -223,7 +224,7 @@ export class BillingService {
       ? settings.exchangeRateSettings as any
       : defaultExchangeRateSettings;
     
-    const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+    const displayCurrency = preferredCurrency || getDisplayCurrency(exchangeRateSettings);
     
     // Initialize fee totals
     const result: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
@@ -278,6 +279,7 @@ export class BillingService {
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
+          currency: displayCurrency,
           type: itemType as any,
         });
       }
@@ -316,6 +318,7 @@ export class BillingService {
         quantity: 1,
         unitPrice: convertedAmount,
         lineTotal: convertedAmount,
+        currency: displayCurrency,
         type: 'duty' as any,
       });
     }
@@ -363,6 +366,7 @@ export class BillingService {
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
+          currency: displayCurrency,
           type: fee.feeType,
         });
       }
@@ -511,7 +515,7 @@ export class BillingService {
       const fixedFeesApplied = new Set<string>();
       if (validatedData.generateFees && validatedData.packageIds.length > 0) {
         for (const packageId of validatedData.packageIds) {
-          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
+          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
           // Aggregate fee breakdown
           feeBreakdown.shipping += Number(packageFees.shipping) || 0;
           feeBreakdown.handling += Number(packageFees.handling) || 0;
@@ -701,6 +705,27 @@ export class BillingService {
         throw new AppError('One or more packages do not belong to this user', 403);
       }
       
+      // Get company settings for currency conversion
+      const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+      if (!settings) {
+        throw new AppError('Company settings not found', 400);
+      }
+      
+      // Get exchange rate settings for currency conversion
+      const defaultExchangeRateSettings = {
+        baseCurrency: 'USD' as 'USD',
+        targetCurrency: 'JMD' as 'JMD',
+        exchangeRate: 1,
+        autoUpdate: false,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      const exchangeRateSettings = (settings.exchangeRateSettings && 
+        typeof settings.exchangeRateSettings === 'object' &&
+        'baseCurrency' in settings.exchangeRateSettings)
+        ? settings.exchangeRateSettings as any
+        : defaultExchangeRateSettings;
+      
       // Initialize totals
       let subtotal = 0;
       let taxAmount = 0;
@@ -718,7 +743,7 @@ export class BillingService {
       const fixedFeesApplied = new Set<string>();
       if (validatedData.generateFees && validatedData.packageIds.length > 0) {
         for (const packageId of validatedData.packageIds) {
-          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
+          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
           // Aggregate fee breakdown (parse as numbers)
           feeBreakdown.shipping += Number(packageFees.shipping) || 0;
           feeBreakdown.handling += Number(packageFees.handling) || 0;
@@ -743,6 +768,7 @@ export class BillingService {
             quantity: customItem.quantity,
             unitPrice: customItem.unitPrice,
             lineTotal: lineTotal,
+            currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
             type: 'other',
           });
           subtotal += lineTotal;
@@ -752,26 +778,6 @@ export class BillingService {
       
       // Add additional charge to preview if provided
       if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
-        // Get company settings for currency conversion
-        const settings = await this.companySettingsRepository.findByCompanyId(companyId);
-        if (!settings) {
-          throw new AppError('Company settings not found', 400);
-        }
-        
-        // Get exchange rate settings for currency conversion
-        const defaultExchangeRateSettings = {
-          baseCurrency: 'USD' as 'USD',
-          targetCurrency: 'JMD' as 'JMD',
-          exchangeRate: 1,
-          autoUpdate: false,
-          lastUpdated: new Date().toISOString()
-        };
-        
-        const exchangeRateSettings = (settings.exchangeRateSettings && 
-          typeof settings.exchangeRateSettings === 'object' &&
-          'baseCurrency' in settings.exchangeRateSettings)
-          ? settings.exchangeRateSettings as any
-          : defaultExchangeRateSettings;
         
         const displayCurrency = getDisplayCurrency(exchangeRateSettings);
         
@@ -804,6 +810,7 @@ export class BillingService {
           quantity: 1,
           unitPrice: convertedAmount,
           lineTotal: convertedAmount,
+          currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
           type: 'other',
         });
       }
