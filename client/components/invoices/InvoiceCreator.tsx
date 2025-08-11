@@ -23,6 +23,7 @@ interface LineItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  currency?: SupportedCurrency;
   packageId?: string;
   type: 'custom' | 'package' | 'fee';
 }
@@ -125,8 +126,10 @@ export function InvoiceCreator({
   };
 
   const handlePreview = () => {
+    if (!invoiceData.customerId) return;
+    
     const previewData = {
-      ...invoiceData,
+      userId: invoiceData.customerId,
       customLineItems: lineItems.map(item => ({
         description: item.description,
         quantity: item.quantity,
@@ -135,7 +138,9 @@ export function InvoiceCreator({
       })),
       packageIds: [],
       generateFees: false,
-      isDraft: true
+      isDraft: true,
+      notes: invoiceData.notes,
+      dueDate: invoiceData.dueDate
     };
     onPreview?.(previewData);
   };
