@@ -256,3 +256,30 @@ export function useDebouncedSearch<T>(
 
   return { debouncedSearch, isSearching, result };
 }
+
+/**
+ * Simple debounced value hook
+ * Returns a debounced version of the input value
+ */
+export function useDebouncedValue(value: string, delay: number = 300): string {
+  const [debouncedValue, setDebouncedValue] = React.useState(value);
+  const timeoutRef = React.useRef<NodeJS.Timeout>();
+
+  React.useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}

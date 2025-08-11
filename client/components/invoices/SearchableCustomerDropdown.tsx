@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/popover';
 import { Check, ChevronsUpDown, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCustomerSearch, formatCustomerDisplay, type SearchableCustomer } from '@/lib/utils/customerSearch';
+import { useCompanyUsers } from '@/hooks/useCompanyUsers';
+import { formatCustomerDisplay, type SearchableCustomer, useDebouncedValue } from '@/lib/utils/customerSearch';
 
 interface Customer extends SearchableCustomer {
   firstName: string;
@@ -26,17 +27,19 @@ interface Customer extends SearchableCustomer {
 }
 
 interface SearchableCustomerDropdownProps {
-  customers: Customer[];
+  companyId?: string;
   value?: string;
   onValueChange: (value: string) => void;
+  onCustomerSelect?: (customer: Customer | null) => void;
   placeholder?: string;
   disabled?: boolean;
 }
 
 export function SearchableCustomerDropdown({
-  customers,
+  companyId,
   value,
   onValueChange,
+  onCustomerSelect,
   placeholder = "Select customer",
   disabled = false
 }: SearchableCustomerDropdownProps) {
@@ -44,26 +47,26 @@ export function SearchableCustomerDropdown({
   const [searchValue, setSearchValue] = useState("");
   const [internalSearchValue, setInternalSearchValue] = useState("");
 
-  // Use the customer search utility
-  const filteredCustomers = useCustomerSearch(customers, searchValue);
+  // Debounced search value for API calls
+  const debouncedSearchValue = useDebouncedValue(searchValue, 300);
+
+  // Use server-side search with useCompanyUsers
+  const { data: usersData, isLoading } = useCompanyUsers(companyId || '', { 
+    role: 'customer',
+    search: debouncedSearchValue || undefined,
+    limit: 50 // Reasonable limit for dropdown
+  });
+
+  const customers = usersData?.data || [];
 
   // Find the selected customer
   const selectedCustomer = customers.find(customer => customer.id === value);
 
-  // Debounced search to improve performance
-  const debouncedSearch = useCallback((query: string) => {
-    const timer = setTimeout(() => {
-      setSearchValue(query);
-    }, 150);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Handle search input changes
+  // Handle search input changes with direct state updates
   const handleSearchChange = useCallback((query: string) => {
     setInternalSearchValue(query);
-    debouncedSearch(query);
-  }, [debouncedSearch]);
+    setSearchValue(query); // This will trigger the debounced API call
+  }, []);
 
   // Reset search when dropdown opens/closes
   useEffect(() => {
@@ -72,11 +75,6 @@ export function SearchableCustomerDropdown({
       setInternalSearchValue("");
     }
   }, [open]);
-
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return debouncedSearch("");
-  }, [debouncedSearch]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -109,13 +107,17 @@ export function SearchableCustomerDropdown({
             onValueChange={handleSearchChange}
           />
           <CommandList>
-            <CommandEmpty>No customers found.</CommandEmpty>
+            <CommandEmpty>
+              {isLoading ? 'Searching...' : 'No customers found.'}
+            </CommandEmpty>
             <CommandGroup>
-              {filteredCustomers.map((customer) => (
+              {customers.map((customer) => (
                 <CommandItem
                   key={customer.id}
                   onSelect={() => {
-                    onValueChange(customer.id === value ? "" : customer.id);
+                    const newValue = customer.id === value ? "" : customer.id;
+                    onValueChange(newValue);
+                    onCustomerSelect?.(newValue ? customer : null);
                     setOpen(false);
                     setSearchValue("");
                     setInternalSearchValue("");
