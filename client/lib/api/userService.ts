@@ -20,12 +20,17 @@ export interface UserData {
   email: string;
   phone?: string;
   address?: string;
+  trn?: string; // Tax Registration Number
+  prefId?: string; // Company prefix combined with internal ID
+  internalId?: string; // Internal 4-digit ID
   role: string;
   isActive: boolean;
+  isVerified?: boolean;
   createdAt: string;
   updatedAt: string;
   companyId: string;
-  companyName: string;
+  companyName?: string;
+  notificationPreferences?: any; // Notification settings object
 }
 
 export interface PaginatedResponse<T> {
