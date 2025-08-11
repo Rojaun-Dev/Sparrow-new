@@ -616,7 +616,8 @@ export function InvoiceCreator({
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        packageId: item.packageId
+        packageId: item.packageId,
+        currency: item.currency || invoiceData.currency
       })),
       packageIds: selectedPackages.map(pkg => pkg.id),
       generateFees: false,
@@ -655,7 +656,8 @@ export function InvoiceCreator({
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          packageId: item.packageId
+          packageId: item.packageId,
+          currency: item.currency || invoiceData.currency
         })),
       packageIds: selectedPackages.map(pkg => pkg.id),
       notes: invoiceData.notes,
