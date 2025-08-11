@@ -356,7 +356,7 @@ export function InvoiceCreator({
                   value={invoiceData.customerId || ''}
                   onValueChange={(value) => updateInvoiceData('customerId', value)}
                 >
-                  <SelectTrigger className="max-w-xs mx-auto">
+                  <SelectTrigger className="w-full mx-auto">
                     <SelectValue placeholder="Select customer" />
                   </SelectTrigger>
                   <SelectContent>
@@ -565,13 +565,6 @@ export function InvoiceCreator({
 
           {/* Actions - Fixed at bottom */}
           <div className="mt-8 pt-4 border-t border-gray-300 flex justify-center gap-4">
-            <Button
-              onClick={() => handleGenerate(true)}
-              variant="outline"
-              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
-            >
-              Save as Draft
-            </Button>
             <Button
               onClick={() => handleGenerate(false)}
               disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
