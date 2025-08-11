@@ -13,10 +13,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUnbilledPackagesByUser } from '@/hooks/usePackages';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCurrency } from '@/hooks/useCurrency';
 import { SupportedCurrency } from '@/lib/api/types';
+import { CurrencySelector } from '@/components/ui/currency-selector';
 import {
   Select,
   SelectContent,
@@ -123,6 +124,11 @@ export default function CreateInvoicePage() {
   // Notes field
   const [notes, setNotes] = useState('');
 
+  // Additional charge state
+  const [additionalCharge, setAdditionalCharge] = useState('');
+  const [additionalChargeCurrency, setAdditionalChargeCurrency] = useState<SupportedCurrency>('USD');
+  const [sendNotification, setSendNotification] = useState(false);
+
   // On mount, check for customerId in query params and preselect customer
   React.useEffect(() => {
     const customerId = searchParams.get('customerId');
@@ -142,6 +148,8 @@ export default function CreateInvoicePage() {
         {
           userId: selectedCustomer.id,
           packageIds: selectedPackages,
+          additionalCharge: additionalCharge ? Number(additionalCharge) : undefined,
+          additionalChargeCurrency: additionalCharge ? additionalChargeCurrency : undefined,
         },
         {
           onSuccess: (data) => {
@@ -156,7 +164,7 @@ export default function CreateInvoicePage() {
       setInvoicePreview(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCustomer, selectedPackages]);
+  }, [selectedCustomer, selectedPackages, additionalCharge, additionalChargeCurrency]);
 
   // Handler for selecting a customer
   const handleSelectCustomer = (customer: any) => {
@@ -169,8 +177,6 @@ export default function CreateInvoicePage() {
   const totalPages = customersData?.pagination?.totalPages || 1;
 
   const [showConfirm, setShowConfirm] = useState(false);
-  const [additionalCharge, setAdditionalCharge] = useState('');
-  const [sendNotification, setSendNotification] = useState(false);
   const { toast } = useToast();
 
   // Handler for invoice creation
@@ -182,6 +188,7 @@ export default function CreateInvoicePage() {
           userId: selectedCustomer.id,
           packageIds: selectedPackages,
           additionalCharge: additionalCharge ? Number(additionalCharge) : undefined,
+          additionalChargeCurrency: additionalCharge ? additionalChargeCurrency : undefined,
           sendNotification,
           notes: notes || undefined,
         },
@@ -190,6 +197,7 @@ export default function CreateInvoicePage() {
             toast({ title: 'Invoice created', description: 'The invoice was successfully created.' });
             setShowConfirm(false);
             setAdditionalCharge('');
+            setAdditionalChargeCurrency('USD');
             setSendNotification(false);
             setNotes('');
             // Optionally redirect to the invoice detail page
@@ -498,15 +506,23 @@ export default function CreateInvoicePage() {
           <div className="space-y-2 py-1">
             <div>
               <label className="block text-xs font-medium mb-1">Additional Charge (optional)</label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={additionalCharge}
-                onChange={e => setAdditionalCharge(e.target.value)}
-                placeholder="0.00"
-                className="max-w-xs h-8 text-sm"
-              />
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={additionalCharge}
+                  onChange={e => setAdditionalCharge(e.target.value)}
+                  placeholder="0.00"
+                  className="max-w-[120px] h-8 text-sm"
+                />
+                <CurrencySelector
+                  value={additionalChargeCurrency}
+                  onValueChange={setAdditionalChargeCurrency}
+                  size="sm"
+                  className="text-xs"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Notes (optional)</label>
