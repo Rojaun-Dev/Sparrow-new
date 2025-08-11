@@ -663,6 +663,9 @@ export class BillingService {
     return this.generateInvoice({
       userId,
       packageIds: packages.map(pkg => pkg.id),
+      customLineItems: [],
+      generateFees: true,
+      isDraft: false,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
     }, companyId);
   }
