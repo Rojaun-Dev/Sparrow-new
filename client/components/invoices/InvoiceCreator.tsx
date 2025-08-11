@@ -98,23 +98,29 @@ export function InvoiceCreator({
   
   // Track if there are any actual tax line items
   const hasTaxItems = useMemo(() => {
-    return lineItems.some(item => item.type === 'tax' || item.description.toLowerCase().includes('tax'));
+    return lineItems.some(item => item.type === 'tax');
   }, [lineItems]);
 
   // Calculations
   const calculations = useMemo(() => {
     const subtotal = lineItems.reduce((sum, item) => {
-      // Convert to base currency if needed
+      // Convert to invoice currency if needed
       const amount = item.currency && item.currency !== invoiceData.currency
-        ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) // true for numeric return
+        ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number // Return numeric value
         : item.quantity * item.unitPrice;
-      return sum + (typeof amount === 'number' ? amount : item.quantity * item.unitPrice);
+      return sum + amount;
     }, 0);
 
-    // Only calculate automatic tax if there are no manual tax items
-    const taxAmount = hasTaxItems 
-      ? lineItems.filter(item => item.type === 'tax').reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
-      : subtotal * 0.165; // 16.5% GCT for Jamaica
+    // Tax amount is only the sum of tax line items (no hardcoded percentages)
+    const taxAmount = lineItems
+      .filter(item => item.type === 'tax')
+      .reduce((sum, item) => {
+        const amount = item.currency && item.currency !== invoiceData.currency
+          ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number
+          : item.quantity * item.unitPrice;
+        return sum + amount;
+      }, 0);
+    
     const total = subtotal + taxAmount;
 
     return {
@@ -122,7 +128,7 @@ export function InvoiceCreator({
       taxAmount,
       total
     };
-  }, [lineItems, invoiceData.currency, convertAndFormat, hasTaxItems]);
+  }, [lineItems, invoiceData.currency, convertAndFormat]);
 
   // Get selected customer
   const selectedCustomer = usersData?.data?.find(user => user.id === invoiceData.customerId);
