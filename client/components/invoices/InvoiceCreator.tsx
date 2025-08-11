@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { PackageSelectionDialog } from './PackageSelectionDialog';
 import { SearchableCustomerDropdown } from './SearchableCustomerDropdown';
 import { FeeCalculationDialog } from './FeeCalculationDialog';
+import { CurrencyMismatchDialog } from './CurrencyMismatchDialog';
 import { invoiceService } from '@/lib/api/invoiceService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -95,6 +96,17 @@ export function InvoiceCreator({
   // Fee calculation dialog state
   const [feeDialogOpen, setFeeDialogOpen] = useState(false);
   const [pendingPackages, setPendingPackages] = useState<any[]>([]);
+  
+  // Currency mismatch dialog state
+  const [currencyMismatchDialog, setCurrencyMismatchDialog] = useState<{
+    isOpen: boolean;
+    feeCurrency: SupportedCurrency;
+    pendingFees: LineItem[];
+  }>({
+    isOpen: false,
+    feeCurrency: 'USD',
+    pendingFees: []
+  });
   
   // Track if there are any actual tax line items
   const hasTaxItems = useMemo(() => {
@@ -189,6 +201,8 @@ export function InvoiceCreator({
     setGeneratingFees(true);
     try {
       const feeItems: LineItem[] = [];
+      let detectedFeeCurrency: SupportedCurrency | null = null;
+      let hasCurrencyMismatch = false;
       
       for (const pkg of packagesToUse) {
         try {
@@ -197,20 +211,35 @@ export function InvoiceCreator({
             userId: invoiceData.customerId,
             packageIds: [pkg.id],
             generateFees: true,
-            isDraft: true
+            isDraft: true,
+            preferredCurrency: invoiceData.currency
           });
           
           // Convert fee line items to our format
           if (feeData.lineItems && Array.isArray(feeData.lineItems)) {
-            const packageFeeItems: LineItem[] = feeData.lineItems.map((item: any) => ({
-              id: `fee-${pkg.id}-${Date.now()}-${Math.random()}`,
-              description: item.description,
-              quantity: item.quantity || 1,
-              unitPrice: item.unitPrice || item.lineTotal || 0,
-              currency: invoiceData.currency,
-              packageId: pkg.id,
-              type: item.type || 'fee'
-            }));
+            const packageFeeItems: LineItem[] = feeData.lineItems.map((item: any) => {
+              // Preserve the original fee currency from the API response
+              const feeCurrency = item.currency || invoiceData.currency;
+              
+              // Check for currency mismatch
+              if (!detectedFeeCurrency) {
+                detectedFeeCurrency = feeCurrency;
+              }
+              
+              if (feeCurrency !== invoiceData.currency) {
+                hasCurrencyMismatch = true;
+              }
+
+              return {
+                id: `fee-${pkg.id}-${Date.now()}-${Math.random()}`,
+                description: item.description,
+                quantity: item.quantity || 1,
+                unitPrice: item.unitPrice || item.lineTotal || 0,
+                currency: feeCurrency, // Keep original currency
+                packageId: pkg.id,
+                type: item.type || 'fee'
+              };
+            });
             
             feeItems.push(...packageFeeItems);
           }
@@ -220,11 +249,22 @@ export function InvoiceCreator({
       }
       
       if (feeItems.length > 0) {
-        setLineItems(prev => [...prev, ...feeItems]);
-        toast({
-          title: 'Fees Generated',
-          description: `Generated ${feeItems.length} fee line items from selected packages`,
-        });
+        // Check for currency mismatch before adding fees
+        if (hasCurrencyMismatch && detectedFeeCurrency) {
+          // Show currency mismatch dialog
+          setCurrencyMismatchDialog({
+            isOpen: true,
+            feeCurrency: detectedFeeCurrency,
+            pendingFees: feeItems
+          });
+        } else {
+          // No mismatch, add fees directly
+          setLineItems(prev => [...prev, ...feeItems]);
+          toast({
+            title: 'Fees Generated',
+            description: `Generated ${feeItems.length} fee line items from selected packages`,
+          });
+        }
       } else {
         toast({
           title: 'No Fees Found',
@@ -251,6 +291,50 @@ export function InvoiceCreator({
 
   const removeLineItem = (id: string) => {
     setLineItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  // Currency mismatch dialog handlers
+  const handleChangeInvoiceCurrency = () => {
+    const { feeCurrency, pendingFees } = currencyMismatchDialog;
+    
+    // Update invoice currency to match fees
+    updateInvoiceData('currency', feeCurrency);
+    setSelectedCurrency(feeCurrency);
+    
+    // Add the fees with their original currency (now matching invoice)
+    setLineItems(prev => [...prev, ...pendingFees]);
+    
+    // Close dialog and show success message
+    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    toast({
+      title: 'Invoice Currency Updated',
+      description: `Invoice currency changed to ${feeCurrency === 'USD' ? 'US Dollar' : 'Jamaican Dollar'} and ${pendingFees.length} fees added.`,
+    });
+  };
+
+  const handleConvertFees = () => {
+    const { pendingFees } = currencyMismatchDialog;
+    
+    // Convert all fees to invoice currency
+    const convertedFees = pendingFees.map(fee => ({
+      ...fee,
+      unitPrice: convertAndFormat(fee.unitPrice, fee.currency, true) as number,
+      currency: invoiceData.currency
+    }));
+    
+    // Add the converted fees
+    setLineItems(prev => [...prev, ...convertedFees]);
+    
+    // Close dialog and show success message
+    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    toast({
+      title: 'Fees Converted',
+      description: `${convertedFees.length} fees converted to ${invoiceData.currency === 'USD' ? 'US Dollar' : 'Jamaican Dollar'} and added.`,
+    });
+  };
+
+  const handleCloseCurrencyDialog = () => {
+    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
   };
 
   const handlePreview = () => {
@@ -640,6 +724,17 @@ export function InvoiceCreator({
           onCalculateFees={handleCalculateFees}
           onSkipFees={handleSkipFees}
           packageCount={pendingPackages.length}
+        />
+
+        {/* Currency Mismatch Dialog */}
+        <CurrencyMismatchDialog
+          isOpen={currencyMismatchDialog.isOpen}
+          onClose={handleCloseCurrencyDialog}
+          invoiceCurrency={invoiceData.currency}
+          feeCurrency={currencyMismatchDialog.feeCurrency}
+          onChangeInvoiceCurrency={handleChangeInvoiceCurrency}
+          onConvertFees={handleConvertFees}
+          affectedFeesCount={currencyMismatchDialog.pendingFees.length}
         />
       </div>
     </div>
