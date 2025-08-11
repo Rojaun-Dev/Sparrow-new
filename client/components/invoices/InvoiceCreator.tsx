@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,9 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { SupportedCurrency } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import { PackageSelectionDialog } from './PackageSelectionDialog';
+import { SearchableCustomerDropdown } from './SearchableCustomerDropdown';
+import { FeeCalculationDialog } from './FeeCalculationDialog';
+import { CurrencyMismatchDialog } from './CurrencyMismatchDialog';
 import { invoiceService } from '@/lib/api/invoiceService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -59,8 +62,7 @@ export function InvoiceCreator({
   
   // Company and user data
   const { data: company } = useMyAdminCompany();
-  const { data: usersData } = useCompanyUsers(company?.id, { role: 'customer' });
-  const { logoUrl } = useCompanyLogo(company?.id);
+  const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
   const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
 
   // Invoice state
@@ -89,26 +91,51 @@ export function InvoiceCreator({
   const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedPackages, setSelectedPackages] = useState<any[]>([]);
   const [generatingFees, setGeneratingFees] = useState(false);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  
+  // Track which packages have had fees generated to prevent duplicates
+  const [packagesWithFees, setPackagesWithFees] = useState<Set<string>>(new Set());
+  
+  // Fee calculation dialog state
+  const [feeDialogOpen, setFeeDialogOpen] = useState(false);
+  const [pendingPackages, setPendingPackages] = useState<any[]>([]);
+  
+  // Currency mismatch dialog state
+  const [currencyMismatchDialog, setCurrencyMismatchDialog] = useState<{
+    isOpen: boolean;
+    feeCurrency: SupportedCurrency;
+    pendingFees: LineItem[];
+  }>({
+    isOpen: false,
+    feeCurrency: 'USD',
+    pendingFees: []
+  });
   
   // Track if there are any actual tax line items
   const hasTaxItems = useMemo(() => {
-    return lineItems.some(item => item.type === 'tax' || item.description.toLowerCase().includes('tax'));
+    return lineItems.some(item => item.type === 'tax');
   }, [lineItems]);
 
   // Calculations
   const calculations = useMemo(() => {
     const subtotal = lineItems.reduce((sum, item) => {
-      // Convert to base currency if needed
+      // Convert to invoice currency if needed
       const amount = item.currency && item.currency !== invoiceData.currency
-        ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) // true for numeric return
+        ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number // Return numeric value
         : item.quantity * item.unitPrice;
-      return sum + (typeof amount === 'number' ? amount : item.quantity * item.unitPrice);
+      return sum + amount;
     }, 0);
 
-    // Only calculate automatic tax if there are no manual tax items
-    const taxAmount = hasTaxItems 
-      ? lineItems.filter(item => item.type === 'tax').reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
-      : subtotal * 0.165; // 16.5% GCT for Jamaica
+    // Tax amount is only the sum of tax line items (no hardcoded percentages)
+    const taxAmount = lineItems
+      .filter(item => item.type === 'tax')
+      .reduce((sum, item) => {
+        const amount = item.currency && item.currency !== invoiceData.currency
+          ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number
+          : item.quantity * item.unitPrice;
+        return sum + amount;
+      }, 0);
+    
     const total = subtotal + taxAmount;
 
     return {
@@ -116,14 +143,43 @@ export function InvoiceCreator({
       taxAmount,
       total
     };
-  }, [lineItems, invoiceData.currency, convertAndFormat, hasTaxItems]);
+  }, [lineItems, invoiceData.currency, convertAndFormat]);
 
-  // Get selected customer
-  const selectedCustomer = usersData?.data?.find(user => user.id === invoiceData.customerId);
+  // Track the selected customer data
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  
+  // Sync selectedCustomer with invoiceData.customerId changes
+  useEffect(() => {
+    if (!invoiceData.customerId) {
+      setSelectedCustomer(null);
+      // Reset package fee tracking when customer is cleared
+      setPackagesWithFees(new Set());
+    }
+  }, [invoiceData.customerId]);
+
+  // Helper functions for package fee management
+  const getPackagesWithoutFees = useMemo(() => {
+    return selectedPackages.filter(pkg => !packagesWithFees.has(pkg.id));
+  }, [selectedPackages, packagesWithFees]);
+
+  const hasExistingFeesForPackage = useCallback((packageId: string): boolean => {
+    return lineItems.some(item => item.packageId === packageId);
+  }, [lineItems]);
+
+  const getPackagesAvailableForFees = useMemo(() => {
+    return selectedPackages.filter(pkg => 
+      !packagesWithFees.has(pkg.id) && !hasExistingFeesForPackage(pkg.id)
+    );
+  }, [selectedPackages, packagesWithFees, hasExistingFeesForPackage]);
 
   // Handlers
   const updateInvoiceData = (field: keyof InvoiceData, value: any) => {
     setInvoiceData(prev => ({ ...prev, [field]: value }));
+    
+    // If currency is being updated, also update the global currency context
+    if (field === 'currency') {
+      setSelectedCurrency(value);
+    }
   };
 
   const addLineItem = () => {
@@ -139,8 +195,19 @@ export function InvoiceCreator({
   };
 
   const addPackagesAsLineItems = (packages: any[]) => {
-    setSelectedPackages(packages);
-    const packageItems: LineItem[] = packages.map(pkg => ({
+    setPendingPackages(packages);
+    setFeeDialogOpen(true);
+  };
+  
+  const handleCalculateFees = async () => {
+    setSelectedPackages(pendingPackages);
+    await generateFeesForPackages(pendingPackages);
+    setPendingPackages([]);
+  };
+  
+  const handleSkipFees = () => {
+    setSelectedPackages(pendingPackages);
+    const packageItems: LineItem[] = pendingPackages.map(pkg => ({
       id: `pkg-${pkg.id}`,
       description: `Package: ${pkg.trackingNumber} - ${pkg.description || 'No description'}`,
       quantity: 1,
@@ -151,36 +218,77 @@ export function InvoiceCreator({
     }));
     
     setLineItems(prev => [...prev, ...packageItems]);
+    setPendingPackages([]);
   };
 
-  const generateFeesForPackages = async () => {
-    if (!selectedPackages.length || !company?.id) return;
+  const generateFeesForPackages = async (packages?: any[]) => {
+    // Filter to only packages that don't have fees yet
+    const packagesToUse = packages ? 
+      packages.filter(pkg => !packagesWithFees.has(pkg.id) && !hasExistingFeesForPackage(pkg.id)) :
+      getPackagesAvailableForFees;
+    
+    if (!packagesToUse.length) {
+      toast({
+        title: 'No Packages Available',
+        description: 'All selected packages already have fees generated.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!company?.id) return;
+    
+    if (!invoiceData.customerId) {
+      toast({
+        title: 'Customer Required',
+        description: 'Please select a customer before generating fees',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setGeneratingFees(true);
     try {
       const feeItems: LineItem[] = [];
+      let detectedFeeCurrency: SupportedCurrency | null = null;
+      let hasCurrencyMismatch = false;
       
-      for (const pkg of selectedPackages) {
+      for (const pkg of packagesToUse) {
         try {
           // Call the fee calculation API using the invoice service
           const feeData = await invoiceService.previewInvoice({
             userId: invoiceData.customerId,
             packageIds: [pkg.id],
             generateFees: true,
-            isDraft: true
+            isDraft: true,
+            preferredCurrency: invoiceData.currency
           });
           
           // Convert fee line items to our format
           if (feeData.lineItems && Array.isArray(feeData.lineItems)) {
-            const packageFeeItems: LineItem[] = feeData.lineItems.map((item: any) => ({
-              id: `fee-${pkg.id}-${Date.now()}-${Math.random()}`,
-              description: item.description,
-              quantity: item.quantity || 1,
-              unitPrice: item.unitPrice || item.lineTotal || 0,
-              currency: invoiceData.currency,
-              packageId: pkg.id,
-              type: item.type || 'fee'
-            }));
+            const packageFeeItems: LineItem[] = feeData.lineItems.map((item: any) => {
+              // Preserve the original fee currency from the API response
+              const feeCurrency = item.currency || invoiceData.currency;
+              
+              // Check for currency mismatch
+              if (!detectedFeeCurrency) {
+                detectedFeeCurrency = feeCurrency;
+              }
+              
+              if (feeCurrency !== invoiceData.currency) {
+                hasCurrencyMismatch = true;
+              }
+
+              return {
+                id: `fee-${pkg.id}-${Date.now()}-${Math.random()}`,
+                description: `${pkg.trackingNumber}: ${item.description}`,
+                quantity: item.quantity || 1,
+                unitPrice: Math.round((item.unitPrice || item.lineTotal || 0) * 100) / 100, // Round to 2 decimal places
+                currency: feeCurrency, // Keep original currency
+                packageId: pkg.id,
+                type: item.type || 'fee'
+              };
+            });
             
             feeItems.push(...packageFeeItems);
           }
@@ -190,11 +298,31 @@ export function InvoiceCreator({
       }
       
       if (feeItems.length > 0) {
-        setLineItems(prev => [...prev, ...feeItems]);
-        toast({
-          title: 'Fees Generated',
-          description: `Generated ${feeItems.length} fee line items from selected packages`,
-        });
+        // Check for currency mismatch before adding fees
+        if (hasCurrencyMismatch && detectedFeeCurrency) {
+          // Show currency mismatch dialog
+          setCurrencyMismatchDialog({
+            isOpen: true,
+            feeCurrency: detectedFeeCurrency,
+            pendingFees: feeItems
+          });
+        } else {
+          // No mismatch, add fees directly
+          setLineItems(prev => [...prev, ...feeItems]);
+          
+          // Track that these packages now have fees
+          const packageIdsWithNewFees = Array.from(new Set(feeItems.map(item => item.packageId).filter(Boolean)));
+          setPackagesWithFees(prev => {
+            const newSet = new Set(prev);
+            packageIdsWithNewFees.forEach(id => newSet.add(id));
+            return newSet;
+          });
+          
+          toast({
+            title: 'Fees Generated',
+            description: `Generated ${feeItems.length} fee line items from ${packageIdsWithNewFees.length} packages`,
+          });
+        }
       } else {
         toast({
           title: 'No Fees Found',
@@ -223,6 +351,71 @@ export function InvoiceCreator({
     setLineItems(prev => prev.filter(item => item.id !== id));
   };
 
+  // Currency mismatch dialog handlers
+  const handleChangeInvoiceCurrency = () => {
+    const { feeCurrency, pendingFees } = currencyMismatchDialog;
+    
+    // Update invoice currency to match fees
+    updateInvoiceData('currency', feeCurrency);
+    setSelectedCurrency(feeCurrency);
+    
+    // Add the fees with their original currency (now matching invoice)
+    setLineItems(prev => [...prev, ...pendingFees]);
+    
+    // Track that these packages now have fees
+    const packageIdsWithNewFees = Array.from(new Set(pendingFees.map(item => item.packageId).filter(Boolean)));
+    setPackagesWithFees(prev => {
+      const newSet = new Set(prev);
+      packageIdsWithNewFees.forEach(id => newSet.add(id));
+      return newSet;
+    });
+    
+    // Close dialog and show success message
+    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    toast({
+      title: 'Invoice Currency Updated',
+      description: `Invoice currency changed to ${feeCurrency === 'USD' ? 'US Dollar' : 'Jamaican Dollar'} and ${pendingFees.length} fees added.`,
+    });
+  };
+
+  const handleConvertFees = () => {
+    const { pendingFees } = currencyMismatchDialog;
+    
+    // Convert all fees to invoice currency
+    const convertedFees = pendingFees.map(fee => ({
+      ...fee,
+      unitPrice: Math.round((convertAndFormat(fee.unitPrice, fee.currency, true) as number) * 100) / 100, // Round to 2 decimal places
+      currency: invoiceData.currency
+    }));
+    
+    // Add the converted fees
+    setLineItems(prev => [...prev, ...convertedFees]);
+    
+    // Track that these packages now have fees
+    const packageIdsWithNewFees = Array.from(new Set(convertedFees.map(item => item.packageId).filter(Boolean)));
+    setPackagesWithFees(prev => {
+      const newSet = new Set(prev);
+      packageIdsWithNewFees.forEach(id => newSet.add(id));
+      return newSet;
+    });
+    
+    // Close dialog and show success message
+    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+    toast({
+      title: 'Fees Converted',
+      description: `${convertedFees.length} fees converted to ${invoiceData.currency === 'USD' ? 'US Dollar' : 'Jamaican Dollar'} and added.`,
+    });
+  };
+
+  const handleCloseCurrencyDialog = () => {
+    setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+  };
+
+  // Helper function to get currency symbol
+  const getCurrencySymbol = (currency: SupportedCurrency) => {
+    return currency === 'USD' ? '$' : 'J$';
+  };
+
   const handlePreview = () => {
     if (!invoiceData.customerId) return;
     
@@ -238,12 +431,31 @@ export function InvoiceCreator({
       generateFees: false,
       isDraft: true,
       notes: invoiceData.notes,
+      issueDate: invoiceData.issueDate,
       dueDate: invoiceData.dueDate
     };
     onPreview?.(previewData);
   };
 
-  const handleGenerate = (isDraft = false) => {
+  const handleGenerate = async (isDraft = false) => {
+    if (!invoiceData.customerId) {
+      toast({
+        title: 'Customer Required',
+        description: 'Please select a customer before generating the invoice',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (lineItems.filter(item => item.description.trim()).length === 0) {
+      toast({
+        title: 'Invoice Items Required',
+        description: 'Please add at least one line item before generating the invoice',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const generateData = {
       userId: invoiceData.customerId,
       customLineItems: lineItems
@@ -256,17 +468,59 @@ export function InvoiceCreator({
         })),
       packageIds: selectedPackages.map(pkg => pkg.id),
       notes: invoiceData.notes,
+      issueDate: invoiceData.issueDate,
       dueDate: invoiceData.dueDate,
       generateFees: false, // We're generating fees manually now
-      isDraft
+      isDraft,
+      preferredCurrency: invoiceData.currency
     };
-    onGenerate?.(generateData);
+
+    if (onGenerate) {
+      // If onGenerate prop is provided, use it
+      setGeneratingInvoice(true);
+      try {
+        await onGenerate(generateData);
+        toast({
+          title: 'Invoice Generated',
+          description: `Invoice ${isDraft ? 'draft' : ''} has been generated successfully`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Invoice Generation Failed',
+          description: error instanceof Error ? error.message : 'Failed to generate invoice',
+          variant: 'destructive',
+        });
+      } finally {
+        setGeneratingInvoice(false);
+      }
+    } else {
+      // If no onGenerate prop, generate invoice directly
+      setGeneratingInvoice(true);
+      try {
+        await invoiceService.generateInvoice(generateData);
+        toast({
+          title: 'Invoice Generated',
+          description: `Invoice ${isDraft ? 'draft' : ''} has been generated successfully`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Invoice Generation Failed',
+          description: error instanceof Error ? error.message : 'Failed to generate invoice',
+          variant: 'destructive',
+        });
+      } finally {
+        setGeneratingInvoice(false);
+      }
+    }
   };
 
-  // Update line item currency when invoice currency changes
+  // Sync global currency with local invoice data
   useEffect(() => {
-    setInvoiceData(prev => ({ ...prev, currency: selectedCurrency }));
-  }, [selectedCurrency]);
+    // Only update if the currencies are different to prevent loops
+    if (selectedCurrency !== invoiceData.currency) {
+      setInvoiceData(prev => ({ ...prev, currency: selectedCurrency }));
+    }
+  }, [selectedCurrency, invoiceData.currency]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -278,7 +532,15 @@ export function InvoiceCreator({
           <div className="flex justify-between mb-5" style={{ marginBottom: '20px' }}>
             <div>
               {logoUrl ? (
-                <img src={logoUrl} alt="Company Logo" style={{ width: '120px', height: '60px', objectFit: 'contain' }} />
+                <img 
+                  src={logoUrl} 
+                  alt={isUsingBanner ? "Company Banner" : "Company Logo"} 
+                  style={{ 
+                    width: isUsingBanner ? '200px' : '120px', 
+                    height: '60px', 
+                    objectFit: 'contain' 
+                  }} 
+                />
               ) : (
                 <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'Helvetica' }}>{company?.name || 'Company Name'}</div>
               )}
@@ -296,7 +558,16 @@ export function InvoiceCreator({
 
           {/* Invoice Title and Number - Exact PDF Layout */}
           <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
+            <div className="flex justify-between items-center mb-2">
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600">Currency:</span>
+                <CurrencySelector 
+                  value={invoiceData.currency} 
+                  onValueChange={(currency) => updateInvoiceData('currency', currency)}
+                />
+              </div>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px' }}>
               <div>Invoice #: 
                 <input
@@ -352,21 +623,13 @@ export function InvoiceCreator({
             <div className="text-sm font-bold mb-2 text-gray-800 bg-gray-100 p-1">Customer Information</div>
             {!selectedCustomer ? (
               <div className="border-2 border-dashed border-gray-300 p-4 text-center">
-                <Select
+                <SearchableCustomerDropdown
+                  companyId={company?.id}
                   value={invoiceData.customerId || ''}
                   onValueChange={(value) => updateInvoiceData('customerId', value)}
-                >
-                  <SelectTrigger className="w-full mx-auto">
-                    <SelectValue placeholder="Select customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {usersData?.data?.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName} ({user.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onCustomerSelect={(customer) => setSelectedCustomer(customer)}
+                  placeholder="Search by name, email, or Pref ID..."
+                />
               </div>
             ) : (
               <>
@@ -409,36 +672,54 @@ export function InvoiceCreator({
                     <Package className="h-3 w-3 mr-1" />
                     Add Packages
                   </Button>
-                  {selectedPackages.length > 0 && (
+                  {selectedPackages.length > 0 && invoiceData.customerId && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={generateFeesForPackages}
-                      disabled={generatingFees}
+                      onClick={() => generateFeesForPackages()}
+                      disabled={generatingFees || getPackagesAvailableForFees.length === 0}
                       className="text-xs"
                     >
                       <Calculator className="h-3 w-3 mr-1" />
-                      {generatingFees ? 'Generating...' : 'Get Fees'}
+                      {generatingFees ? 'Generating...' : 
+                        getPackagesAvailableForFees.length === 0 ? 'All Fees Generated' :
+                        `Get Fees (${getPackagesAvailableForFees.length})`}
                     </Button>
                   )}
                 </div>
               </div>
               {selectedPackages.length > 0 ? (
                 <div className="border border-gray-200 rounded text-xs">
-                  {selectedPackages.map(pkg => (
-                    <div key={pkg.id} className="p-2 border-b last:border-b-0 flex justify-between">
-                      <span>{pkg.trackingNumber} - {pkg.description || 'No description'}</span>
+                  {selectedPackages.map(pkg => {
+                    const hasFees = packagesWithFees.has(pkg.id) || hasExistingFeesForPackage(pkg.id);
+                    return (
+                    <div key={pkg.id} className="p-2 border-b last:border-b-0 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span>{pkg.trackingNumber} - {pkg.description || 'No description'}</span>
+                        {hasFees && (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                            Fees Generated
+                          </span>
+                        )}
+                      </div>
                       <button 
                         onClick={() => {
                           setSelectedPackages(prev => prev.filter(p => p.id !== pkg.id));
                           setLineItems(prev => prev.filter(item => item.packageId !== pkg.id));
+                          // Remove from packages with fees tracking
+                          setPackagesWithFees(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(pkg.id);
+                            return newSet;
+                          });
                         }}
                         className="text-red-600 hover:underline ml-2"
                       >
                         Remove
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-xs text-gray-500 italic">No packages selected</div>
@@ -475,12 +756,13 @@ export function InvoiceCreator({
                     </div>
                     <div className="w-1/5 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <span className="text-gray-500 text-xs">{getCurrencySymbol(item.currency || invoiceData.currency)}</span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => updateLineItem(item.id, 'unitPrice', Number(e.target.value))}
+                          value={item.unitPrice.toFixed(2)}
+                          onChange={(e) => updateLineItem(item.id, 'unitPrice', Math.round(Number(e.target.value) * 100) / 100)}
                           className="w-16 text-right border-none bg-transparent outline-none text-xs"
                         />
                         <span className="text-gray-600">×</span>
@@ -567,9 +849,9 @@ export function InvoiceCreator({
           <div className="mt-8 pt-4 border-t border-gray-300 flex justify-center gap-4">
             <Button
               onClick={() => handleGenerate(false)}
-              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
+              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim()) || generatingInvoice}
             >
-              Generate Invoice
+              {generatingInvoice ? 'Generating...' : 'Generate Invoice'}
             </Button>
             <Button
               onClick={handlePreview}
@@ -588,6 +870,26 @@ export function InvoiceCreator({
           customerId={invoiceData.customerId}
           companyId={company?.id}
           onPackagesSelected={addPackagesAsLineItems}
+        />
+
+        {/* Fee Calculation Dialog */}
+        <FeeCalculationDialog
+          open={feeDialogOpen}
+          onOpenChange={setFeeDialogOpen}
+          onCalculateFees={handleCalculateFees}
+          onSkipFees={handleSkipFees}
+          packageCount={pendingPackages.length}
+        />
+
+        {/* Currency Mismatch Dialog */}
+        <CurrencyMismatchDialog
+          isOpen={currencyMismatchDialog.isOpen}
+          onClose={handleCloseCurrencyDialog}
+          invoiceCurrency={invoiceData.currency}
+          feeCurrency={currencyMismatchDialog.feeCurrency}
+          onChangeInvoiceCurrency={handleChangeInvoiceCurrency}
+          onConvertFees={handleConvertFees}
+          affectedFeesCount={currencyMismatchDialog.pendingFees.length}
         />
       </div>
     </div>
