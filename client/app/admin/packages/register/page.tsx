@@ -234,7 +234,7 @@ export default function RegisterPackagePage() {
                 {errors.trackingNumber && <div className="text-red-600 text-sm mt-1">{errors.trackingNumber.message}</div>}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Weight (kg)</label>
+                <label className="block text-sm font-medium mb-2">Weight (lbs)</label>
                 <Input type="number" step="0.01" min="0" {...register("weight")} className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
                 {errors.weight && <div className="text-red-600 text-sm mt-1">{errors.weight.message}</div>}
               </div>

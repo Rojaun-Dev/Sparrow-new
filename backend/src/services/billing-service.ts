@@ -19,6 +19,7 @@ export const generateInvoiceSchema = z.object({
   notes: z.string().optional(),
   dueDate: z.coerce.date().optional(),
   additionalCharge: z.number().optional(),
+  additionalChargeCurrency: z.enum(['USD', 'JMD']).optional(),
   sendNotification: z.boolean().optional(),
 });
 
@@ -518,20 +519,61 @@ export class BillingService {
       
       // Add additional charge if provided
       if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
+        // Get company settings for currency conversion
+        const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+        if (!settings) {
+          throw new AppError('Company settings not found', 400);
+        }
+        
+        // Get exchange rate settings for currency conversion
+        const defaultExchangeRateSettings = {
+          baseCurrency: 'USD' as 'USD',
+          targetCurrency: 'JMD' as 'JMD',
+          exchangeRate: 1,
+          autoUpdate: false,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        const exchangeRateSettings = (settings.exchangeRateSettings && 
+          typeof settings.exchangeRateSettings === 'object' &&
+          'baseCurrency' in settings.exchangeRateSettings)
+          ? settings.exchangeRateSettings as any
+          : defaultExchangeRateSettings;
+        
+        const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+        
+        // Determine the source currency for additional charge (default to display currency if not specified)
+        const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
+        
+        // Convert additional charge to display currency
+        const originalAmount = validatedData.additionalCharge;
+        const convertedAmount = convertCurrency(
+          originalAmount,
+          sourceCurrency,
+          displayCurrency,
+          exchangeRateSettings
+        );
+        
+        // Create description with currency conversion info if converted
+        let description = 'Additional Charge';
+        if (sourceCurrency !== displayCurrency) {
+          description += ` (${sourceCurrency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+        }
+        
         const addCharge = {
           invoiceId: invoice.id,
           companyId,
           // Do not set packageId at all if not present
           // packageId: null,
-          description: 'Additional Charge',
+          description,
           quantity: 1,
-          unitPrice: validatedData.additionalCharge,
-          lineTotal: validatedData.additionalCharge,
+          unitPrice: convertedAmount,
+          lineTotal: convertedAmount,
           type: 'other',
         };
         await this.invoiceItemsRepository.create(addCharge, companyId);
-        subtotal += validatedData.additionalCharge;
-        feeBreakdown.other += validatedData.additionalCharge;
+        subtotal += convertedAmount;
+        feeBreakdown.other += convertedAmount;
       }
       
       // Calculate total
@@ -646,6 +688,65 @@ export class BillingService {
         subtotal += Number(packageFees.subtotal) || 0;
         taxAmount += Number(packageFees.taxes) || 0;
       }
+      
+      // Add additional charge to preview if provided
+      if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
+        // Get company settings for currency conversion
+        const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+        if (!settings) {
+          throw new AppError('Company settings not found', 400);
+        }
+        
+        // Get exchange rate settings for currency conversion
+        const defaultExchangeRateSettings = {
+          baseCurrency: 'USD' as 'USD',
+          targetCurrency: 'JMD' as 'JMD',
+          exchangeRate: 1,
+          autoUpdate: false,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        const exchangeRateSettings = (settings.exchangeRateSettings && 
+          typeof settings.exchangeRateSettings === 'object' &&
+          'baseCurrency' in settings.exchangeRateSettings)
+          ? settings.exchangeRateSettings as any
+          : defaultExchangeRateSettings;
+        
+        const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+        
+        // Determine the source currency for additional charge (default to display currency if not specified)
+        const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
+        
+        // Convert additional charge to display currency
+        const originalAmount = validatedData.additionalCharge;
+        const convertedAmount = convertCurrency(
+          originalAmount,
+          sourceCurrency,
+          displayCurrency,
+          exchangeRateSettings
+        );
+        
+        // Create description with currency conversion info if converted
+        let description = 'Additional Charge';
+        if (sourceCurrency !== displayCurrency) {
+          description += ` (${sourceCurrency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
+        }
+        
+        // Add to preview calculations
+        subtotal += convertedAmount;
+        feeBreakdown.other += convertedAmount;
+        
+        // Add to line items for preview
+        lineItems.push({
+          packageId: null,
+          description,
+          quantity: 1,
+          unitPrice: convertedAmount,
+          lineTotal: convertedAmount,
+          type: 'other',
+        });
+      }
+      
       // Calculate total
       const totalAmount = subtotal + taxAmount;
       // Return the preview data, including fee breakdown (all numbers)
