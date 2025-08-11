@@ -409,110 +409,102 @@ export function InvoiceCreator({
 
           {/* Live Preview Panel */}
           <div className="lg:sticky lg:top-6">
-            <Card className="p-8 bg-white shadow-lg min-h-[800px]">
+            <Card className="p-8 bg-white shadow-lg min-h-[800px] border border-gray-200">
               {/* Invoice Header */}
               <div className="flex justify-between items-start mb-8">
-                <div>
+                <div className="flex items-center">
                   {logoUrl ? (
-                    <img src={logoUrl} alt="Company Logo" className="h-16 w-auto object-contain mb-2" />
-                  ) : (
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">{company?.name}</h1>
-                  )}
+                    <img src={logoUrl} alt="Company Logo" className="h-16 w-auto object-contain mr-4" />
+                  ) : null}
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">{company?.name}</h1>
+                    <div className="text-sm text-gray-600 mt-1">
+                      <p>{company?.address?.street}</p>
+                      <p>{company?.address?.city}, {company?.address?.state} {company?.address?.postalCode}</p>
+                      <p>{company?.phone}</p>
+                      <p>{company?.email}</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="text-right">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">INVOICE</h1>
                   <p className="text-sm text-gray-600">#{invoiceData.invoiceNumber}</p>
-                </div>
-              </div>
-
-              {/* Company and Customer Info */}
-              <div className="grid grid-cols-2 gap-8 mb-8">
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">From:</h3>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p className="font-medium">{company?.name}</p>
-                    <p>{company?.address?.street}</p>
-                    <p>{company?.address?.city}, {company?.address?.state} {company?.address?.postalCode}</p>
-                    <p>{company?.phone}</p>
-                    <p>{company?.email}</p>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Bill To:</h3>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    {selectedCustomer ? (
-                      <>
-                        <p className="font-medium">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
-                        <p>{selectedCustomer.email}</p>
-                        {selectedCustomer.phone && <p>{selectedCustomer.phone}</p>}
-                        {selectedCustomer.address && <p>{selectedCustomer.address}</p>}
-                      </>
-                    ) : (
-                      <p className="text-gray-400 italic">Select a customer</p>
-                    )}
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p><span className="font-medium">Issue Date:</span> {format(invoiceData.issueDate, "MMM dd, yyyy")}</p>
+                    <p><span className="font-medium">Due Date:</span> {format(invoiceData.dueDate, "MMM dd, yyyy")}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-8 mb-8">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Issue Date:</span> {format(invoiceData.issueDate, "MMM dd, yyyy")}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Due Date:</span> {format(invoiceData.dueDate, "MMM dd, yyyy")}
-                  </p>
+              {/* Bill To Section */}
+              <div className="mb-8">
+                <h3 className="font-semibold text-gray-900 mb-2">Bill To:</h3>
+                <div className="text-sm text-gray-600 space-y-1">
+                  {selectedCustomer ? (
+                    <>
+                      <p className="font-medium">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
+                      <p>{selectedCustomer.email}</p>
+                      {selectedCustomer.phone && <p>{selectedCustomer.phone}</p>}
+                      {selectedCustomer.address && <p>{selectedCustomer.address}</p>}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">Select a customer</p>
+                  )}
                 </div>
               </div>
 
               {/* Line Items Table */}
               <div className="mb-8">
-                <div className="border-b border-gray-200">
-                  <div className="grid grid-cols-12 gap-3 py-3 text-sm font-medium text-gray-900">
-                    <div className="col-span-6">Description</div>
-                    <div className="col-span-2 text-center">Qty</div>
-                    <div className="col-span-2 text-right">Unit Price</div>
-                    <div className="col-span-2 text-right">Amount</div>
+                <div className="overflow-hidden border border-gray-200 rounded-lg">
+                  <div className="bg-gray-50 border-b border-gray-200">
+                    <div className="grid grid-cols-12 gap-3 px-4 py-3 text-sm font-medium text-gray-900">
+                      <div className="col-span-6">Description</div>
+                      <div className="col-span-2 text-center">Qty</div>
+                      <div className="col-span-2 text-right">Unit Price</div>
+                      <div className="col-span-2 text-right">Amount</div>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-3">
-                  {lineItems.filter(item => item.description.trim()).map((item) => (
-                    <div key={item.id} className="grid grid-cols-12 gap-3 py-2 text-sm">
-                      <div className="col-span-6 text-gray-900">{item.description}</div>
-                      <div className="col-span-2 text-center text-gray-600">{item.quantity}</div>
-                      <div className="col-span-2 text-right text-gray-600">
-                        {convertAndFormat(item.unitPrice, invoiceData.currency)}
+                  <div className="divide-y divide-gray-200">
+                    {lineItems.filter(item => item.description.trim()).length > 0 ? (
+                      lineItems.filter(item => item.description.trim()).map((item) => (
+                        <div key={item.id} className="grid grid-cols-12 gap-3 px-4 py-3 text-sm">
+                          <div className="col-span-6 text-gray-900">{item.description}</div>
+                          <div className="col-span-2 text-center text-gray-600">{item.quantity}</div>
+                          <div className="col-span-2 text-right text-gray-600">
+                            {convertAndFormat(item.unitPrice, invoiceData.currency)}
+                          </div>
+                          <div className="col-span-2 text-right text-gray-900 font-medium">
+                            {convertAndFormat(item.quantity * item.unitPrice, invoiceData.currency)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-8 text-center text-gray-400 italic">
+                        Add line items to see preview
                       </div>
-                      <div className="col-span-2 text-right text-gray-900 font-medium">
-                        {convertAndFormat(item.quantity * item.unitPrice, invoiceData.currency)}
-                      </div>
-                    </div>
-                  ))}
-                  {lineItems.every(item => !item.description.trim()) && (
-                    <div className="py-8 text-center text-gray-400 italic">
-                      Add line items to see preview
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Totals */}
               <div className="border-t border-gray-200 pt-4">
-                <div className="space-y-2 text-right">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax (16.5%):</span>
-                    <span className="font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold border-t pt-2">
-                    <span>Total:</span>
-                    <span>{convertAndFormat(calculations.total, invoiceData.currency)}</span>
+                <div className="flex justify-end">
+                  <div className="w-64">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Subtotal:</span>
+                        <span className="font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Tax (16.5%):</span>
+                        <span className="font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
+                        <span>Total:</span>
+                        <span>{convertAndFormat(calculations.total, invoiceData.currency)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
