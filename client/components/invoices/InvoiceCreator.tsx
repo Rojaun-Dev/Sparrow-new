@@ -29,6 +29,191 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/useUsers';
 import { usePackage } from '@/hooks/usePackages';
 
+// Skeleton Loading Component
+function InvoiceCreatorSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="mx-auto">
+        {/* Beta Warning Alert Skeleton */}
+        <Skeleton className="h-12 w-full mb-6" />
+
+        <div className="flex gap-6">
+          {/* Main Invoice Form Skeleton - Fixed Paper Width */}
+          <div className="flex-shrink-0 relative">
+            {/* Paper Stack Effect - Bottom layers */}
+            <div 
+              className="absolute bg-gray-100 border border-gray-300" 
+              style={{ 
+                width: '11in', 
+                minHeight: '14in', 
+                top: '6px', 
+                left: '6px',
+                zIndex: 1 
+              }}
+            />
+            <div 
+              className="absolute bg-gray-50 border border-gray-300" 
+              style={{ 
+                width: '11in', 
+                minHeight: '14in', 
+                top: '3px', 
+                left: '3px',
+                zIndex: 2 
+              }}
+            />
+            {/* Main Paper Skeleton */}
+            <Card 
+              className="bg-white border border-gray-300 relative" 
+              style={{ 
+                width: '11in', 
+                minHeight: '14in', 
+                padding: '40px',
+                zIndex: 3,
+                borderRadius: '0px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+              }}
+            >
+              {/* Header Skeleton */}
+              <div className="flex justify-between mb-8">
+                <Skeleton className="h-16 w-48" />
+                <div className="text-right space-y-1">
+                  <Skeleton className="h-4 w-32 ml-auto" />
+                  <Skeleton className="h-3 w-24 ml-auto" />
+                  <Skeleton className="h-3 w-28 ml-auto" />
+                  <Skeleton className="h-3 w-20 ml-auto" />
+                </div>
+              </div>
+
+              {/* Invoice Title Skeleton */}
+              <div className="mb-6">
+                <Skeleton className="h-8 w-32 mb-4" />
+                <div className="flex justify-between mb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              </div>
+
+              {/* Customer Information Skeleton */}
+              <div className="mb-6">
+                <Skeleton className="h-5 w-40 mb-3" />
+                <div className="border-2 border-dashed border-gray-300 p-4">
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+
+              {/* Package Selection Skeleton */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-8 w-24" />
+                </div>
+                <Skeleton className="h-4 w-48" />
+              </div>
+
+              {/* Invoice Items Skeleton */}
+              <div className="mb-6">
+                <Skeleton className="h-5 w-32 mb-3" />
+                {/* Table Header */}
+                <div className="bg-gray-100 border-b border-gray-300 py-2">
+                  <div className="flex text-xs font-medium">
+                    <div className="w-3/5 pr-2">
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                    <div className="w-1/5 text-right">
+                      <Skeleton className="h-4 w-12 ml-auto" />
+                    </div>
+                    <div className="w-1/5 text-center">
+                      <Skeleton className="h-4 w-12 mx-auto" />
+                    </div>
+                  </div>
+                </div>
+                {/* Table Rows */}
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center py-3 border-b border-gray-100">
+                    <div className="w-3/5 pr-2">
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                    <div className="w-1/5 text-right">
+                      <Skeleton className="h-4 w-20 ml-auto" />
+                    </div>
+                    <div className="w-1/5 text-center">
+                      <Skeleton className="h-6 w-6 mx-auto" />
+                    </div>
+                  </div>
+                ))}
+                {/* Totals */}
+                <div className="py-4 space-y-2">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-16 ml-auto" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-12 ml-auto" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <Skeleton className="h-5 w-14 ml-auto" />
+                    <Skeleton className="h-5 w-24" />
+                  </div>
+                </div>
+                {/* Add Item Button */}
+                <Skeleton className="h-8 w-20 mt-2" />
+              </div>
+
+              {/* Notes Skeleton */}
+              <div>
+                <Skeleton className="h-5 w-16 mb-2" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            </Card>
+          </div>
+
+          {/* Right Panel Skeleton - Flexible Width */}
+          <div className="flex-1 min-w-80">
+            <div className="sticky top-6">
+              <Card className="p-6">
+                <Skeleton className="h-6 w-32 mb-6" />
+                
+                {/* Currency Section */}
+                <div className="mb-6">
+                  <Skeleton className="h-4 w-16 mb-3" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+
+                {/* Summary Section */}
+                <div className="mb-6">
+                  <Skeleton className="h-4 w-16 mb-3" />
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                    <div className="flex justify-between">
+                      <Skeleton className="h-4 w-10" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <div className="flex justify-between border-t border-gray-200 pt-2">
+                      <Skeleton className="h-5 w-12" />
+                      <Skeleton className="h-5 w-24" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action */}
+                <Skeleton className="h-12 w-full" />
+              </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface LineItem {
   id: string;
   description: string;
@@ -1007,3 +1192,6 @@ export function InvoiceCreator({
     </div>
   );
 }
+
+// Export both components
+export { InvoiceCreatorSkeleton };
