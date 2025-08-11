@@ -62,7 +62,6 @@ export function InvoiceCreator({
   
   // Company and user data
   const { data: company } = useMyAdminCompany();
-  const { data: usersData } = useCompanyUsers(company?.id, { role: 'customer' });
   const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
   const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
 
@@ -92,6 +91,7 @@ export function InvoiceCreator({
   const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedPackages, setSelectedPackages] = useState<any[]>([]);
   const [generatingFees, setGeneratingFees] = useState(false);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
   
   // Fee calculation dialog state
   const [feeDialogOpen, setFeeDialogOpen] = useState(false);
@@ -142,8 +142,8 @@ export function InvoiceCreator({
     };
   }, [lineItems, invoiceData.currency, convertAndFormat]);
 
-  // Get selected customer
-  const selectedCustomer = usersData?.data?.find(user => user.id === invoiceData.customerId);
+  // Track the selected customer data
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   // Handlers
   const updateInvoiceData = (field: keyof InvoiceData, value: any) => {
@@ -197,6 +197,15 @@ export function InvoiceCreator({
   const generateFeesForPackages = async (packages?: any[]) => {
     const packagesToUse = packages || selectedPackages;
     if (!packagesToUse.length || !company?.id) return;
+    
+    if (!invoiceData.customerId) {
+      toast({
+        title: 'Customer Required',
+        description: 'Please select a customer before generating fees',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setGeneratingFees(true);
     try {
@@ -232,9 +241,9 @@ export function InvoiceCreator({
 
               return {
                 id: `fee-${pkg.id}-${Date.now()}-${Math.random()}`,
-                description: item.description,
+                description: `${pkg.trackingNumber}: ${item.description}`,
                 quantity: item.quantity || 1,
-                unitPrice: item.unitPrice || item.lineTotal || 0,
+                unitPrice: Math.round((item.unitPrice || item.lineTotal || 0) * 100) / 100, // Round to 2 decimal places
                 currency: feeCurrency, // Keep original currency
                 packageId: pkg.id,
                 type: item.type || 'fee'
@@ -318,7 +327,7 @@ export function InvoiceCreator({
     // Convert all fees to invoice currency
     const convertedFees = pendingFees.map(fee => ({
       ...fee,
-      unitPrice: convertAndFormat(fee.unitPrice, fee.currency, true) as number,
+      unitPrice: Math.round((convertAndFormat(fee.unitPrice, fee.currency, true) as number) * 100) / 100, // Round to 2 decimal places
       currency: invoiceData.currency
     }));
     
@@ -335,6 +344,11 @@ export function InvoiceCreator({
 
   const handleCloseCurrencyDialog = () => {
     setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
+  };
+
+  // Helper function to get currency symbol
+  const getCurrencySymbol = (currency: SupportedCurrency) => {
+    return currency === 'USD' ? '$' : 'J$';
   };
 
   const handlePreview = () => {
@@ -358,7 +372,25 @@ export function InvoiceCreator({
     onPreview?.(previewData);
   };
 
-  const handleGenerate = (isDraft = false) => {
+  const handleGenerate = async (isDraft = false) => {
+    if (!invoiceData.customerId) {
+      toast({
+        title: 'Customer Required',
+        description: 'Please select a customer before generating the invoice',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (lineItems.filter(item => item.description.trim()).length === 0) {
+      toast({
+        title: 'Invoice Items Required',
+        description: 'Please add at least one line item before generating the invoice',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const generateData = {
       userId: invoiceData.customerId,
       customLineItems: lineItems
@@ -374,9 +406,47 @@ export function InvoiceCreator({
       issueDate: invoiceData.issueDate,
       dueDate: invoiceData.dueDate,
       generateFees: false, // We're generating fees manually now
-      isDraft
+      isDraft,
+      preferredCurrency: invoiceData.currency
     };
-    onGenerate?.(generateData);
+
+    if (onGenerate) {
+      // If onGenerate prop is provided, use it
+      setGeneratingInvoice(true);
+      try {
+        await onGenerate(generateData);
+        toast({
+          title: 'Invoice Generated',
+          description: `Invoice ${isDraft ? 'draft' : ''} has been generated successfully`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Invoice Generation Failed',
+          description: error instanceof Error ? error.message : 'Failed to generate invoice',
+          variant: 'destructive',
+        });
+      } finally {
+        setGeneratingInvoice(false);
+      }
+    } else {
+      // If no onGenerate prop, generate invoice directly
+      setGeneratingInvoice(true);
+      try {
+        await invoiceService.generateInvoice(generateData);
+        toast({
+          title: 'Invoice Generated',
+          description: `Invoice ${isDraft ? 'draft' : ''} has been generated successfully`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Invoice Generation Failed',
+          description: error instanceof Error ? error.message : 'Failed to generate invoice',
+          variant: 'destructive',
+        });
+      } finally {
+        setGeneratingInvoice(false);
+      }
+    }
   };
 
   // Sync global currency with local invoice data
@@ -489,9 +559,10 @@ export function InvoiceCreator({
             {!selectedCustomer ? (
               <div className="border-2 border-dashed border-gray-300 p-4 text-center">
                 <SearchableCustomerDropdown
-                  customers={usersData?.data || []}
+                  companyId={company?.id}
                   value={invoiceData.customerId || ''}
                   onValueChange={(value) => updateInvoiceData('customerId', value)}
+                  onCustomerSelect={(customer) => setSelectedCustomer(customer)}
                   placeholder="Search by name, email, or Pref ID..."
                 />
               </div>
@@ -536,11 +607,11 @@ export function InvoiceCreator({
                     <Package className="h-3 w-3 mr-1" />
                     Add Packages
                   </Button>
-                  {selectedPackages.length > 0 && (
+                  {selectedPackages.length > 0 && invoiceData.customerId && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={generateFeesForPackages}
+                      onClick={() => generateFeesForPackages()}
                       disabled={generatingFees}
                       className="text-xs"
                     >
@@ -602,12 +673,13 @@ export function InvoiceCreator({
                     </div>
                     <div className="w-1/5 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <span className="text-gray-500 text-xs">{getCurrencySymbol(item.currency || invoiceData.currency)}</span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => updateLineItem(item.id, 'unitPrice', Number(e.target.value))}
+                          value={item.unitPrice.toFixed(2)}
+                          onChange={(e) => updateLineItem(item.id, 'unitPrice', Math.round(Number(e.target.value) * 100) / 100)}
                           className="w-16 text-right border-none bg-transparent outline-none text-xs"
                         />
                         <span className="text-gray-600">×</span>
@@ -694,9 +766,9 @@ export function InvoiceCreator({
           <div className="mt-8 pt-4 border-t border-gray-300 flex justify-center gap-4">
             <Button
               onClick={() => handleGenerate(false)}
-              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
+              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim()) || generatingInvoice}
             >
-              Generate Invoice
+              {generatingInvoice ? 'Generating...' : 'Generate Invoice'}
             </Button>
             <Button
               onClick={handlePreview}
