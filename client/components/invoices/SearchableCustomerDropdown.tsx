@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -17,14 +17,12 @@ import {
 } from '@/components/ui/popover';
 import { Check, ChevronsUpDown, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCustomerSearch, formatCustomerDisplay, type SearchableCustomer } from '@/lib/utils/customerSearch';
 
-interface Customer {
-  id: string;
+interface Customer extends SearchableCustomer {
   firstName: string;
   lastName: string;
   email: string;
-  prefId?: string;
-  phone?: string;
 }
 
 interface SearchableCustomerDropdownProps {
@@ -44,41 +42,41 @@ export function SearchableCustomerDropdown({
 }: SearchableCustomerDropdownProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [internalSearchValue, setInternalSearchValue] = useState("");
 
-  // Filter customers based on search input
-  const filteredCustomers = useMemo(() => {
-    if (!searchValue) return customers;
-    
-    const search = searchValue.toLowerCase();
-    return customers.filter(customer => {
-      const fullName = `${customer.firstName} ${customer.lastName}`.toLowerCase();
-      const email = customer.email.toLowerCase();
-      const prefId = customer.prefId?.toLowerCase() || '';
-      
-      return fullName.includes(search) || 
-             email.includes(search) || 
-             prefId.includes(search);
-    });
-  }, [customers, searchValue]);
+  // Use the customer search utility
+  const filteredCustomers = useCustomerSearch(customers, searchValue);
 
   // Find the selected customer
   const selectedCustomer = customers.find(customer => customer.id === value);
 
-  // Format customer display text
-  const formatCustomerDisplay = (customer: Customer, isSelected = false) => {
-    const name = `${customer.firstName} ${customer.lastName}`;
-    if (isSelected) {
-      return name;
-    }
+  // Debounced search to improve performance
+  const debouncedSearch = useCallback((query: string) => {
+    const timer = setTimeout(() => {
+      setSearchValue(query);
+    }, 150);
     
-    const parts = [name];
-    if (customer.prefId) {
-      parts.push(`(${customer.prefId})`);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Handle search input changes
+  const handleSearchChange = useCallback((query: string) => {
+    setInternalSearchValue(query);
+    debouncedSearch(query);
+  }, [debouncedSearch]);
+
+  // Reset search when dropdown opens/closes
+  useEffect(() => {
+    if (!open) {
+      setSearchValue("");
+      setInternalSearchValue("");
     }
-    parts.push(`- ${customer.email}`);
-    
-    return parts.join(' ');
-  };
+  }, [open]);
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return debouncedSearch("");
+  }, [debouncedSearch]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -94,7 +92,7 @@ export function SearchableCustomerDropdown({
             <User className="h-4 w-4 mr-2 text-gray-500" />
             {selectedCustomer ? (
               <span className="truncate">
-                {formatCustomerDisplay(selectedCustomer, true)}
+                {formatCustomerDisplay(selectedCustomer, { isCompact: true })}
               </span>
             ) : (
               <span className="text-gray-500">{placeholder}</span>
@@ -107,8 +105,8 @@ export function SearchableCustomerDropdown({
         <Command>
           <CommandInput 
             placeholder="Search by name, email, or Pref ID..." 
-            value={searchValue}
-            onValueChange={setSearchValue}
+            value={internalSearchValue}
+            onValueChange={handleSearchChange}
           />
           <CommandList>
             <CommandEmpty>No customers found.</CommandEmpty>
@@ -120,6 +118,7 @@ export function SearchableCustomerDropdown({
                     onValueChange(customer.id === value ? "" : customer.id);
                     setOpen(false);
                     setSearchValue("");
+                    setInternalSearchValue("");
                   }}
                   className="cursor-pointer"
                 >
@@ -131,11 +130,11 @@ export function SearchableCustomerDropdown({
                   />
                   <div className="flex flex-col">
                     <div className="font-medium">
-                      {customer.firstName} {customer.lastName}
+                      {`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unnamed Customer'}
                     </div>
                     <div className="text-sm text-gray-500 flex items-center gap-2">
-                      <span>{customer.email}</span>
-                      {customer.prefId && (
+                      <span>{customer.email || 'No email'}</span>
+                      {customer.prefId?.trim() && (
                         <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs">
                           {customer.prefId}
                         </span>

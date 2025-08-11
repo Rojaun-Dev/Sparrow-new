@@ -136,6 +136,11 @@ export function InvoiceCreator({
   // Handlers
   const updateInvoiceData = (field: keyof InvoiceData, value: any) => {
     setInvoiceData(prev => ({ ...prev, [field]: value }));
+    
+    // If currency is being updated, also update the global currency context
+    if (field === 'currency') {
+      setSelectedCurrency(value);
+    }
   };
 
   const addLineItem = () => {
@@ -290,10 +295,13 @@ export function InvoiceCreator({
     onGenerate?.(generateData);
   };
 
-  // Update line item currency when invoice currency changes
+  // Sync global currency with local invoice data
   useEffect(() => {
-    setInvoiceData(prev => ({ ...prev, currency: selectedCurrency }));
-  }, [selectedCurrency]);
+    // Only update if the currencies are different to prevent loops
+    if (selectedCurrency !== invoiceData.currency) {
+      setInvoiceData(prev => ({ ...prev, currency: selectedCurrency }));
+    }
+  }, [selectedCurrency, invoiceData.currency]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">

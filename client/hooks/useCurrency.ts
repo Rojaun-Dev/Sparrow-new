@@ -86,31 +86,40 @@ export function useCurrency() {
   };
   
   // Convert and format in one step
-  const convertAndFormat = (amount: number, fromCurrency: SupportedCurrency = 'USD'): string => {
+  const convertAndFormat = (amount: number, fromCurrency: SupportedCurrency = 'USD', returnNumeric: boolean = false): string | number => {
+    let convertedAmount: number;
+    
     // If currencies are the same, just format
     if (fromCurrency === selectedCurrency) {
-      return formatCurrency(amount, selectedCurrency);
-    }
-    
-    // If no exchange rate settings, just format in original currency
-    if (!exchangeRateSettings || !exchangeRateSettings.exchangeRate) {
+      convertedAmount = amount;
+    } else if (!exchangeRateSettings || !exchangeRateSettings.exchangeRate) {
+      // If no exchange rate settings, use original amount
       console.warn('No exchange rate settings available for conversion');
-      return formatCurrency(amount, fromCurrency);
+      convertedAmount = amount;
+    } else {
+      // Convert the amount
+      console.log('Converting and formatting:', { 
+        amount, 
+        fromCurrency, 
+        toCurrency: selectedCurrency, 
+        rate: exchangeRateSettings.exchangeRate 
+      });
+      
+      convertedAmount = convertCurrency(
+        amount,
+        fromCurrency,
+        selectedCurrency,
+        exchangeRateSettings
+      );
     }
     
-    console.log('Converting and formatting:', { 
-      amount, 
-      fromCurrency, 
-      toCurrency: selectedCurrency, 
-      rate: exchangeRateSettings.exchangeRate 
-    });
+    // Return numeric value if requested
+    if (returnNumeric) {
+      return convertedAmount;
+    }
     
-    return convertAndFormatCurrency(
-      amount,
-      fromCurrency,
-      selectedCurrency,
-      exchangeRateSettings
-    );
+    // Return formatted string
+    return formatCurrency(convertedAmount, selectedCurrency);
   };
   
   return {
