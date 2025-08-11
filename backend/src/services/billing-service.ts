@@ -238,6 +238,17 @@ export class BillingService {
       total: 0,
       lineItems: [] as any[],
     };
+    
+    // Track original currency totals for percentage calculations
+    const originalTotals: { [key: string]: number } = {
+      shipping: 0,
+      handling: 0,
+      customs: 0,
+      duty: 0,
+      other: 0,
+      taxes: 0,
+      subtotal: 0,
+    };
     // 1. Calculate all base (non-percentage) fees and collect percentage-based fees for later
     const percentageFeesByType: Record<string, any[]> = { shipping: [], handling: [], customs: [], other: [], subtotal: [], taxes: [] };
     for (const type of ['shipping', 'handling', 'customs', 'service', 'other']) {
@@ -266,6 +277,10 @@ export class BillingService {
         // Map 'service' to 'other' for DB enum
         const itemType = type === 'service' ? 'other' : type;
         result[itemType] += finalAmount;
+        
+        // Track original currency amounts for percentage calculations
+        const originalFinalAmount = Number(this.applyLimits(originalAmount, fee.metadata));
+        originalTotals[itemType] += originalFinalAmount;
         
         // Create description with currency conversion info if converted
         let description = fee.name;
@@ -301,6 +316,9 @@ export class BillingService {
       
       result.duty += convertedAmount;
       
+      // Track original currency amounts for percentage calculations  
+      originalTotals.duty += originalAmount;
+      
       // Create a display name for the duty fee
       const displayName = dutyFee.feeType === 'Other' && dutyFee.customFeeType 
         ? `${dutyFee.customFeeType} Duty` 
@@ -325,7 +343,22 @@ export class BillingService {
     
     // 2. Calculate subtotal (before tax/percentage fees) - now includes duty fees
     result.subtotal = Number(result.shipping) + Number(result.handling) + Number(result.customs) + Number(result.duty) + Number(result.other);
-    // 3. Build context for percentage-based fees
+    
+    // Calculate original currency subtotal for percentage calculations
+    originalTotals.subtotal = originalTotals.shipping + originalTotals.handling + originalTotals.customs + originalTotals.duty + originalTotals.other;
+    
+    // 3. Build context with original currency amounts for percentage-based fee calculations
+    const originalContext: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; subtotal: number; declaredValue: number } = {
+      shipping: originalTotals.shipping,
+      handling: originalTotals.handling,
+      customs: originalTotals.customs,
+      duty: originalTotals.duty,
+      other: originalTotals.other,
+      subtotal: originalTotals.subtotal,
+      declaredValue: parseFloat(packageData.declaredValue || '0'),
+    };
+    
+    // 4. Build display context with converted amounts for display purposes
     const context: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; subtotal: number; declaredValue: number } = {
       shipping: result.shipping,
       handling: result.handling,
@@ -335,7 +368,7 @@ export class BillingService {
       subtotal: result.subtotal,
       declaredValue: parseFloat(packageData.declaredValue || '0'),
     };
-    // 4. Calculate all percentage-based fees (except taxes)
+    // 5. Calculate all percentage-based fees (except taxes)
     for (const baseAttr of Object.keys(percentageFeesByType)) {
       if (baseAttr === 'taxes' || baseAttr === 'subtotal') continue; // taxes handled separately, subtotal handled after others
       for (const fee of percentageFeesByType[baseAttr]) {
@@ -347,10 +380,17 @@ export class BillingService {
           base = context[baseAttr] ?? 0;
         }
         if (!base) continue; // skip if base is 0
-        // Calculate original amount first (without currency conversion)
-        const originalAmount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
-        // Calculate converted amount
-        const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context, exchangeRateSettings, displayCurrency));
+        // For percentage fees, use original currency base amounts to avoid double conversion
+        let originalBase = 0;
+        if (baseAttr === 'customs' || baseAttr === 'declaredValue') {
+          originalBase = originalContext.declaredValue;
+        } else {
+          originalBase = originalContext[baseAttr] ?? 0;
+        }
+        
+        // Calculate percentage fee on original base amount (skip currency conversion), then convert the result
+        const originalAmount = Number(this.feesService.calculateFeeAmount(fee, originalBase, packageData, originalContext, undefined, undefined, true));
+        const amount = convertCurrency(originalAmount, fee.currency, displayCurrency, exchangeRateSettings);
         const finalAmount = Number(this.applyLimits(amount, fee.metadata));
         result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
         
@@ -371,13 +411,12 @@ export class BillingService {
         });
       }
     }
-    // 5. Calculate percentage-of-subtotal fees (if any)
+    // 6. Calculate percentage-of-subtotal fees (if any)
     for (const fee of percentageFeesByType['subtotal'] || []) {
-      if (!context.subtotal) continue;
-      // Calculate original amount first (without currency conversion)
-      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context));
-      // Calculate converted amount
-      const amount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context, exchangeRateSettings, displayCurrency));
+      if (!originalContext.subtotal) continue;
+      // For subtotal percentage fees, use original currency subtotal to avoid double conversion
+      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, originalContext.subtotal, packageData, originalContext, undefined, undefined, true));
+      const amount = convertCurrency(originalAmount, fee.currency, displayCurrency, exchangeRateSettings);
       const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
       
@@ -396,22 +435,23 @@ export class BillingService {
         type: fee.feeType,
       });
     }
-    // 6. Calculate tax fees (percentage-of-subtotal or other base)
+    // 7. Calculate tax fees (percentage-of-subtotal or other base)
     const taxFees = await this.getApplicableFees(packageData, companyId, 'tax');
     for (const fee of taxFees) {
-      let base = context.subtotal;
+      // For tax percentage fees, use original currency base to avoid double conversion
+      let originalBase = originalContext.subtotal;
       if (fee.calculationMethod === 'percentage' && fee.metadata && fee.metadata.baseAttribute) {
         if (fee.metadata.baseAttribute === 'customs' || fee.metadata.baseAttribute === 'declaredValue') {
-          base = context.declaredValue;
+          originalBase = originalContext.declaredValue;
         } else {
-          base = context[fee.metadata.baseAttribute] ?? context.subtotal;
+          originalBase = originalContext[fee.metadata.baseAttribute] ?? originalContext.subtotal;
         }
       }
-      if (!base) continue;
-      // Calculate original amount first (without currency conversion)
-      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
-      // Calculate converted amount
-      const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context, exchangeRateSettings, displayCurrency));
+      
+      if (!originalBase) continue;
+      // Calculate tax fee on original base amount, then convert the result
+      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, originalBase, packageData, originalContext, undefined, undefined, true));
+      const amount = convertCurrency(originalAmount, fee.currency, displayCurrency, exchangeRateSettings);
       const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result.taxes += finalAmount;
       
@@ -430,7 +470,7 @@ export class BillingService {
         type: 'tax' as any,
       });
     }
-    // 7. Calculate total
+    // 8. Calculate total
     result.total = Number(result.subtotal) + Number(result.taxes);
     return {
       ...result,
