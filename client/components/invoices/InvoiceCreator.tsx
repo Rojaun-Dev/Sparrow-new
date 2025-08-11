@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Plus, Trash2, Package, Calculator } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Package, Calculator, User } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -17,6 +17,9 @@ import { useCompanyLogo } from '@/hooks/useCompanyAssets';
 import { useCurrency } from '@/hooks/useCurrency';
 import { SupportedCurrency } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
+import { PackageSelectionDialog } from './PackageSelectionDialog';
+import { invoiceService } from '@/lib/api/invoiceService';
+import { useToast } from '@/hooks/use-toast';
 
 interface LineItem {
   id: string;
@@ -25,7 +28,7 @@ interface LineItem {
   unitPrice: number;
   currency?: SupportedCurrency;
   packageId?: string;
-  type: 'custom' | 'package' | 'fee';
+  type: 'custom' | 'package' | 'fee' | 'tax' | 'shipping' | 'handling' | 'customs' | 'other';
 }
 
 interface InvoiceData {
@@ -52,6 +55,8 @@ export function InvoiceCreator({
   onPreview,
   onGenerate
 }: InvoiceCreatorProps) {
+  const { toast } = useToast();
+  
   // Company and user data
   const { data: company } = useMyAdminCompany();
   const { data: usersData } = useCompanyUsers(company?.id, { role: 'customer' });
@@ -75,18 +80,35 @@ export function InvoiceCreator({
       description: '',
       quantity: 1,
       unitPrice: 0,
+      currency: selectedCurrency,
       type: 'custom'
     }
   ]);
 
+  // Package selection state
+  const [packageDialogOpen, setPackageDialogOpen] = useState(false);
+  const [selectedPackages, setSelectedPackages] = useState<any[]>([]);
+  const [generatingFees, setGeneratingFees] = useState(false);
+  
+  // Track if there are any actual tax line items
+  const hasTaxItems = useMemo(() => {
+    return lineItems.some(item => item.type === 'tax' || item.description.toLowerCase().includes('tax'));
+  }, [lineItems]);
+
   // Calculations
   const calculations = useMemo(() => {
     const subtotal = lineItems.reduce((sum, item) => {
-      return sum + (item.quantity * item.unitPrice);
+      // Convert to base currency if needed
+      const amount = item.currency && item.currency !== invoiceData.currency
+        ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) // true for numeric return
+        : item.quantity * item.unitPrice;
+      return sum + (typeof amount === 'number' ? amount : item.quantity * item.unitPrice);
     }, 0);
 
-    const taxRate = 0.165; // 16.5% GCT for Jamaica, adjust as needed
-    const taxAmount = subtotal * taxRate;
+    // Only calculate automatic tax if there are no manual tax items
+    const taxAmount = hasTaxItems 
+      ? lineItems.filter(item => item.type === 'tax').reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
+      : subtotal * 0.165; // 16.5% GCT for Jamaica
     const total = subtotal + taxAmount;
 
     return {
@@ -94,7 +116,7 @@ export function InvoiceCreator({
       taxAmount,
       total
     };
-  }, [lineItems]);
+  }, [lineItems, invoiceData.currency, convertAndFormat, hasTaxItems]);
 
   // Get selected customer
   const selectedCustomer = usersData?.data?.find(user => user.id === invoiceData.customerId);
@@ -110,9 +132,85 @@ export function InvoiceCreator({
       description: '',
       quantity: 1,
       unitPrice: 0,
+      currency: invoiceData.currency,
       type: 'custom'
     };
     setLineItems(prev => [...prev, newItem]);
+  };
+
+  const addPackagesAsLineItems = (packages: any[]) => {
+    setSelectedPackages(packages);
+    const packageItems: LineItem[] = packages.map(pkg => ({
+      id: `pkg-${pkg.id}`,
+      description: `Package: ${pkg.trackingNumber} - ${pkg.description || 'No description'}`,
+      quantity: 1,
+      unitPrice: 0, // User can set price
+      currency: invoiceData.currency,
+      packageId: pkg.id,
+      type: 'package' as const
+    }));
+    
+    setLineItems(prev => [...prev, ...packageItems]);
+  };
+
+  const generateFeesForPackages = async () => {
+    if (!selectedPackages.length || !company?.id) return;
+
+    setGeneratingFees(true);
+    try {
+      const feeItems: LineItem[] = [];
+      
+      for (const pkg of selectedPackages) {
+        try {
+          // Call the fee calculation API using the invoice service
+          const feeData = await invoiceService.previewInvoice({
+            userId: invoiceData.customerId,
+            packageIds: [pkg.id],
+            generateFees: true,
+            isDraft: true
+          });
+          
+          // Convert fee line items to our format
+          if (feeData.lineItems && Array.isArray(feeData.lineItems)) {
+            const packageFeeItems: LineItem[] = feeData.lineItems.map((item: any) => ({
+              id: `fee-${pkg.id}-${Date.now()}-${Math.random()}`,
+              description: item.description,
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || item.lineTotal || 0,
+              currency: invoiceData.currency,
+              packageId: pkg.id,
+              type: item.type || 'fee'
+            }));
+            
+            feeItems.push(...packageFeeItems);
+          }
+        } catch (error) {
+          console.error(`Failed to get fees for package ${pkg.id}:`, error);
+        }
+      }
+      
+      if (feeItems.length > 0) {
+        setLineItems(prev => [...prev, ...feeItems]);
+        toast({
+          title: 'Fees Generated',
+          description: `Generated ${feeItems.length} fee line items from selected packages`,
+        });
+      } else {
+        toast({
+          title: 'No Fees Found',
+          description: 'No applicable fees found for the selected packages',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error Generating Fees',
+        description: 'Failed to generate fees from packages',
+        variant: 'destructive',
+      });
+    } finally {
+      setGeneratingFees(false);
+    }
   };
 
   const updateLineItem = (id: string, field: keyof LineItem, value: any) => {
@@ -136,7 +234,7 @@ export function InvoiceCreator({
         unitPrice: item.unitPrice,
         packageId: item.packageId
       })),
-      packageIds: [],
+      packageIds: selectedPackages.map(pkg => pkg.id),
       generateFees: false,
       isDraft: true,
       notes: invoiceData.notes,
@@ -156,374 +254,348 @@ export function InvoiceCreator({
           unitPrice: item.unitPrice,
           packageId: item.packageId
         })),
-      packageIds: [],
+      packageIds: selectedPackages.map(pkg => pkg.id),
       notes: invoiceData.notes,
       dueDate: invoiceData.dueDate,
-      generateFees: false,
+      generateFees: false, // We're generating fees manually now
       isDraft
     };
     onGenerate?.(generateData);
   };
 
+  // Update line item currency when invoice currency changes
+  useEffect(() => {
+    setInvoiceData(prev => ({ ...prev, currency: selectedCurrency }));
+  }, [selectedCurrency]);
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Form Panel */}
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                {mode === 'create' ? 'Create Invoice' : 'Edit Invoice'}
-              </h1>
-              
-              {/* Customer Selection */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bill To
-                  </label>
-                  <Select
-                    value={invoiceData.customerId || ''}
-                    onValueChange={(value) => updateInvoiceData('customerId', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {usersData?.data?.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName} ({user.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Dates */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Issue Date
-                    </label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !invoiceData.issueDate && "text-muted-foreground"
-                        )}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {invoiceData.issueDate ? format(invoiceData.issueDate, "MMM dd, yyyy") : "Pick date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={invoiceData.issueDate}
-                          onSelect={(date) => date && updateInvoiceData('issueDate', date)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Due Date
-                    </label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !invoiceData.dueDate && "text-muted-foreground"
-                        )}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {invoiceData.dueDate ? format(invoiceData.dueDate, "MMM dd, yyyy") : "Pick date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={invoiceData.dueDate}
-                          onSelect={(date) => date && updateInvoiceData('dueDate', date)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                {/* Invoice Number and Currency */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Invoice Number
-                    </label>
-                    <Input
-                      value={invoiceData.invoiceNumber}
-                      onChange={(e) => updateInvoiceData('invoiceNumber', e.target.value)}
-                      placeholder="INV-001"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Currency
-                    </label>
-                    <CurrencySelector
-                      value={invoiceData.currency}
-                      onValueChange={(currency) => updateInvoiceData('currency', currency)}
-                    />
-                  </div>
-                </div>
-              </div>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* PDF-Like Invoice Form */}
+        <Card className="bg-white shadow-lg" style={{ width: '8.5in', minHeight: '11in', margin: '0 auto', padding: '30px' }}>
+          
+          {/* Header with Logo and Company Info - Exact PDF Layout */}
+          <div className="flex justify-between mb-5" style={{ marginBottom: '20px' }}>
+            <div>
+              {logoUrl ? (
+                <img src={logoUrl} alt="Company Logo" style={{ width: '120px', height: '60px', objectFit: 'contain' }} />
+              ) : (
+                <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'Helvetica' }}>{company?.name || 'Company Name'}</div>
+              )}
             </div>
-
-            {/* Line Items */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
-                <div className="space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addLineItem}
-                    className="flex items-center"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Item
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {lineItems.map((item, index) => (
-                  <div key={item.id} className="grid grid-cols-12 gap-3 items-end">
-                    <div className="col-span-5">
-                      {index === 0 && (
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Description
-                        </label>
-                      )}
-                      <Input
-                        placeholder="Item description"
-                        value={item.description}
-                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      {index === 0 && (
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Qty
-                        </label>
-                      )}
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={item.quantity}
-                        onChange={(e) => updateLineItem(item.id, 'quantity', Number(e.target.value))}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      {index === 0 && (
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Unit Price
-                        </label>
-                      )}
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.unitPrice}
-                        onChange={(e) => updateLineItem(item.id, 'unitPrice', Number(e.target.value))}
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      {index === 0 && (
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          &nbsp;
-                        </label>
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeLineItem(item.id)}
-                        className="text-red-600 hover:text-red-800"
-                        disabled={lineItems.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="col-span-1 text-right">
-                      {index === 0 && (
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Total
-                        </label>
-                      )}
-                      <div className="text-sm font-medium text-gray-900 py-2">
-                        {convertAndFormat(item.quantity * item.unitPrice, invoiceData.currency)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notes
-              </label>
-              <Textarea
-                value={invoiceData.notes}
-                onChange={(e) => updateInvoiceData('notes', e.target.value)}
-                placeholder="Payment terms, notes, etc."
-                rows={3}
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={() => handleGenerate(true)}
-                  variant="outline"
-                  disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
-                >
-                  Save as Draft
-                </Button>
-                <Button
-                  onClick={() => handleGenerate(false)}
-                  disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
-                >
-                  Generate Invoice
-                </Button>
-                <Button
-                  onClick={handlePreview}
-                  variant="outline"
-                  disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
-                >
-                  Preview
-                </Button>
+            <div className="text-right" style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px', fontFamily: 'Helvetica' }}>{company?.name || 'Company Name'}</div>
+              <div style={{ fontSize: '12px', lineHeight: '1.2' }}>
+                <div>{company?.address?.street || ''}</div>
+                <div>{company?.address?.city || ''}, {company?.address?.state || ''} {company?.address?.postalCode || ''}</div>
+                <div>{company?.phone || ''}</div>
+                <div>{company?.email || ''}</div>
               </div>
             </div>
           </div>
 
-          {/* Live Preview Panel */}
-          <div className="lg:sticky lg:top-6">
-            <Card className="p-8 bg-white shadow-lg min-h-[800px] border border-gray-200">
-              {/* Invoice Header */}
-              <div className="flex justify-between items-start mb-8">
-                <div className="flex items-center">
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Company Logo" className="h-16 w-auto object-contain mr-4" />
-                  ) : null}
-                  <div>
-                    <h1 className="text-2xl font-bold text-gray-900">{company?.name}</h1>
-                    <div className="text-sm text-gray-600 mt-1">
-                      <p>{company?.address?.street}</p>
-                      <p>{company?.address?.city}, {company?.address?.state} {company?.address?.postalCode}</p>
-                      <p>{company?.phone}</p>
-                      <p>{company?.email}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">INVOICE</h1>
-                  <p className="text-sm text-gray-600">#{invoiceData.invoiceNumber}</p>
-                  <div className="mt-4 text-sm text-gray-600">
-                    <p><span className="font-medium">Issue Date:</span> {format(invoiceData.issueDate, "MMM dd, yyyy")}</p>
-                    <p><span className="font-medium">Due Date:</span> {format(invoiceData.dueDate, "MMM dd, yyyy")}</p>
-                  </div>
-                </div>
+          {/* Invoice Title and Number - Exact PDF Layout */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px' }}>
+              <div>Invoice #: 
+                <input
+                  type="text"
+                  value={invoiceData.invoiceNumber}
+                  onChange={(e) => updateInvoiceData('invoiceNumber', e.target.value)}
+                  className="ml-1 border-none bg-transparent outline-none underline decoration-dotted"
+                  style={{ fontSize: '12px' }}
+                />
               </div>
+              <div>Status: <span className="text-blue-600 font-medium">Draft</span></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+              <div>Issue Date: 
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="ml-1 underline decoration-dotted hover:bg-gray-50 px-1">
+                      {format(invoiceData.issueDate, "MMM dd, yyyy")}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={invoiceData.issueDate}
+                      onSelect={(date) => date && updateInvoiceData('issueDate', date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>Due Date: 
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="ml-1 underline decoration-dotted hover:bg-gray-50 px-1">
+                      {format(invoiceData.dueDate, "MMM dd, yyyy")}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={invoiceData.dueDate}
+                      onSelect={(date) => date && updateInvoiceData('dueDate', date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
 
-              {/* Bill To Section */}
-              <div className="mb-8">
-                <h3 className="font-semibold text-gray-900 mb-2">Bill To:</h3>
-                <div className="text-sm text-gray-600 space-y-1">
-                  {selectedCustomer ? (
-                    <>
-                      <p className="font-medium">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
-                      <p>{selectedCustomer.email}</p>
-                      {selectedCustomer.phone && <p>{selectedCustomer.phone}</p>}
-                      {selectedCustomer.address && <p>{selectedCustomer.address}</p>}
-                    </>
-                  ) : (
-                    <p className="text-gray-400 italic">Select a customer</p>
+          {/* Customer Information Section - Exact PDF Layout */}
+          <div className="mt-4 mb-4">
+            <div className="text-sm font-bold mb-2 text-gray-800 bg-gray-100 p-1">Customer Information</div>
+            {!selectedCustomer ? (
+              <div className="border-2 border-dashed border-gray-300 p-4 text-center">
+                <Select
+                  value={invoiceData.customerId || ''}
+                  onValueChange={(value) => updateInvoiceData('customerId', value)}
+                >
+                  <SelectTrigger className="max-w-xs mx-auto">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usersData?.data?.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <>
+                <div className="flex mb-1 text-xs">
+                  <div className="w-1/4 text-gray-600">Name:</div>
+                  <div className="w-3/4">{selectedCustomer.firstName} {selectedCustomer.lastName}</div>
+                </div>
+                <div className="flex mb-1 text-xs">
+                  <div className="w-1/4 text-gray-600">Email:</div>
+                  <div className="w-3/4">{selectedCustomer.email}</div>
+                </div>
+                <div className="flex mb-1 text-xs">
+                  <div className="w-1/4 text-gray-600">Phone:</div>
+                  <div className="w-3/4">{selectedCustomer.phone || 'N/A'}</div>
+                </div>
+                <div className="text-right mt-2">
+                  <button 
+                    onClick={() => updateInvoiceData('customerId', null)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Change Customer
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Package Selection Section */}
+          {selectedCustomer && (
+            <div className="mt-4 mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-sm font-bold text-gray-800">Selected Packages</div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPackageDialogOpen(true)}
+                    className="text-xs"
+                  >
+                    <Package className="h-3 w-3 mr-1" />
+                    Add Packages
+                  </Button>
+                  {selectedPackages.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={generateFeesForPackages}
+                      disabled={generatingFees}
+                      className="text-xs"
+                    >
+                      <Calculator className="h-3 w-3 mr-1" />
+                      {generatingFees ? 'Generating...' : 'Get Fees'}
+                    </Button>
                   )}
                 </div>
               </div>
+              {selectedPackages.length > 0 ? (
+                <div className="border border-gray-200 rounded text-xs">
+                  {selectedPackages.map(pkg => (
+                    <div key={pkg.id} className="p-2 border-b last:border-b-0 flex justify-between">
+                      <span>{pkg.trackingNumber} - {pkg.description || 'No description'}</span>
+                      <button 
+                        onClick={() => {
+                          setSelectedPackages(prev => prev.filter(p => p.id !== pkg.id));
+                          setLineItems(prev => prev.filter(item => item.packageId !== pkg.id));
+                        }}
+                        className="text-red-600 hover:underline ml-2"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 italic">No packages selected</div>
+              )}
+            </div>
+          )}
 
-              {/* Line Items Table */}
-              <div className="mb-8">
-                <div className="overflow-hidden border border-gray-200 rounded-lg">
-                  <div className="bg-gray-50 border-b border-gray-200">
-                    <div className="grid grid-cols-12 gap-3 px-4 py-3 text-sm font-medium text-gray-900">
-                      <div className="col-span-6">Description</div>
-                      <div className="col-span-2 text-center">Qty</div>
-                      <div className="col-span-2 text-right">Unit Price</div>
-                      <div className="col-span-2 text-right">Amount</div>
+          {/* Invoice Items Section - Exact PDF Layout */}
+          <div className="mt-4 mb-4">
+            <div className="text-sm font-bold mb-2 text-gray-800 bg-gray-100 p-1">Invoice Items</div>
+            
+            {/* Table Header */}
+            <div className="bg-gray-100 border-b border-gray-300 py-2">
+              <div className="flex text-xs font-medium">
+                <div className="w-3/5 pr-2">Description</div>
+                <div className="w-1/5 text-right">Amount</div>
+                <div className="w-1/5 text-center">Action</div>
+              </div>
+            </div>
+            
+            {/* Table Rows */}
+            <div className="border-b border-gray-200">
+              {lineItems.length > 0 ? (
+                lineItems.map((item) => (
+                  <div key={item.id} className="flex items-center py-2 border-b border-gray-100 text-xs">
+                    <div className="w-3/5 pr-2">
+                      <input
+                        type="text"
+                        placeholder="Item description"
+                        value={item.description}
+                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                        className="w-full border-none bg-transparent outline-none text-xs"
+                      />
+                    </div>
+                    <div className="w-1/5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) => updateLineItem(item.id, 'unitPrice', Number(e.target.value))}
+                          className="w-16 text-right border-none bg-transparent outline-none text-xs"
+                        />
+                        <span className="text-gray-600">×</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={item.quantity}
+                          onChange={(e) => updateLineItem(item.id, 'quantity', Number(e.target.value))}
+                          className="w-12 text-center border-none bg-transparent outline-none text-xs"
+                        />
+                        <span>=</span>
+                        <span className="font-medium min-w-16 text-right">
+                          {convertAndFormat(item.quantity * item.unitPrice, item.currency || invoiceData.currency)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-1/5 text-center">
+                      <button
+                        onClick={() => removeLineItem(item.id)}
+                        className="text-red-600 hover:text-red-800 text-xs"
+                        disabled={lineItems.length === 1}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                     </div>
                   </div>
-                  <div className="divide-y divide-gray-200">
-                    {lineItems.filter(item => item.description.trim()).length > 0 ? (
-                      lineItems.filter(item => item.description.trim()).map((item) => (
-                        <div key={item.id} className="grid grid-cols-12 gap-3 px-4 py-3 text-sm">
-                          <div className="col-span-6 text-gray-900">{item.description}</div>
-                          <div className="col-span-2 text-center text-gray-600">{item.quantity}</div>
-                          <div className="col-span-2 text-right text-gray-600">
-                            {convertAndFormat(item.unitPrice, invoiceData.currency)}
-                          </div>
-                          <div className="col-span-2 text-right text-gray-900 font-medium">
-                            {convertAndFormat(item.quantity * item.unitPrice, invoiceData.currency)}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-8 text-center text-gray-400 italic">
-                        Add line items to see preview
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Totals */}
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex justify-end">
-                  <div className="w-64">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Subtotal:</span>
-                        <span className="font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Tax (16.5%):</span>
-                        <span className="font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</span>
-                      </div>
-                      <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
-                        <span>Total:</span>
-                        <span>{convertAndFormat(calculations.total, invoiceData.currency)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              {invoiceData.notes && (
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-2">Notes:</h4>
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{invoiceData.notes}</p>
+                ))
+              ) : (
+                <div className="py-4 text-center text-gray-500 text-xs italic">
+                  No items added yet
                 </div>
               )}
-            </Card>
+            </div>
+            
+            {/* Totals Section - Exact PDF Layout */}
+            <div className="py-2">
+              <div className="flex text-xs border-b border-gray-100 py-1">
+                <div className="w-3/5 text-right font-medium">Subtotal</div>
+                <div className="w-1/5"></div>
+                <div className="w-1/5 text-right font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</div>
+              </div>
+              {(hasTaxItems || calculations.taxAmount > 0) && (
+                <div className="flex text-xs border-b border-gray-100 py-1">
+                  <div className="w-3/5 text-right font-medium">Tax</div>
+                  <div className="w-1/5"></div>
+                  <div className="w-1/5 text-right font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</div>
+                </div>
+              )}
+              <div className="flex text-xs py-2 border-t border-gray-400">
+                <div className="w-3/5 text-right font-bold">Total</div>
+                <div className="w-1/5"></div>
+                <div className="w-1/5 text-right font-bold">{convertAndFormat(calculations.total, invoiceData.currency)}</div>
+              </div>
+            </div>
+
+            {/* Add Item Button */}
+            <div className="mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addLineItem}
+                className="text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add Item
+              </Button>
+            </div>
           </div>
-        </div>
+
+          {/* Notes Section - Exact PDF Layout */}
+          <div className="mt-6">
+            <div className="text-sm font-bold mb-2 text-gray-800">Notes:</div>
+            <textarea
+              value={invoiceData.notes}
+              onChange={(e) => updateInvoiceData('notes', e.target.value)}
+              placeholder="Payment terms, notes, etc."
+              className="w-full border-none bg-transparent outline-none resize-none text-xs"
+              rows={3}
+            />
+          </div>
+
+          {/* Actions - Fixed at bottom */}
+          <div className="mt-8 pt-4 border-t border-gray-300 flex justify-center gap-4">
+            <Button
+              onClick={() => handleGenerate(true)}
+              variant="outline"
+              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
+            >
+              Save as Draft
+            </Button>
+            <Button
+              onClick={() => handleGenerate(false)}
+              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
+            >
+              Generate Invoice
+            </Button>
+            <Button
+              onClick={handlePreview}
+              variant="outline"
+              disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim())}
+            >
+              Preview
+            </Button>
+          </div>
+        </Card>
+
+        {/* Package Selection Dialog */}
+        <PackageSelectionDialog
+          open={packageDialogOpen}
+          onOpenChange={setPackageDialogOpen}
+          customerId={invoiceData.customerId}
+          companyId={company?.id}
+          onPackagesSelected={addPackagesAsLineItems}
+        />
       </div>
     </div>
   );
