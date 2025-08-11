@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,6 +93,9 @@ export function InvoiceCreator({
   const [generatingFees, setGeneratingFees] = useState(false);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   
+  // Track which packages have had fees generated to prevent duplicates
+  const [packagesWithFees, setPackagesWithFees] = useState<Set<string>>(new Set());
+  
   // Fee calculation dialog state
   const [feeDialogOpen, setFeeDialogOpen] = useState(false);
   const [pendingPackages, setPendingPackages] = useState<any[]>([]);
@@ -144,6 +147,30 @@ export function InvoiceCreator({
 
   // Track the selected customer data
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  
+  // Sync selectedCustomer with invoiceData.customerId changes
+  useEffect(() => {
+    if (!invoiceData.customerId) {
+      setSelectedCustomer(null);
+      // Reset package fee tracking when customer is cleared
+      setPackagesWithFees(new Set());
+    }
+  }, [invoiceData.customerId]);
+
+  // Helper functions for package fee management
+  const getPackagesWithoutFees = useMemo(() => {
+    return selectedPackages.filter(pkg => !packagesWithFees.has(pkg.id));
+  }, [selectedPackages, packagesWithFees]);
+
+  const hasExistingFeesForPackage = useCallback((packageId: string): boolean => {
+    return lineItems.some(item => item.packageId === packageId);
+  }, [lineItems]);
+
+  const getPackagesAvailableForFees = useMemo(() => {
+    return selectedPackages.filter(pkg => 
+      !packagesWithFees.has(pkg.id) && !hasExistingFeesForPackage(pkg.id)
+    );
+  }, [selectedPackages, packagesWithFees, hasExistingFeesForPackage]);
 
   // Handlers
   const updateInvoiceData = (field: keyof InvoiceData, value: any) => {
@@ -195,8 +222,21 @@ export function InvoiceCreator({
   };
 
   const generateFeesForPackages = async (packages?: any[]) => {
-    const packagesToUse = packages || selectedPackages;
-    if (!packagesToUse.length || !company?.id) return;
+    // Filter to only packages that don't have fees yet
+    const packagesToUse = packages ? 
+      packages.filter(pkg => !packagesWithFees.has(pkg.id) && !hasExistingFeesForPackage(pkg.id)) :
+      getPackagesAvailableForFees;
+    
+    if (!packagesToUse.length) {
+      toast({
+        title: 'No Packages Available',
+        description: 'All selected packages already have fees generated.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!company?.id) return;
     
     if (!invoiceData.customerId) {
       toast({
@@ -269,9 +309,18 @@ export function InvoiceCreator({
         } else {
           // No mismatch, add fees directly
           setLineItems(prev => [...prev, ...feeItems]);
+          
+          // Track that these packages now have fees
+          const packageIdsWithNewFees = Array.from(new Set(feeItems.map(item => item.packageId).filter(Boolean)));
+          setPackagesWithFees(prev => {
+            const newSet = new Set(prev);
+            packageIdsWithNewFees.forEach(id => newSet.add(id));
+            return newSet;
+          });
+          
           toast({
             title: 'Fees Generated',
-            description: `Generated ${feeItems.length} fee line items from selected packages`,
+            description: `Generated ${feeItems.length} fee line items from ${packageIdsWithNewFees.length} packages`,
           });
         }
       } else {
@@ -313,6 +362,14 @@ export function InvoiceCreator({
     // Add the fees with their original currency (now matching invoice)
     setLineItems(prev => [...prev, ...pendingFees]);
     
+    // Track that these packages now have fees
+    const packageIdsWithNewFees = Array.from(new Set(pendingFees.map(item => item.packageId).filter(Boolean)));
+    setPackagesWithFees(prev => {
+      const newSet = new Set(prev);
+      packageIdsWithNewFees.forEach(id => newSet.add(id));
+      return newSet;
+    });
+    
     // Close dialog and show success message
     setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
     toast({
@@ -333,6 +390,14 @@ export function InvoiceCreator({
     
     // Add the converted fees
     setLineItems(prev => [...prev, ...convertedFees]);
+    
+    // Track that these packages now have fees
+    const packageIdsWithNewFees = Array.from(new Set(convertedFees.map(item => item.packageId).filter(Boolean)));
+    setPackagesWithFees(prev => {
+      const newSet = new Set(prev);
+      packageIdsWithNewFees.forEach(id => newSet.add(id));
+      return newSet;
+    });
     
     // Close dialog and show success message
     setCurrencyMismatchDialog({ isOpen: false, feeCurrency: 'USD', pendingFees: [] });
@@ -612,31 +677,49 @@ export function InvoiceCreator({
                       variant="outline"
                       size="sm"
                       onClick={() => generateFeesForPackages()}
-                      disabled={generatingFees}
+                      disabled={generatingFees || getPackagesAvailableForFees.length === 0}
                       className="text-xs"
                     >
                       <Calculator className="h-3 w-3 mr-1" />
-                      {generatingFees ? 'Generating...' : 'Get Fees'}
+                      {generatingFees ? 'Generating...' : 
+                        getPackagesAvailableForFees.length === 0 ? 'All Fees Generated' :
+                        `Get Fees (${getPackagesAvailableForFees.length})`}
                     </Button>
                   )}
                 </div>
               </div>
               {selectedPackages.length > 0 ? (
                 <div className="border border-gray-200 rounded text-xs">
-                  {selectedPackages.map(pkg => (
-                    <div key={pkg.id} className="p-2 border-b last:border-b-0 flex justify-between">
-                      <span>{pkg.trackingNumber} - {pkg.description || 'No description'}</span>
+                  {selectedPackages.map(pkg => {
+                    const hasFees = packagesWithFees.has(pkg.id) || hasExistingFeesForPackage(pkg.id);
+                    return (
+                    <div key={pkg.id} className="p-2 border-b last:border-b-0 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span>{pkg.trackingNumber} - {pkg.description || 'No description'}</span>
+                        {hasFees && (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                            Fees Generated
+                          </span>
+                        )}
+                      </div>
                       <button 
                         onClick={() => {
                           setSelectedPackages(prev => prev.filter(p => p.id !== pkg.id));
                           setLineItems(prev => prev.filter(item => item.packageId !== pkg.id));
+                          // Remove from packages with fees tracking
+                          setPackagesWithFees(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(pkg.id);
+                            return newSet;
+                          });
                         }}
                         className="text-red-600 hover:underline ml-2"
                       >
                         Remove
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-xs text-gray-500 italic">No packages selected</div>
