@@ -26,6 +26,7 @@ export const generateInvoiceSchema = z.object({
   packageIds: z.array(z.string().uuid()).optional().default([]), // Made optional for custom invoices
   customLineItems: z.array(customLineItemSchema).optional().default([]), // New custom line items
   notes: z.string().optional(),
+  issueDate: z.coerce.date().optional(), // Allow setting issue date from frontend
   dueDate: z.coerce.date().optional(),
   additionalCharge: z.number().optional(),
   additionalChargeCurrency: z.enum(['USD', 'JMD']).optional(),
@@ -491,7 +492,7 @@ export class BillingService {
         companyId,
         invoiceNumber,
         status: (validatedData.isDraft ? 'draft' : 'issued') as typeof invoiceStatusEnum.enumValues[number],
-        issueDate: validatedData.isDraft ? null : new Date(),
+        issueDate: validatedData.isDraft ? null : (validatedData.issueDate || new Date()),
         dueDate,
         subtotal: '0',
         taxAmount: '0',

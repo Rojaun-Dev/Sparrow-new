@@ -18,6 +18,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { SupportedCurrency } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import { PackageSelectionDialog } from './PackageSelectionDialog';
+import { SearchableCustomerDropdown } from './SearchableCustomerDropdown';
+import { FeeCalculationDialog } from './FeeCalculationDialog';
 import { invoiceService } from '@/lib/api/invoiceService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -60,7 +62,7 @@ export function InvoiceCreator({
   // Company and user data
   const { data: company } = useMyAdminCompany();
   const { data: usersData } = useCompanyUsers(company?.id, { role: 'customer' });
-  const { logoUrl } = useCompanyLogo(company?.id);
+  const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
   const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
 
   // Invoice state
@@ -89,6 +91,10 @@ export function InvoiceCreator({
   const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedPackages, setSelectedPackages] = useState<any[]>([]);
   const [generatingFees, setGeneratingFees] = useState(false);
+  
+  // Fee calculation dialog state
+  const [feeDialogOpen, setFeeDialogOpen] = useState(false);
+  const [pendingPackages, setPendingPackages] = useState<any[]>([]);
   
   // Track if there are any actual tax line items
   const hasTaxItems = useMemo(() => {
@@ -139,8 +145,19 @@ export function InvoiceCreator({
   };
 
   const addPackagesAsLineItems = (packages: any[]) => {
-    setSelectedPackages(packages);
-    const packageItems: LineItem[] = packages.map(pkg => ({
+    setPendingPackages(packages);
+    setFeeDialogOpen(true);
+  };
+  
+  const handleCalculateFees = async () => {
+    setSelectedPackages(pendingPackages);
+    await generateFeesForPackages(pendingPackages);
+    setPendingPackages([]);
+  };
+  
+  const handleSkipFees = () => {
+    setSelectedPackages(pendingPackages);
+    const packageItems: LineItem[] = pendingPackages.map(pkg => ({
       id: `pkg-${pkg.id}`,
       description: `Package: ${pkg.trackingNumber} - ${pkg.description || 'No description'}`,
       quantity: 1,
@@ -151,16 +168,18 @@ export function InvoiceCreator({
     }));
     
     setLineItems(prev => [...prev, ...packageItems]);
+    setPendingPackages([]);
   };
 
-  const generateFeesForPackages = async () => {
-    if (!selectedPackages.length || !company?.id) return;
+  const generateFeesForPackages = async (packages?: any[]) => {
+    const packagesToUse = packages || selectedPackages;
+    if (!packagesToUse.length || !company?.id) return;
 
     setGeneratingFees(true);
     try {
       const feeItems: LineItem[] = [];
       
-      for (const pkg of selectedPackages) {
+      for (const pkg of packagesToUse) {
         try {
           // Call the fee calculation API using the invoice service
           const feeData = await invoiceService.previewInvoice({
@@ -238,6 +257,7 @@ export function InvoiceCreator({
       generateFees: false,
       isDraft: true,
       notes: invoiceData.notes,
+      issueDate: invoiceData.issueDate,
       dueDate: invoiceData.dueDate
     };
     onPreview?.(previewData);
@@ -256,6 +276,7 @@ export function InvoiceCreator({
         })),
       packageIds: selectedPackages.map(pkg => pkg.id),
       notes: invoiceData.notes,
+      issueDate: invoiceData.issueDate,
       dueDate: invoiceData.dueDate,
       generateFees: false, // We're generating fees manually now
       isDraft
@@ -278,7 +299,15 @@ export function InvoiceCreator({
           <div className="flex justify-between mb-5" style={{ marginBottom: '20px' }}>
             <div>
               {logoUrl ? (
-                <img src={logoUrl} alt="Company Logo" style={{ width: '120px', height: '60px', objectFit: 'contain' }} />
+                <img 
+                  src={logoUrl} 
+                  alt={isUsingBanner ? "Company Banner" : "Company Logo"} 
+                  style={{ 
+                    width: isUsingBanner ? '200px' : '120px', 
+                    height: '60px', 
+                    objectFit: 'contain' 
+                  }} 
+                />
               ) : (
                 <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'Helvetica' }}>{company?.name || 'Company Name'}</div>
               )}
@@ -296,7 +325,16 @@ export function InvoiceCreator({
 
           {/* Invoice Title and Number - Exact PDF Layout */}
           <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
+            <div className="flex justify-between items-center mb-2">
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600">Currency:</span>
+                <CurrencySelector 
+                  value={invoiceData.currency} 
+                  onValueChange={(currency) => updateInvoiceData('currency', currency)}
+                />
+              </div>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px' }}>
               <div>Invoice #: 
                 <input
@@ -352,21 +390,12 @@ export function InvoiceCreator({
             <div className="text-sm font-bold mb-2 text-gray-800 bg-gray-100 p-1">Customer Information</div>
             {!selectedCustomer ? (
               <div className="border-2 border-dashed border-gray-300 p-4 text-center">
-                <Select
+                <SearchableCustomerDropdown
+                  customers={usersData?.data || []}
                   value={invoiceData.customerId || ''}
                   onValueChange={(value) => updateInvoiceData('customerId', value)}
-                >
-                  <SelectTrigger className="w-full mx-auto">
-                    <SelectValue placeholder="Select customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {usersData?.data?.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName} ({user.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Search by name, email, or Pref ID..."
+                />
               </div>
             ) : (
               <>
@@ -588,6 +617,15 @@ export function InvoiceCreator({
           customerId={invoiceData.customerId}
           companyId={company?.id}
           onPackagesSelected={addPackagesAsLineItems}
+        />
+
+        {/* Fee Calculation Dialog */}
+        <FeeCalculationDialog
+          open={feeDialogOpen}
+          onOpenChange={setFeeDialogOpen}
+          onCalculateFees={handleCalculateFees}
+          onSkipFees={handleSkipFees}
+          packageCount={pendingPackages.length}
         />
       </div>
     </div>

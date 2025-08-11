@@ -11,6 +11,7 @@ interface InvoicePDFRendererProps {
   user: any;
   company: any;
   companyLogo?: string | null;
+  isUsingBanner?: boolean;
   buttonProps?: React.ButtonHTMLAttributes<HTMLButtonElement>;
   buttonText?: string;
   fileName?: string;
@@ -28,6 +29,7 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
   user,
   company,
   companyLogo,
+  isUsingBanner = false,
   buttonProps,
   buttonText = 'Download PDF',
   fileName = `invoice-${invoice?.invoiceNumber || invoice?.id}.pdf`,
@@ -99,6 +101,7 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
           user={user}
           company={company}
           companyLogo={companyLogo}
+          isUsingBanner={isUsingBanner}
           currency={currency}
           exchangeRateSettings={exchangeRateSettings}
         />
