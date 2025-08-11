@@ -236,6 +236,7 @@ interface InvoicePDFProps {
   packages: any[];
   user: any;
   company: any;
+  companyLogo?: string | null; // Base64 or data URL
   currency?: SupportedCurrency;
   exchangeRateSettings?: ExchangeRateSettings;
 }
@@ -245,6 +246,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
   packages, 
   user, 
   company,
+  companyLogo,
   currency = 'USD',
   exchangeRateSettings
 }) => {
@@ -300,8 +302,8 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
         {/* Header with Logo and Company Info */}
         <View style={styles.header}>
           <View>
-            {company?.logoUrl ? (
-              <Image src={company.logoUrl} style={styles.logo} />
+            {companyLogo ? (
+              <Image src={companyLogo} style={styles.logo} />
             ) : (
               <Text style={styles.companyName}>{company?.name || 'Company Name'}</Text>
             )}

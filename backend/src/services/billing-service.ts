@@ -12,15 +12,31 @@ import { FeesService } from './fees-service';
 import { convertCurrency, getDisplayCurrency } from '../utils/currency-utils';
 import logger from '../utils/logger';
 
+// Custom line item schema
+export const customLineItemSchema = z.object({
+  description: z.string().min(1).max(255),
+  quantity: z.number().min(0),
+  unitPrice: z.number().min(0),
+  packageId: z.string().uuid().optional(), // Optional package association
+});
+
 // Validation schema for generating an invoice
 export const generateInvoiceSchema = z.object({
   userId: z.string().uuid(),
-  packageIds: z.array(z.string().uuid()).min(1),
+  packageIds: z.array(z.string().uuid()).optional().default([]), // Made optional for custom invoices
+  customLineItems: z.array(customLineItemSchema).optional().default([]), // New custom line items
   notes: z.string().optional(),
   dueDate: z.coerce.date().optional(),
   additionalCharge: z.number().optional(),
   additionalChargeCurrency: z.enum(['USD', 'JMD']).optional(),
   sendNotification: z.boolean().optional(),
+  generateFees: z.boolean().optional().default(true), // Whether to generate predefined fees
+  isDraft: z.boolean().optional().default(false), // Whether to create as draft
+}).refine((data) => {
+  // At least one of packageIds, customLineItems, or additionalCharge must be provided
+  return data.packageIds.length > 0 || data.customLineItems.length > 0 || (data.additionalCharge && data.additionalCharge > 0);
+}, {
+  message: "At least one package, custom line item, or additional charge must be provided"
 });
 
 export class BillingService {
@@ -474,8 +490,8 @@ export class BillingService {
         userId: validatedData.userId,
         companyId,
         invoiceNumber,
-        status: 'issued' as typeof invoiceStatusEnum.enumValues[number],
-        issueDate: new Date(),
+        status: (validatedData.isDraft ? 'draft' : 'issued') as typeof invoiceStatusEnum.enumValues[number],
+        issueDate: validatedData.isDraft ? null : new Date(),
         dueDate,
         subtotal: '0',
         taxAmount: '0',
@@ -490,30 +506,52 @@ export class BillingService {
         throw new AppError('Failed to create invoice', 500);
       }
       
-      // Calculate fees for each package and add line items
+      // Calculate fees for packages (if generateFees is true and packages are provided)
       const fixedFeesApplied = new Set<string>();
-      for (const packageId of validatedData.packageIds) {
-        const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
-        // Aggregate fee breakdown
-        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
-        feeBreakdown.handling += Number(packageFees.handling) || 0;
-        feeBreakdown.customs += Number(packageFees.customs) || 0;
-        feeBreakdown.other += Number(packageFees.other) || 0;
-        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
-        // Add all line items to invoice
-        for (const item of packageFees.lineItems) {
+      if (validatedData.generateFees && validatedData.packageIds.length > 0) {
+        for (const packageId of validatedData.packageIds) {
+          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
+          // Aggregate fee breakdown
+          feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+          feeBreakdown.handling += Number(packageFees.handling) || 0;
+          feeBreakdown.customs += Number(packageFees.customs) || 0;
+          feeBreakdown.other += Number(packageFees.other) || 0;
+          feeBreakdown.taxes += Number(packageFees.taxes) || 0;
+          // Add all line items to invoice
+          for (const item of packageFees.lineItems) {
+            const lineItemData = {
+              invoiceId: invoice.id,
+              companyId,
+              ...item,
+            };
+            await this.invoiceItemsRepository.create(lineItemData, companyId);
+            // Add to totals (except tax)
+            if (item.type !== 'tax') {
+              subtotal += Number(item.lineTotal);
+            } else {
+              taxAmount += Number(item.lineTotal);
+            }
+          }
+        }
+      }
+      
+      // Add custom line items
+      if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
+        for (const customItem of validatedData.customLineItems) {
+          const lineTotal = customItem.quantity * customItem.unitPrice;
           const lineItemData = {
             invoiceId: invoice.id,
             companyId,
-            ...item,
+            packageId: customItem.packageId || null,
+            description: customItem.description,
+            quantity: customItem.quantity,
+            unitPrice: customItem.unitPrice,
+            lineTotal: lineTotal,
+            type: 'other' as any,
           };
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          // Add to totals (except tax)
-          if (item.type !== 'tax') {
-            subtotal += Number(item.lineTotal);
-          } else {
-            taxAmount += Number(item.lineTotal);
-          }
+          subtotal += lineTotal;
+          feeBreakdown.other += lineTotal;
         }
       }
       
@@ -672,21 +710,40 @@ export class BillingService {
         taxes: 0,
       };
       
-      // Calculate fees for each package
+      // Calculate fees for packages (if generateFees is true and packages are provided)
       const fixedFeesApplied = new Set<string>();
-      for (const packageId of validatedData.packageIds) {
-        const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
-        // Aggregate fee breakdown (parse as numbers)
-        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
-        feeBreakdown.handling += Number(packageFees.handling) || 0;
-        feeBreakdown.customs += Number(packageFees.customs) || 0;
-        feeBreakdown.other += Number(packageFees.other) || 0;
-        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
-        // Track line items
-        lineItems.push(...packageFees.lineItems);
-        // Add to totals (parse as numbers)
-        subtotal += Number(packageFees.subtotal) || 0;
-        taxAmount += Number(packageFees.taxes) || 0;
+      if (validatedData.generateFees && validatedData.packageIds.length > 0) {
+        for (const packageId of validatedData.packageIds) {
+          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
+          // Aggregate fee breakdown (parse as numbers)
+          feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+          feeBreakdown.handling += Number(packageFees.handling) || 0;
+          feeBreakdown.customs += Number(packageFees.customs) || 0;
+          feeBreakdown.other += Number(packageFees.other) || 0;
+          feeBreakdown.taxes += Number(packageFees.taxes) || 0;
+          // Track line items
+          lineItems.push(...packageFees.lineItems);
+          // Add to totals (parse as numbers)
+          subtotal += Number(packageFees.subtotal) || 0;
+          taxAmount += Number(packageFees.taxes) || 0;
+        }
+      }
+      
+      // Add custom line items to preview
+      if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
+        for (const customItem of validatedData.customLineItems) {
+          const lineTotal = customItem.quantity * customItem.unitPrice;
+          lineItems.push({
+            packageId: customItem.packageId || null,
+            description: customItem.description,
+            quantity: customItem.quantity,
+            unitPrice: customItem.unitPrice,
+            lineTotal: lineTotal,
+            type: 'other',
+          });
+          subtotal += lineTotal;
+          feeBreakdown.other += lineTotal;
+        }
       }
       
       // Add additional charge to preview if provided

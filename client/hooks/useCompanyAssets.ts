@@ -118,4 +118,33 @@ export function useCompanyAssets() {
     isLoading: query.isLoading,
     error: query.error,
   };
+}
+
+// Helper hook specifically for getting company logo for invoices
+export function useCompanyLogo(companyId?: string) {
+  const { data: assets = [], isLoading, error } = useQuery({
+    queryKey: ['company-assets', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      return apiClient.get<CompanyAsset[]>(`/companies/${companyId}/assets`);
+    },
+    enabled: !!companyId,
+  });
+
+  const logoAsset = assets.find(asset => asset.type === 'logo');
+  
+  // Convert base64 to data URL if available
+  let logoUrl = null;
+  if (logoAsset?.imageData) {
+    // Remove data URL prefix if it exists, then add our own
+    const base64Data = logoAsset.imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+    logoUrl = `data:image/png;base64,${base64Data}`;
+  }
+  
+  return {
+    logoUrl,
+    logoAsset,
+    isLoading,
+    error
+  };
 } 
