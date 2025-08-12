@@ -14,6 +14,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { CompanyProvider } from "@/hooks/useCompanyContext"
 import { CurrencyProvider } from "@/components/providers/CurrencyProvider"
 import CompanyMetaTags from "@/components/CompanyMetaTags"
+import DynamicTitle from "@/components/DynamicTitle"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -42,6 +43,7 @@ export default function RootLayout({
               <CompanyProvider>
                 <CurrencyProvider>
                   <TooltipProvider>
+                    <DynamicTitle />
                     <FeedbackProvider>{children}</FeedbackProvider>
                   </TooltipProvider>
                 </CurrencyProvider>
