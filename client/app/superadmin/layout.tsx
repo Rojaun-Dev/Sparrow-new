@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { SuperAdminSidebar } from "@/components/superadmin/sidebar"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 import { useState } from "react"
+import DynamicTitle from "@/components/DynamicTitle"
 
 // Config to prevent static optimization
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,7 @@ export default function SuperAdminLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <DynamicTitle />
           <LayoutWrapper>
             {children}
           </LayoutWrapper>

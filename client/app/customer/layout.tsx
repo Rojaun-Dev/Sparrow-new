@@ -9,6 +9,7 @@ import { Menu } from "lucide-react"
 import { useState } from "react"
 import { useIOSParentUrl } from "@/hooks/useIOSParentUrl"
 import { IOSDebugInfo } from "@/components/ios/IOSDebugInfo"
+import DynamicTitle from "@/components/DynamicTitle"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,6 +25,7 @@ export default function CustomerLayout({
   const { storedParentUrl } = useIOSParentUrl()
   return (
     <div className="flex min-h-screen flex-col">
+      <DynamicTitle/>
       <IOSDebugInfo />
       <div className="flex flex-1">
         <CustomerSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
