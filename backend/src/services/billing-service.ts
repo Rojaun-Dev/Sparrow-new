@@ -832,7 +832,6 @@ export class BillingService {
       
       // Add custom line items to preview
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
-        const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
         // For storage/calculations, always use company's base currency regardless of user preference
         const storageCurrency = getDisplayCurrency(exchangeRateSettings);
         
