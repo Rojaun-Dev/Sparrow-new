@@ -26,6 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import { apiClient } from "@/lib/api/apiClient"
 import { toast } from "@/components/ui/use-toast"
+import { copyTextWithFeedback } from "@/lib/utils/copy"
 import { useApiKey } from "@/hooks/useApiKey"
 import { Spinner } from "@/components/ui/spinner"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -584,9 +585,18 @@ export default function CompanySettingsPage() {
   // Copy API key to clipboard
   const copyApiKey = async () => {
     if (companyData.integrationSettings.apiKey) {
-      await navigator.clipboard.writeText(companyData.integrationSettings.apiKey);
-      setApiKeyCopied(true);
-      setTimeout(() => setApiKeyCopied(false), 2000);
+      const result = await copyTextWithFeedback(companyData.integrationSettings.apiKey);
+      
+      if (result.success) {
+        setApiKeyCopied(true);
+        setTimeout(() => setApiKeyCopied(false), 2000);
+      }
+      
+      toast({
+        title: result.title,
+        description: result.description,
+        variant: result.variant,
+      });
     }
   };
 
@@ -610,9 +620,18 @@ export default function CompanySettingsPage() {
   const copyIframeCode = async () => {
     const code = getIframeCode();
     if (code) {
-      await navigator.clipboard.writeText(code);
-      setIframeCodeCopied(true);
-      setTimeout(() => setIframeCodeCopied(false), 2000);
+      const result = await copyTextWithFeedback(code);
+      
+      if (result.success) {
+        setIframeCodeCopied(true);
+        setTimeout(() => setIframeCodeCopied(false), 2000);
+      }
+      
+      toast({
+        title: result.title,
+        description: result.description,
+        variant: result.variant,
+      });
     }
   };
 

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useCompanyShipping, formatShippingAddress } from "@/hooks/useCompanyShipping";
 import { useToast } from "@/hooks/use-toast";
+import { copyTextWithFeedback } from "@/lib/utils/copy";
 
 export function ShippingInfoCard() {
   const { data: shippingData, isLoading, error } = useCompanyShipping();
@@ -18,23 +19,19 @@ export function ShippingInfoCard() {
 
     const formattedAddress = formatShippingAddress(shippingData);
     
-    try {
-      await navigator.clipboard.writeText(formattedAddress);
+    const result = await copyTextWithFeedback(formattedAddress);
+    
+    if (result.success) {
       setCopied(true);
-      toast({
-        title: "Address copied",
-        description: "Shipping address has been copied to clipboard",
-      });
-      
       // Reset copied state after 2 seconds
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast({
-        title: "Failed to copy",
-        description: "Could not copy address to clipboard",
-        variant: "destructive",
-      });
     }
+    
+    toast({
+      title: result.title,
+      description: result.description,
+      variant: result.variant,
+    });
   };
 // cleanup
   if (isLoading) {
