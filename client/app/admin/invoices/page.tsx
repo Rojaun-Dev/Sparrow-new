@@ -24,6 +24,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { CurrencySelector } from '@/components/ui/currency-selector';
 import type { InvoiceStatus } from '@/lib/api/types';
 import { Badge } from '@/components/ui/badge';
+import { Plus } from 'lucide-react';
+import { useCompanyLogo } from '@/hooks/useCompanyAssets';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -115,6 +117,7 @@ export default function InvoicesPage() {
   const { data: printUser } = useUser(printInvoice?.userId);
   const { data: printCompany } = useMyAdminCompany();
   const { data: printPackages } = usePackagesByInvoiceId(printInvoiceId || '');
+  const { logoUrl: printLogoUrl, isUsingBanner: printIsUsingBanner } = useCompanyLogo(printCompany?.id);
 
   // Deduplicate and process items for print
   let printItems = printInvoice && Array.isArray(printInvoice.items) ? [...printInvoice.items] : [];
@@ -161,13 +164,21 @@ export default function InvoicesPage() {
             <CardTitle>Invoices</CardTitle>
             <CardDescription>View and manage all invoices for your company</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Currency:</span>
-            <CurrencySelector
-              value={selectedCurrency}
-              onValueChange={setSelectedCurrency}
-              size="sm"
-            />
+          <div className="flex items-center gap-4">
+            <Link href="/admin/invoices/create" passHref>
+              <Button size="sm" className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Create Invoice
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Currency:</span>
+              <CurrencySelector
+                value={selectedCurrency}
+                onValueChange={setSelectedCurrency}
+                size="sm"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -419,6 +430,8 @@ export default function InvoicesPage() {
               packages={printPackages || []}
               user={printUser}
               company={printCompany}
+              companyLogo={printLogoUrl}
+              isUsingBanner={printIsUsingBanner}
               buttonText="Download PDF"
               buttonProps={{ className: 'print-pdf-btn' }}
               onDownloadComplete={() => setPrintDialogOpen(false)}
