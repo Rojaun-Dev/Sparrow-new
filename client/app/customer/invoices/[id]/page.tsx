@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SupportedCurrency } from "@/lib/api/types"
+import { useCompanyLogo } from "@/hooks/useCompanyAssets"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -365,6 +366,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   
   // Fetch company data
   const { data: company } = useMyCompany();
+  const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -501,6 +503,8 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
               packages={relatedPackages}
               user={user}
               company={company}
+              companyLogo={logoUrl}
+              isUsingBanner={isUsingBanner}
               buttonText="Download PDF"
               currency={selectedCurrency}
               exchangeRateSettings={exchangeRateSettings || undefined}

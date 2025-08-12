@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCompanyLogo } from "@/hooks/useCompanyAssets";
 
 function CustomerNameDisplay({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId);
@@ -103,6 +104,7 @@ export default function InvoiceDetailPage() {
   const { data: packages, isLoading: packagesLoading, refetch: refetchPackages } = usePackagesByInvoiceId(invoiceId as string);
   const { data: customer, isLoading: customerLoading } = useUser(invoice?.userId as string);
   const { data: company } = useMyAdminCompany();
+  const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
   const downloadPdfMutation = useDownloadInvoicePdf();
   const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(invoiceId || "");
   const { toast } = useToast();
@@ -270,6 +272,8 @@ export default function InvoiceDetailPage() {
               packages={packages || []}
               user={customer}
               company={company}
+              companyLogo={logoUrl}
+              isUsingBanner={isUsingBanner}
               buttonText="Print"
               buttonProps={{ className: 'print-pdf-btn' }}
               onDownloadComplete={() => {}}
