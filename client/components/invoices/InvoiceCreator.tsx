@@ -222,6 +222,7 @@ interface LineItem {
   currency?: SupportedCurrency;
   packageId?: string;
   type: 'custom' | 'package' | 'fee' | 'tax' | 'shipping' | 'handling' | 'customs' | 'other';
+  isTax?: boolean;
 }
 
 interface InvoiceData {
@@ -321,22 +322,24 @@ export function InvoiceCreator({
   
   // Track if there are any actual tax line items
   const hasTaxItems = useMemo(() => {
-    return lineItems.some(item => item.type === 'tax');
+    return lineItems.some(item => item.isTax);
   }, [lineItems]);
 
   // Calculations
   const calculations = useMemo(() => {
-    const subtotal = lineItems.reduce((sum, item) => {
-      // Convert to invoice currency if needed
-      const amount = item.currency && item.currency !== invoiceData.currency
-        ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number // Return numeric value
-        : item.quantity * item.unitPrice;
-      return sum + amount;
-    }, 0);
-
-    // Tax amount is only the sum of tax line items (no hardcoded percentages)
+    // Tax amount is only the sum of items marked as tax
     const taxAmount = lineItems
-      .filter(item => item.type === 'tax')
+      .filter(item => item.isTax)
+      .reduce((sum, item) => {
+        const amount = item.currency && item.currency !== invoiceData.currency
+          ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number
+          : item.quantity * item.unitPrice;
+        return sum + amount;
+      }, 0);
+
+    // Subtotal is the sum of non-tax items
+    const subtotal = lineItems
+      .filter(item => !item.isTax)
       .reduce((sum, item) => {
         const amount = item.currency && item.currency !== invoiceData.currency
           ? convertAndFormat(item.quantity * item.unitPrice, item.currency, true) as number
@@ -352,6 +355,9 @@ export function InvoiceCreator({
       total
     };
   }, [lineItems, invoiceData.currency, convertAndFormat]);
+
+  // Destructure calculation values for easy access
+  const { subtotal, taxAmount, total } = calculations;
 
   // Track the selected customer data
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -388,14 +394,15 @@ export function InvoiceCreator({
     }
   };
 
-  const addLineItem = () => {
+  const addLineItem = (isTax: boolean = false) => {
     const newItem: LineItem = {
       id: Date.now().toString(),
       description: '',
       quantity: 1,
       unitPrice: 0,
       currency: invoiceData.currency,
-      type: 'custom'
+      type: 'custom',
+      isTax: isTax
     };
     setLineItems(prev => [...prev, newItem]);
   };
@@ -427,7 +434,8 @@ export function InvoiceCreator({
       unitPrice: 0, // User can set price
       currency: invoiceData.currency,
       packageId: pkg.id,
-      type: 'package' as const
+      type: 'package' as const,
+      isTax: false // Package line items are not tax by default
     }));
     
     setLineItems(prev => [...prev, ...packageItems]);
@@ -500,7 +508,8 @@ export function InvoiceCreator({
                 unitPrice: Math.round((item.unitPrice || item.lineTotal || 0) * 100) / 100, // Round to 2 decimal places
                 currency: feeCurrency, // Keep original currency
                 packageId: pkg.id,
-                type: item.type || 'fee'
+                type: item.type || 'fee',
+                isTax: item.type === 'tax' // Automatically mark tax fees as tax
               };
             });
             
@@ -617,7 +626,8 @@ export function InvoiceCreator({
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         packageId: item.packageId,
-        currency: item.currency || invoiceData.currency
+        currency: item.currency || invoiceData.currency,
+        isTax: item.isTax || false
       })),
       packageIds: selectedPackages.map(pkg => pkg.id),
       generateFees: false,
@@ -657,7 +667,8 @@ export function InvoiceCreator({
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           packageId: item.packageId,
-          currency: item.currency || invoiceData.currency
+          currency: item.currency || invoiceData.currency,
+          isTax: item.isTax || false
         })),
       packageIds: selectedPackages.map(pkg => pkg.id),
       notes: invoiceData.notes,
@@ -971,9 +982,10 @@ export function InvoiceCreator({
             {/* Table Header */}
             <div className="bg-gray-100 border-b border-gray-300 py-2">
               <div className="flex text-xs font-medium">
-                <div className="w-3/5 pr-2">Description</div>
-                <div className="w-1/5 text-right">Amount</div>
-                <div className="w-1/5 text-center">Action</div>
+                <div className="w-2/5 pr-2">Description</div>
+                <div className="w-16 pr-2">Tax</div>
+                <div className="w-2/5 text-right">Amount</div>
+                <div className="w-16 text-center">Action</div>
               </div>
             </div>
             
@@ -982,7 +994,7 @@ export function InvoiceCreator({
               {lineItems.length > 0 ? (
                 lineItems.map((item) => (
                   <div key={item.id} className="flex items-center py-2 border-b border-gray-100 text-xs">
-                    <div className="w-3/5 pr-2">
+                    <div className="w-2/5 pr-2">
                       <input
                         type="text"
                         placeholder="Item description"
@@ -991,7 +1003,16 @@ export function InvoiceCreator({
                         className="w-full border-none bg-transparent outline-none text-xs"
                       />
                     </div>
-                    <div className="w-1/5 text-right">
+                    <div className="w-16 pr-2 flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={item.isTax || false}
+                        onChange={(e) => updateLineItem(item.id, 'isTax', e.target.checked)}
+                        className="text-xs"
+                        title="Check if this is a tax charge"
+                      />
+                    </div>
+                    <div className="w-2/5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <span className="text-gray-500 text-xs">{getCurrencySymbol(item.currency || invoiceData.currency)}</span>
                         <input
@@ -1017,7 +1038,7 @@ export function InvoiceCreator({
                         </span>
                       </div>
                     </div>
-                    <div className="w-1/5 text-center">
+                    <div className="w-16 text-center">
                       <button
                         onClick={() => removeLineItem(item.id)}
                         className="text-red-600 hover:text-red-800 text-xs"
@@ -1040,32 +1061,41 @@ export function InvoiceCreator({
               <div className="flex text-xs border-b border-gray-100 py-1">
                 <div className="w-3/5 text-right font-medium">Subtotal</div>
                 <div className="w-1/5"></div>
-                <div className="w-1/5 text-right font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</div>
+                <div className="w-1/5 text-right font-medium">{convertAndFormat(subtotal, invoiceData.currency)}</div>
               </div>
-              {(hasTaxItems || calculations.taxAmount > 0) && (
+              {(hasTaxItems || taxAmount > 0) && (
                 <div className="flex text-xs border-b border-gray-100 py-1">
                   <div className="w-3/5 text-right font-medium">Tax</div>
                   <div className="w-1/5"></div>
-                  <div className="w-1/5 text-right font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</div>
+                  <div className="w-1/5 text-right font-medium">{convertAndFormat(taxAmount, invoiceData.currency)}</div>
                 </div>
               )}
               <div className="flex text-xs py-2 border-t border-gray-400">
                 <div className="w-3/5 text-right font-bold">Total</div>
                 <div className="w-1/5"></div>
-                <div className="w-1/5 text-right font-bold">{convertAndFormat(calculations.total, invoiceData.currency)}</div>
+                <div className="w-1/5 text-right font-bold">{convertAndFormat(total, invoiceData.currency)}</div>
               </div>
             </div>
 
-            {/* Add Item Button */}
-            <div className="mt-2">
+            {/* Add Item Buttons */}
+            <div className="mt-2 flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={addLineItem}
+                onClick={() => addLineItem(false)}
                 className="text-xs"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Add Item
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => addLineItem(true)}
+                className="text-xs bg-green-50 hover:bg-green-100"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add Tax
               </Button>
             </div>
           </div>
@@ -1126,17 +1156,17 @@ export function InvoiceCreator({
                   <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span className="font-medium">{convertAndFormat(calculations.subtotal, invoiceData.currency)}</span>
+                      <span className="font-medium">{convertAndFormat(subtotal, invoiceData.currency)}</span>
                     </div>
-                    {(hasTaxItems || calculations.taxAmount > 0) && (
+                    {(hasTaxItems || taxAmount > 0) && (
                       <div className="flex justify-between">
                         <span>Tax:</span>
-                        <span className="font-medium">{convertAndFormat(calculations.taxAmount, invoiceData.currency)}</span>
+                        <span className="font-medium">{convertAndFormat(taxAmount, invoiceData.currency)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-base font-semibold border-t border-gray-200 pt-2">
                       <span>Total:</span>
-                      <span>{convertAndFormat(calculations.total, invoiceData.currency)}</span>
+                      <span>{convertAndFormat(total, invoiceData.currency)}</span>
                     </div>
                   </div>
                 </div>

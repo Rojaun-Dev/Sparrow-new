@@ -406,10 +406,12 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
             <Text style={styles.description}>Subtotal</Text>
             <Text style={styles.amount}>{formatWithCurrency(subtotal)}</Text>
           </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.description}>Tax</Text>
-            <Text style={styles.amount}>{formatWithCurrency(totalTax)}</Text>
-          </View>
+          {totalTax > 0 && (
+            <View style={styles.tableRow}>
+              <Text style={styles.description}>Tax</Text>
+              <Text style={styles.amount}>{formatWithCurrency(totalTax)}</Text>
+            </View>
+          )}
           <View style={styles.tableRow}>
             <Text style={styles.description}>Total</Text>
             <Text style={styles.amount}>{formatWithCurrency(total)}</Text>

@@ -654,10 +654,12 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                     <span className="text-sm text-muted-foreground">Subtotal</span>
                     <span>{convertAndFormat(parseFloat(invoice.subtotal?.toString() || "0"))}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Tax</span>
-                    <span>{convertAndFormat(parseFloat(invoice.taxAmount?.toString() || "0"))}</span>
-                  </div>
+                  {parseFloat(invoice.taxAmount?.toString() || "0") > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Tax</span>
+                      <span>{convertAndFormat(parseFloat(invoice.taxAmount?.toString() || "0"))}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-medium">
                     <span>Total</span>
                     <span>{convertAndFormat(parseFloat(invoice.totalAmount?.toString() || "0"))}</span>

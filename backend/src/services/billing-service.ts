@@ -19,6 +19,7 @@ export const customLineItemSchema = z.object({
   unitPrice: z.number().min(0),
   packageId: z.string().uuid().optional(), // Optional package association
   currency: z.enum(['USD', 'JMD']).optional(), // Currency of the line item
+  isTax: z.boolean().optional().default(false), // Whether this item is a tax charge
 });
 
 // Validation schema for generating an invoice
@@ -638,11 +639,18 @@ export class BillingService {
             quantity: customItem.quantity,
             unitPrice: convertedUnitPrice,
             lineTotal: lineTotal,
-            type: 'other' as any,
+            type: customItem.isTax ? 'tax' : 'other',
           };
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          subtotal += lineTotal;
-          feeBreakdown.other += lineTotal;
+          
+          // Add to appropriate totals based on whether it's a tax
+          if (customItem.isTax) {
+            taxAmount += lineTotal;
+            feeBreakdown.taxes += lineTotal;
+          } else {
+            subtotal += lineTotal;
+            feeBreakdown.other += lineTotal;
+          }
         }
       }
       
@@ -827,6 +835,7 @@ export class BillingService {
         const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
         // For storage/calculations, always use company's base currency regardless of user preference
         const storageCurrency = getDisplayCurrency(exchangeRateSettings);
+        
         for (const customItem of validatedData.customLineItems) {
           // Determine the source currency for this line item (default to storage currency if not specified)
           const sourceCurrency = customItem.currency || storageCurrency;
@@ -855,10 +864,17 @@ export class BillingService {
             unitPrice: convertedUnitPrice,
             lineTotal: lineTotal,
             currency: storageCurrency,
-            type: 'other',
+            type: customItem.isTax ? 'tax' : 'other',
           });
-          subtotal += lineTotal;
-          feeBreakdown.other += lineTotal;
+          
+          // Add to appropriate totals based on whether it's a tax
+          if (customItem.isTax) {
+            taxAmount += lineTotal;
+            feeBreakdown.taxes += lineTotal;
+          } else {
+            subtotal += lineTotal;
+            feeBreakdown.other += lineTotal;
+          }
         }
       }
       

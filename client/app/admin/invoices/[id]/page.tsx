@@ -418,11 +418,13 @@ export default function InvoiceDetailPage() {
                         <td className="text-right font-medium">Subtotal</td>
                         <td className="text-right">{convertAndFormat(subtotal)}</td>
                       </tr>
-                      <tr>
-                        <td colSpan={2}></td>
-                        <td className="text-right font-medium">Tax</td>
-                        <td className="text-right">{convertAndFormat(totalTax)}</td>
-                      </tr>
+                      {totalTax > 0 && (
+                        <tr>
+                          <td colSpan={2}></td>
+                          <td className="text-right font-medium">Tax</td>
+                          <td className="text-right">{convertAndFormat(totalTax)}</td>
+                        </tr>
+                      )}
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-bold">Total</td>
