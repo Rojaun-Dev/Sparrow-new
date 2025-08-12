@@ -37,14 +37,14 @@ function InvoiceCreatorSkeleton() {
         {/* Beta Warning Alert Skeleton */}
         <Skeleton className="h-12 w-full mb-6" />
 
-        <div className="flex gap-6">
-          {/* Main Invoice Form Skeleton - Fixed Paper Width */}
-          <div className="flex-shrink-0 relative">
-            {/* Paper Stack Effect - Bottom layers */}
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Main Invoice Form Skeleton - Responsive Paper Width */}
+          <div className="w-full md:flex-shrink-0 relative order-2 md:order-1">
+            {/* Paper Stack Effect - Bottom layers (desktop only) */}
             <div 
-              className="absolute bg-gray-100 border border-gray-300" 
+              className="absolute bg-gray-100 border border-gray-300 hidden md:block" 
               style={{ 
-                width: '11in', 
+                width: '100%', 
                 minHeight: '14in', 
                 top: '6px', 
                 left: '6px',
@@ -52,9 +52,9 @@ function InvoiceCreatorSkeleton() {
               }}
             />
             <div 
-              className="absolute bg-gray-50 border border-gray-300" 
+              className="absolute bg-gray-50 border border-gray-300 hidden md:block" 
               style={{ 
-                width: '11in', 
+                width: '100%', 
                 minHeight: '14in', 
                 top: '3px', 
                 left: '3px',
@@ -63,9 +63,8 @@ function InvoiceCreatorSkeleton() {
             />
             {/* Main Paper Skeleton */}
             <Card 
-              className="bg-white border border-gray-300 relative" 
+              className="bg-white border border-gray-300 relative w-full md:max-w-4xl" 
               style={{ 
-                width: '11in', 
                 minHeight: '14in', 
                 padding: '40px',
                 zIndex: 3,
@@ -754,14 +753,85 @@ export function InvoiceCreator({
           </AlertDescription>
         </Alert>
 
-        <div className="flex gap-6">
-          {/* Main Invoice Form - Fixed Paper Width */}
-          <div className="flex-shrink-0 relative">
-            {/* Paper Stack Effect - Bottom layers */}
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Right Panel - Actions and Controls - Mobile First Order */}
+          <div className="w-full md:w-1/3 md:flex-shrink-0 order-2 md:order-2">
+            <div className="md:sticky md:top-6">
+              {/* Unified Control Panel */}
+              <Card className="p-4 md:p-6">
+                <h2 className="text-lg font-semibold mb-4 md:mb-6">Invoice Controls</h2>
+                
+                {/* Currency Selector Section */}
+                <div className="mb-4 md:mb-6">
+                  <h3 className="text-sm font-medium mb-2 md:mb-3 text-gray-700">Currency</h3>
+                  <CurrencySelector 
+                    value={invoiceData.currency} 
+                    onValueChange={(currency) => updateInvoiceData('currency', currency)}
+                  />
+                </div>
+
+                {/* Package Actions Section */}
+                {selectedCustomer && selectedPackages.length > 0 && (
+                  <div className="mb-4 md:mb-6">
+                    <h3 className="text-sm font-medium mb-2 md:mb-3 text-gray-700">Package Actions</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateFeesForPackages()}
+                      disabled={generatingFees || getPackagesAvailableForFees.length === 0}
+                      className="w-full"
+                    >
+                      <Calculator className="h-4 w-4 mr-2" />
+                      {generatingFees ? 'Generating...' : 
+                        getPackagesAvailableForFees.length === 0 ? 'All Fees Generated' :
+                        `Generate Fees (${getPackagesAvailableForFees.length})`}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Invoice Summary Section */}
+                <div className="mb-4 md:mb-6">
+                  <h3 className="text-sm font-medium mb-2 md:mb-3 text-gray-700">Summary</h3>
+                  <div className="bg-gray-50 rounded-lg p-3 md:p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-medium">{convertAndFormat(subtotal, invoiceData.currency)}</span>
+                    </div>
+                    {(hasTaxItems || taxAmount > 0) && (
+                      <div className="flex justify-between">
+                        <span>Tax:</span>
+                        <span className="font-medium">{convertAndFormat(taxAmount, invoiceData.currency)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-base font-semibold border-t border-gray-200 pt-2">
+                      <span>Total:</span>
+                      <span>{convertAndFormat(total, invoiceData.currency)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action Section */}
+                <div>
+                  <Button
+                    onClick={() => handleGenerate(false)}
+                    disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim()) || generatingInvoice}
+                    className="w-full h-10 md:h-12 text-sm md:text-base font-medium"
+                    size="lg"
+                  >
+                    {generatingInvoice ? 'Creating...' : 'Create Invoice'}
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          {/* Main Invoice Form - Responsive Paper Width */}
+          <div className="w-full md:flex-1 relative order-2 md:order-1">
+            {/* Paper Stack Effect - Bottom layers (desktop only) */}
             <div 
-              className="absolute bg-gray-100 border border-gray-300" 
+              className="absolute bg-gray-100 border border-gray-300 hidden md:block" 
               style={{ 
-                width: '11in', 
+                width: '100%', 
                 minHeight: '14in', 
                 top: '6px', 
                 left: '6px',
@@ -769,9 +839,9 @@ export function InvoiceCreator({
               }}
             />
             <div 
-              className="absolute bg-gray-50 border border-gray-300" 
+              className="absolute bg-gray-50 border border-gray-300 hidden md:block" 
               style={{ 
-                width: '11in', 
+                width: '100%', 
                 minHeight: '14in', 
                 top: '3px', 
                 left: '3px',
@@ -780,19 +850,17 @@ export function InvoiceCreator({
             />
             {/* Main Paper */}
             <Card 
-              className="bg-white border border-gray-300 relative" 
+              className="bg-white border border-gray-300 relative w-full p-6 md:p-10" 
               style={{ 
-                width: '11in', 
                 minHeight: '14in', 
-                padding: '40px',
                 zIndex: 3,
                 borderRadius: '0px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
               }}
             >
           
-          {/* Header with Logo and Company Info - Exact PDF Layout */}
-          <div className="flex justify-between mb-5" style={{ marginBottom: '20px' }}>
+          {/* Header with Logo and Company Info - Responsive Layout */}
+          <div className="flex flex-col md:flex-row md:justify-between mb-5 space-y-4 md:space-y-0" style={{ marginBottom: '20px' }}>
             <div>
               {logoUrl ? (
                 <img 
@@ -821,10 +889,10 @@ export function InvoiceCreator({
 
           {/* Invoice Title and Number - Exact PDF Layout */}
           <div style={{ marginBottom: '20px' }}>
-            <div className="flex justify-between items-center mb-2">
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-2 space-y-2 md:space-y-0">
+              <div style={{ fontSize: '20px md:24px', fontWeight: 'bold', color: '#333', fontFamily: 'Helvetica' }}>INVOICE</div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }} className="md:flex-row md:justify-between md:gap-0" style={{ marginBottom: '5px', fontSize: '12px' }}>
               <div>Invoice #: 
                 <input
                   type="text"
@@ -836,7 +904,7 @@ export function InvoiceCreator({
               </div>
               <div>Status: <span className="text-blue-600 font-medium">Draft</span></div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }} className="md:flex-row md:justify-between md:gap-0" style={{ fontSize: '12px' }}>
               <div>Issue Date: 
                 <Popover>
                   <PopoverTrigger asChild>
@@ -928,14 +996,14 @@ export function InvoiceCreator({
           {/* Package Selection Section */}
           {selectedCustomer && (
             <div className="mt-4 mb-4">
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-2 space-y-2 md:space-y-0">
                 <div className="text-sm font-bold text-gray-800">Selected Packages</div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setActiveDialog('package')}
-                    className="text-xs"
+                    className="text-xs w-full md:w-auto"
                   >
                     <Package className="h-3 w-3 mr-1" />
                     Add Packages
@@ -993,59 +1061,130 @@ export function InvoiceCreator({
             <div className="border-b border-gray-200">
               {lineItems.length > 0 ? (
                 lineItems.map((item) => (
-                  <div key={item.id} className="flex items-center py-2 border-b border-gray-100 text-xs">
-                    <div className="w-2/5 pr-2">
-                      <input
-                        type="text"
-                        placeholder="Item description"
-                        value={item.description}
-                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                        className="w-full border-none bg-transparent outline-none text-xs"
-                      />
-                    </div>
-                    <div className="w-16 pr-2 flex justify-center">
-                      <input
-                        type="checkbox"
-                        checked={item.isTax || false}
-                        onChange={(e) => updateLineItem(item.id, 'isTax', e.target.checked)}
-                        className="text-xs"
-                        title="Check if this is a tax charge"
-                      />
-                    </div>
-                    <div className="w-2/5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-gray-500 text-xs">{getCurrencySymbol(item.currency || invoiceData.currency)}</span>
+                  <div key={item.id} className="flex flex-col md:flex-row md:items-center py-2 border-b border-gray-100 text-xs space-y-2 md:space-y-0">
+                    {/* Mobile Layout - Stacked */}
+                    <div className="block md:hidden space-y-3">
+                      <div>
+                        <label className="text-gray-600 text-xs block mb-1">Description:</label>
                         <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice.toFixed(2)}
-                          onChange={(e) => updateLineItem(item.id, 'unitPrice', Math.round(Number(e.target.value) * 100) / 100)}
-                          className="w-16 text-right border-none bg-transparent outline-none text-xs"
+                          type="text"
+                          placeholder="Item description"
+                          value={item.description}
+                          onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                          className="w-full border border-gray-200 rounded px-2 py-1 outline-none text-xs"
                         />
-                        <span className="text-gray-600">×</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={item.quantity}
-                          onChange={(e) => updateLineItem(item.id, 'quantity', Number(e.target.value))}
-                          className="w-12 text-center border-none bg-transparent outline-none text-xs"
-                        />
-                        <span>=</span>
-                        <span className="font-medium min-w-16 text-right">
-                          {convertAndFormat(item.quantity * item.unitPrice, item.currency || invoiceData.currency)}
-                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={item.isTax || false}
+                            onChange={(e) => updateLineItem(item.id, 'isTax', e.target.checked)}
+                            className="text-xs mr-1"
+                            title="Check if this is a tax charge"
+                          />
+                          <label className="text-xs text-gray-600">Tax</label>
+                        </div>
+                        <button
+                          onClick={() => removeLineItem(item.id)}
+                          disabled={lineItems.length === 1}
+                          className="text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed px-2 py-1 rounded border border-red-200 text-xs"
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-3 w-3 mr-1 inline" />
+                          Remove
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-gray-600 text-xs block">Price & Quantity:</label>
+                        <div className="flex items-center space-x-2">
+                          <div className="relative flex-1">
+                            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">
+                              {getCurrencySymbol(item.currency || invoiceData.currency)}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice.toFixed(2)}
+                              onChange={(e) => updateLineItem(item.id, 'unitPrice', Math.round(Number(e.target.value) * 100) / 100)}
+                              className="w-full pl-6 pr-2 py-1 text-center border border-gray-200 rounded outline-none text-xs"
+                              placeholder="Price"
+                            />
+                          </div>
+                          <span className="text-gray-600 text-xs">×</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.quantity}
+                            onChange={(e) => updateLineItem(item.id, 'quantity', Number(e.target.value))}
+                            className="w-16 text-center border border-gray-200 rounded px-2 py-1 outline-none text-xs"
+                            placeholder="Qty"
+                          />
+                          <span className="text-xs">=</span>
+                          <div className="font-medium text-xs min-w-16 text-right">
+                            {convertAndFormat(item.quantity * item.unitPrice, item.currency || invoiceData.currency)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="w-16 text-center">
-                      <button
-                        onClick={() => removeLineItem(item.id)}
-                        className="text-red-600 hover:text-red-800 text-xs"
-                        disabled={lineItems.length === 1}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                    
+                    {/* Desktop Layout - Original */}
+                    <div className="hidden md:flex md:items-center md:w-full">
+                      <div className="w-2/5 pr-2">
+                        <input
+                          type="text"
+                          placeholder="Item description"
+                          value={item.description}
+                          onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                          className="w-full border-none bg-transparent outline-none text-xs"
+                        />
+                      </div>
+                      <div className="w-16 pr-2 flex justify-center">
+                        <input
+                          type="checkbox"
+                          checked={item.isTax || false}
+                          onChange={(e) => updateLineItem(item.id, 'isTax', e.target.checked)}
+                          className="text-xs"
+                          title="Check if this is a tax charge"
+                        />
+                      </div>
+                      <div className="w-2/5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-gray-500 text-xs">{getCurrencySymbol(item.currency || invoiceData.currency)}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unitPrice.toFixed(2)}
+                            onChange={(e) => updateLineItem(item.id, 'unitPrice', Math.round(Number(e.target.value) * 100) / 100)}
+                            className="w-16 text-right border-none bg-transparent outline-none text-xs"
+                          />
+                          <span className="text-gray-600">×</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.quantity}
+                            onChange={(e) => updateLineItem(item.id, 'quantity', Number(e.target.value))}
+                            className="w-12 text-center border-none bg-transparent outline-none text-xs"
+                          />
+                          <span>=</span>
+                          <span className="font-medium min-w-16 text-right">
+                            {convertAndFormat(item.quantity * item.unitPrice, item.currency || invoiceData.currency)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-16 text-center">
+                        <button
+                          onClick={() => removeLineItem(item.id)}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                          disabled={lineItems.length === 1}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -1056,34 +1195,31 @@ export function InvoiceCreator({
               )}
             </div>
             
-            {/* Totals Section - Exact PDF Layout */}
+            {/* Totals Section - Responsive Layout */}
             <div className="py-2">
-              <div className="flex text-xs border-b border-gray-100 py-1">
-                <div className="w-3/5 text-right font-medium">Subtotal</div>
-                <div className="w-1/5"></div>
-                <div className="w-1/5 text-right font-medium">{convertAndFormat(subtotal, invoiceData.currency)}</div>
+              <div className="flex justify-between text-xs border-b border-gray-100 py-1">
+                <div className="font-medium">Subtotal:</div>
+                <div className="font-medium">{convertAndFormat(subtotal, invoiceData.currency)}</div>
               </div>
               {(hasTaxItems || taxAmount > 0) && (
-                <div className="flex text-xs border-b border-gray-100 py-1">
-                  <div className="w-3/5 text-right font-medium">Tax</div>
-                  <div className="w-1/5"></div>
-                  <div className="w-1/5 text-right font-medium">{convertAndFormat(taxAmount, invoiceData.currency)}</div>
+                <div className="flex justify-between text-xs border-b border-gray-100 py-1">
+                  <div className="font-medium">Tax:</div>
+                  <div className="font-medium">{convertAndFormat(taxAmount, invoiceData.currency)}</div>
                 </div>
               )}
-              <div className="flex text-xs py-2 border-t border-gray-400">
-                <div className="w-3/5 text-right font-bold">Total</div>
-                <div className="w-1/5"></div>
-                <div className="w-1/5 text-right font-bold">{convertAndFormat(total, invoiceData.currency)}</div>
+              <div className="flex justify-between text-sm py-2 border-t border-gray-400">
+                <div className="font-bold">Total:</div>
+                <div className="font-bold">{convertAndFormat(total, invoiceData.currency)}</div>
               </div>
             </div>
 
             {/* Add Item Buttons */}
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-col md:flex-row gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => addLineItem(false)}
-                className="text-xs"
+                className="text-xs w-full md:w-auto"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Add Item
@@ -1115,76 +1251,6 @@ export function InvoiceCreator({
             </Card>
           </div>
 
-          {/* Right Panel - Actions and Controls - Flexible Width */}
-          <div className="flex-1 min-w-80">
-            <div className="sticky top-6">
-              {/* Unified Control Panel */}
-              <Card className="p-6">
-                <h2 className="text-lg font-semibold mb-6">Invoice Controls</h2>
-                
-                {/* Currency Selector Section */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium mb-3 text-gray-700">Currency</h3>
-                  <CurrencySelector 
-                    value={invoiceData.currency} 
-                    onValueChange={(currency) => updateInvoiceData('currency', currency)}
-                  />
-                </div>
-
-                {/* Package Actions Section */}
-                {selectedCustomer && selectedPackages.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium mb-3 text-gray-700">Package Actions</h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateFeesForPackages()}
-                      disabled={generatingFees || getPackagesAvailableForFees.length === 0}
-                      className="w-full"
-                    >
-                      <Calculator className="h-4 w-4 mr-2" />
-                      {generatingFees ? 'Generating...' : 
-                        getPackagesAvailableForFees.length === 0 ? 'All Fees Generated' :
-                        `Generate Fees (${getPackagesAvailableForFees.length})`}
-                    </Button>
-                  </div>
-                )}
-
-                {/* Invoice Summary Section */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium mb-3 text-gray-700">Summary</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span className="font-medium">{convertAndFormat(subtotal, invoiceData.currency)}</span>
-                    </div>
-                    {(hasTaxItems || taxAmount > 0) && (
-                      <div className="flex justify-between">
-                        <span>Tax:</span>
-                        <span className="font-medium">{convertAndFormat(taxAmount, invoiceData.currency)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-base font-semibold border-t border-gray-200 pt-2">
-                      <span>Total:</span>
-                      <span>{convertAndFormat(total, invoiceData.currency)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Primary Action Section */}
-                <div>
-                  <Button
-                    onClick={() => handleGenerate(false)}
-                    disabled={!invoiceData.customerId || lineItems.every(item => !item.description.trim()) || generatingInvoice}
-                    className="w-full h-12 text-base font-medium"
-                    size="lg"
-                  >
-                    {generatingInvoice ? 'Creating...' : 'Create Invoice'}
-                  </Button>
-                </div>
-              </Card>
-            </div>
-          </div>
         </div>
 
         {/* Package Selection Dialog */}
