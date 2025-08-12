@@ -133,7 +133,7 @@ export default function RegisterPage() {
         <div className="relative z-10">
           <div className="mb-8 w-48">
             <Image
-              src={companyLogo || "/placeholder.svg?key=e5zuj"}
+              src={companyLogo || "/logo-background.png?key=e5zuj"}
               alt={companyName ? `${companyName} Logo` : "SparrowX Logo"}
               width={180}
               height={60}
