@@ -194,7 +194,12 @@ export class UsersService {
     
     if (search) {
       const searchPattern = `%${search}%`;
-      const searchConditions = [ilike(users.firstName, searchPattern), ilike(users.lastName, searchPattern), ilike(users.email, searchPattern)];
+      const searchConditions = [
+        ilike(users.firstName, searchPattern), 
+        ilike(users.lastName, searchPattern), 
+        ilike(users.email, searchPattern),
+        ilike(users.prefId, searchPattern)
+      ];
       const filteredSearchConditions = searchConditions.filter((c): c is SQL<unknown> => c !== undefined);
       if (filteredSearchConditions.length > 1) {
         const orCondition = or(...filteredSearchConditions);
@@ -253,6 +258,9 @@ export class UsersService {
       email: users.email,
       phone: users.phone,
       address: users.address,
+      trn: users.trn,
+      prefId: users.prefId,
+      internalId: users.internalId,
       role: users.role,
       isActive: users.isActive,
       createdAt: users.createdAt,
@@ -618,7 +626,12 @@ export class UsersService {
     // Add search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`;
-      const searchConditions = [ilike(users.firstName, searchTerm), ilike(users.lastName, searchTerm), ilike(users.email, searchTerm)];
+      const searchConditions = [
+        ilike(users.firstName, searchTerm), 
+        ilike(users.lastName, searchTerm), 
+        ilike(users.email, searchTerm),
+        ilike(users.prefId, searchTerm)
+      ];
       const filteredSearchConditions = searchConditions.filter((c): c is SQL<unknown> => c !== undefined);
       if (filteredSearchConditions.length > 1) {
         const orCondition = or(...filteredSearchConditions);
@@ -651,6 +664,9 @@ export class UsersService {
         isActive: users.isActive,
         phone: users.phone,
         address: users.address,
+        trn: users.trn,
+        prefId: users.prefId,
+        internalId: users.internalId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         companyId: users.companyId,
@@ -798,7 +814,12 @@ export class UsersService {
     // Add search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`;
-      const searchConditions = [ilike(users.firstName, searchTerm), ilike(users.lastName, searchTerm), ilike(users.email, searchTerm)];
+      const searchConditions = [
+        ilike(users.firstName, searchTerm), 
+        ilike(users.lastName, searchTerm), 
+        ilike(users.email, searchTerm),
+        ilike(users.prefId, searchTerm)
+      ];
       const filteredSearchConditions = searchConditions.filter((c): c is SQL<unknown> => c !== undefined);
       if (filteredSearchConditions.length > 1) {
         const orCondition = or(...filteredSearchConditions);
@@ -830,6 +851,9 @@ export class UsersService {
         isActive: users.isActive,
         phone: users.phone,
         address: users.address,
+        trn: users.trn,
+        prefId: users.prefId,
+        internalId: users.internalId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         companyId: users.companyId,

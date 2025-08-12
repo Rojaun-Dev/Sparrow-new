@@ -118,4 +118,48 @@ export function useCompanyAssets() {
     isLoading: query.isLoading,
     error: query.error,
   };
+}
+
+// Helper hook specifically for getting company logo/banner for invoices
+export function useCompanyLogo(companyId?: string) {
+  const { data: assets = [], isLoading, error } = useQuery({
+    queryKey: ['company-assets', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      return apiClient.get<CompanyAsset[]>(`/companies/${companyId}/assets`);
+    },
+    enabled: !!companyId,
+  });
+
+  const logoAsset = assets.find(asset => asset.type === 'logo');
+  const bannerAsset = assets.find(asset => asset.type === 'banner');
+  
+  // Helper function to convert base64 to data URL
+  const convertToDataUrl = (imageData: string) => {
+    // Remove data URL prefix if it exists, then add our own
+    const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+    return `data:image/png;base64,${base64Data}`;
+  };
+  
+  // Use logo if available, otherwise fallback to banner
+  let logoUrl = null;
+  let usedAsset = null;
+  
+  if (logoAsset?.imageData) {
+    logoUrl = convertToDataUrl(logoAsset.imageData);
+    usedAsset = logoAsset;
+  } else if (bannerAsset?.imageData) {
+    logoUrl = convertToDataUrl(bannerAsset.imageData);
+    usedAsset = bannerAsset;
+  }
+  
+  return {
+    logoUrl,
+    logoAsset,
+    bannerAsset,
+    usedAsset,
+    isUsingBanner: usedAsset?.type === 'banner',
+    isLoading,
+    error
+  };
 } 

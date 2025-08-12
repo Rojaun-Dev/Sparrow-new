@@ -241,7 +241,7 @@ export class FeesService extends BaseService<typeof fees> {
   /**
    * Calculate fee amount based on its method and value
    */
-  calculateFeeAmount(fee: any, baseAmount: number, packageData?: any, context?: { subtotal?: number, shipping?: number, handling?: number, customs?: number, other?: number }, exchangeRateSettings?: any, displayCurrency?: string) {
+  calculateFeeAmount(fee: any, baseAmount: number, packageData?: any, context?: { subtotal?: number, shipping?: number, handling?: number, customs?: number, other?: number }, exchangeRateSettings?: any, displayCurrency?: string, skipCurrencyConversion: boolean = false) {
     const weight = packageData?.weight || 0;
     const quantity = packageData?.quantity || 1;
     const dimensions = packageData?.dimensions || { length: 0, width: 0, height: 0 };
@@ -348,8 +348,8 @@ export class FeesService extends BaseService<typeof fees> {
         throw new Error(`Unsupported calculation method: ${fee.calculationMethod}`);
     }
     
-    // Convert currency if needed
-    if (exchangeRateSettings && displayCurrency && fee.currency !== displayCurrency) {
+    // Convert currency if needed (unless explicitly skipped)
+    if (!skipCurrencyConversion && exchangeRateSettings && displayCurrency && fee.currency !== displayCurrency) {
       const convertedAmount = convertCurrency(rawAmount, fee.currency, displayCurrency, exchangeRateSettings);
       return convertedAmount;
     }

@@ -12,15 +12,35 @@ import { FeesService } from './fees-service';
 import { convertCurrency, getDisplayCurrency } from '../utils/currency-utils';
 import logger from '../utils/logger';
 
+// Custom line item schema
+export const customLineItemSchema = z.object({
+  description: z.string().min(1).max(255),
+  quantity: z.number().min(0),
+  unitPrice: z.number().min(0),
+  packageId: z.string().uuid().optional(), // Optional package association
+  currency: z.enum(['USD', 'JMD']).optional(), // Currency of the line item
+  isTax: z.boolean().optional().default(false), // Whether this item is a tax charge
+});
+
 // Validation schema for generating an invoice
 export const generateInvoiceSchema = z.object({
   userId: z.string().uuid(),
-  packageIds: z.array(z.string().uuid()).min(1),
+  packageIds: z.array(z.string().uuid()).optional().default([]), // Made optional for custom invoices
+  customLineItems: z.array(customLineItemSchema).optional().default([]), // New custom line items
   notes: z.string().optional(),
+  issueDate: z.coerce.date().optional(), // Allow setting issue date from frontend
   dueDate: z.coerce.date().optional(),
   additionalCharge: z.number().optional(),
   additionalChargeCurrency: z.enum(['USD', 'JMD']).optional(),
   sendNotification: z.boolean().optional(),
+  generateFees: z.boolean().optional().default(true), // Whether to generate predefined fees
+  isDraft: z.boolean().optional().default(false), // Whether to create as draft
+  preferredCurrency: z.enum(['USD', 'JMD']).optional(), // Currency preference for fees
+}).refine((data) => {
+  // At least one of packageIds, customLineItems, or additionalCharge must be provided
+  return data.packageIds.length > 0 || data.customLineItems.length > 0 || (data.additionalCharge && data.additionalCharge > 0);
+}, {
+  message: "At least one package, custom line item, or additional charge must be provided"
 });
 
 export class BillingService {
@@ -179,7 +199,7 @@ export class BillingService {
   /**
    * Calculate total fees for a package
    */
-  async calculatePackageFees(packageId: string, companyId: string, fixedFeesApplied: Set<string> = new Set()) {
+  async calculatePackageFees(packageId: string, companyId: string, fixedFeesApplied: Set<string> = new Set(), preferredCurrency?: string) {
     // Get package details
     const packageData = await this.packagesRepository.findById(packageId, companyId);
     if (!packageData) {
@@ -206,7 +226,7 @@ export class BillingService {
       ? settings.exchangeRateSettings as any
       : defaultExchangeRateSettings;
     
-    const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+    const displayCurrency = preferredCurrency || getDisplayCurrency(exchangeRateSettings);
     
     // Initialize fee totals
     const result: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; taxes: number; subtotal: number; total: number; lineItems: any[] } = {
@@ -219,6 +239,17 @@ export class BillingService {
       subtotal: 0,
       total: 0,
       lineItems: [] as any[],
+    };
+    
+    // Track original currency totals for percentage calculations
+    const originalTotals: { [key: string]: number } = {
+      shipping: 0,
+      handling: 0,
+      customs: 0,
+      duty: 0,
+      other: 0,
+      taxes: 0,
+      subtotal: 0,
     };
     // 1. Calculate all base (non-percentage) fees and collect percentage-based fees for later
     const percentageFeesByType: Record<string, any[]> = { shipping: [], handling: [], customs: [], other: [], subtotal: [], taxes: [] };
@@ -249,6 +280,10 @@ export class BillingService {
         const itemType = type === 'service' ? 'other' : type;
         result[itemType] += finalAmount;
         
+        // Track original currency amounts for percentage calculations
+        const originalFinalAmount = Number(this.applyLimits(originalAmount, fee.metadata));
+        originalTotals[itemType] += originalFinalAmount;
+        
         // Create description with currency conversion info if converted
         let description = fee.name;
         if (fee.currency !== displayCurrency) {
@@ -261,6 +296,7 @@ export class BillingService {
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
+          currency: displayCurrency,
           type: itemType as any,
         });
       }
@@ -282,6 +318,9 @@ export class BillingService {
       
       result.duty += convertedAmount;
       
+      // Track original currency amounts for percentage calculations  
+      originalTotals.duty += originalAmount;
+      
       // Create a display name for the duty fee
       const displayName = dutyFee.feeType === 'Other' && dutyFee.customFeeType 
         ? `${dutyFee.customFeeType} Duty` 
@@ -299,13 +338,29 @@ export class BillingService {
         quantity: 1,
         unitPrice: convertedAmount,
         lineTotal: convertedAmount,
+        currency: displayCurrency,
         type: 'duty' as any,
       });
     }
     
     // 2. Calculate subtotal (before tax/percentage fees) - now includes duty fees
     result.subtotal = Number(result.shipping) + Number(result.handling) + Number(result.customs) + Number(result.duty) + Number(result.other);
-    // 3. Build context for percentage-based fees
+    
+    // Calculate original currency subtotal for percentage calculations
+    originalTotals.subtotal = originalTotals.shipping + originalTotals.handling + originalTotals.customs + originalTotals.duty + originalTotals.other;
+    
+    // 3. Build context with original currency amounts for percentage-based fee calculations
+    const originalContext: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; subtotal: number; declaredValue: number } = {
+      shipping: originalTotals.shipping,
+      handling: originalTotals.handling,
+      customs: originalTotals.customs,
+      duty: originalTotals.duty,
+      other: originalTotals.other,
+      subtotal: originalTotals.subtotal,
+      declaredValue: parseFloat(packageData.declaredValue || '0'),
+    };
+    
+    // 4. Build display context with converted amounts for display purposes
     const context: { [key: string]: any; shipping: number; handling: number; customs: number; duty: number; other: number; subtotal: number; declaredValue: number } = {
       shipping: result.shipping,
       handling: result.handling,
@@ -315,7 +370,7 @@ export class BillingService {
       subtotal: result.subtotal,
       declaredValue: parseFloat(packageData.declaredValue || '0'),
     };
-    // 4. Calculate all percentage-based fees (except taxes)
+    // 5. Calculate all percentage-based fees (except taxes)
     for (const baseAttr of Object.keys(percentageFeesByType)) {
       if (baseAttr === 'taxes' || baseAttr === 'subtotal') continue; // taxes handled separately, subtotal handled after others
       for (const fee of percentageFeesByType[baseAttr]) {
@@ -327,10 +382,17 @@ export class BillingService {
           base = context[baseAttr] ?? 0;
         }
         if (!base) continue; // skip if base is 0
-        // Calculate original amount first (without currency conversion)
-        const originalAmount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
-        // Calculate converted amount
-        const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context, exchangeRateSettings, displayCurrency));
+        // For percentage fees, use original currency base amounts to avoid double conversion
+        let originalBase = 0;
+        if (baseAttr === 'customs' || baseAttr === 'declaredValue') {
+          originalBase = originalContext.declaredValue;
+        } else {
+          originalBase = originalContext[baseAttr] ?? 0;
+        }
+        
+        // Calculate percentage fee on original base amount (skip currency conversion), then convert the result
+        const originalAmount = Number(this.feesService.calculateFeeAmount(fee, originalBase, packageData, originalContext, undefined, undefined, true));
+        const amount = convertCurrency(originalAmount, fee.currency, displayCurrency, exchangeRateSettings);
         const finalAmount = Number(this.applyLimits(amount, fee.metadata));
         result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
         
@@ -346,17 +408,17 @@ export class BillingService {
           quantity: 1,
           unitPrice: finalAmount,
           lineTotal: finalAmount,
+          currency: displayCurrency,
           type: fee.feeType,
         });
       }
     }
-    // 5. Calculate percentage-of-subtotal fees (if any)
+    // 6. Calculate percentage-of-subtotal fees (if any)
     for (const fee of percentageFeesByType['subtotal'] || []) {
-      if (!context.subtotal) continue;
-      // Calculate original amount first (without currency conversion)
-      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context));
-      // Calculate converted amount
-      const amount = Number(this.feesService.calculateFeeAmount(fee, context.subtotal, packageData, context, exchangeRateSettings, displayCurrency));
+      if (!originalContext.subtotal) continue;
+      // For subtotal percentage fees, use original currency subtotal to avoid double conversion
+      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, originalContext.subtotal, packageData, originalContext, undefined, undefined, true));
+      const amount = convertCurrency(originalAmount, fee.currency, displayCurrency, exchangeRateSettings);
       const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result[fee.feeType] = (result[fee.feeType] || 0) + finalAmount;
       
@@ -375,22 +437,23 @@ export class BillingService {
         type: fee.feeType,
       });
     }
-    // 6. Calculate tax fees (percentage-of-subtotal or other base)
+    // 7. Calculate tax fees (percentage-of-subtotal or other base)
     const taxFees = await this.getApplicableFees(packageData, companyId, 'tax');
     for (const fee of taxFees) {
-      let base = context.subtotal;
+      // For tax percentage fees, use original currency base to avoid double conversion
+      let originalBase = originalContext.subtotal;
       if (fee.calculationMethod === 'percentage' && fee.metadata && fee.metadata.baseAttribute) {
         if (fee.metadata.baseAttribute === 'customs' || fee.metadata.baseAttribute === 'declaredValue') {
-          base = context.declaredValue;
+          originalBase = originalContext.declaredValue;
         } else {
-          base = context[fee.metadata.baseAttribute] ?? context.subtotal;
+          originalBase = originalContext[fee.metadata.baseAttribute] ?? originalContext.subtotal;
         }
       }
-      if (!base) continue;
-      // Calculate original amount first (without currency conversion)
-      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context));
-      // Calculate converted amount
-      const amount = Number(this.feesService.calculateFeeAmount(fee, base, packageData, context, exchangeRateSettings, displayCurrency));
+      
+      if (!originalBase) continue;
+      // Calculate tax fee on original base amount, then convert the result
+      const originalAmount = Number(this.feesService.calculateFeeAmount(fee, originalBase, packageData, originalContext, undefined, undefined, true));
+      const amount = convertCurrency(originalAmount, fee.currency, displayCurrency, exchangeRateSettings);
       const finalAmount = Number(this.applyLimits(amount, fee.metadata));
       result.taxes += finalAmount;
       
@@ -409,7 +472,7 @@ export class BillingService {
         type: 'tax' as any,
       });
     }
-    // 7. Calculate total
+    // 8. Calculate total
     result.total = Number(result.subtotal) + Number(result.taxes);
     return {
       ...result,
@@ -469,13 +532,39 @@ export class BillingService {
         taxes: 0,
       };
       
+      // Get company settings for currency conversion (moved up to be available for custom line items)
+      const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+      if (!settings) {
+        throw new AppError('Company settings not found', 400);
+      }
+      
+      // Get exchange rate settings for currency conversion
+      const defaultExchangeRateSettings = {
+        baseCurrency: 'USD' as 'USD',
+        targetCurrency: 'JMD' as 'JMD',
+        exchangeRate: 1,
+        autoUpdate: false,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      const exchangeRateSettings = (settings.exchangeRateSettings && 
+        typeof settings.exchangeRateSettings === 'object' &&
+        'baseCurrency' in settings.exchangeRateSettings)
+        ? settings.exchangeRateSettings as any
+        : defaultExchangeRateSettings;
+      
+      const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
+      
+      // For storage, always use company's base currency regardless of user preference
+      const storageCurrency = getDisplayCurrency(exchangeRateSettings);
+      
       // Create invoice record
       const invoiceData = {
         userId: validatedData.userId,
         companyId,
         invoiceNumber,
-        status: 'issued' as typeof invoiceStatusEnum.enumValues[number],
-        issueDate: new Date(),
+        status: (validatedData.isDraft ? 'draft' : 'issued') as typeof invoiceStatusEnum.enumValues[number],
+        issueDate: validatedData.isDraft ? null : (validatedData.issueDate || new Date()),
         dueDate,
         subtotal: '0',
         taxAmount: '0',
@@ -490,57 +579,83 @@ export class BillingService {
         throw new AppError('Failed to create invoice', 500);
       }
       
-      // Calculate fees for each package and add line items
+      // Calculate fees for packages (if generateFees is true and packages are provided)
       const fixedFeesApplied = new Set<string>();
-      for (const packageId of validatedData.packageIds) {
-        const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
-        // Aggregate fee breakdown
-        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
-        feeBreakdown.handling += Number(packageFees.handling) || 0;
-        feeBreakdown.customs += Number(packageFees.customs) || 0;
-        feeBreakdown.other += Number(packageFees.other) || 0;
-        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
-        // Add all line items to invoice
-        for (const item of packageFees.lineItems) {
+      if (validatedData.generateFees && validatedData.packageIds.length > 0) {
+        for (const packageId of validatedData.packageIds) {
+          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
+          // Aggregate fee breakdown
+          feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+          feeBreakdown.handling += Number(packageFees.handling) || 0;
+          feeBreakdown.customs += Number(packageFees.customs) || 0;
+          feeBreakdown.other += Number(packageFees.other) || 0;
+          feeBreakdown.taxes += Number(packageFees.taxes) || 0;
+          // Add all line items to invoice
+          for (const item of packageFees.lineItems) {
+            const lineItemData = {
+              invoiceId: invoice.id,
+              companyId,
+              ...item,
+            };
+            await this.invoiceItemsRepository.create(lineItemData, companyId);
+            // Add to totals (except tax)
+            if (item.type !== 'tax') {
+              subtotal += Number(item.lineTotal);
+            } else {
+              taxAmount += Number(item.lineTotal);
+            }
+          }
+        }
+      }
+      
+      // Add custom line items
+      if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
+        for (const customItem of validatedData.customLineItems) {
+          // Determine the source currency for this line item (default to storage currency if not specified)
+          const sourceCurrency = customItem.currency || storageCurrency;
+          
+          // Convert unit price to company's base currency for storage
+          const originalUnitPrice = customItem.unitPrice;
+          const convertedUnitPrice = convertCurrency(
+            originalUnitPrice,
+            sourceCurrency,
+            storageCurrency,
+            exchangeRateSettings
+          );
+          
+          const lineTotal = customItem.quantity * convertedUnitPrice;
+          
+          // Create description with currency conversion info if converted
+          let description = customItem.description;
+          if (sourceCurrency !== storageCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          }
+          
           const lineItemData = {
             invoiceId: invoice.id,
             companyId,
-            ...item,
+            packageId: customItem.packageId || null,
+            description,
+            quantity: customItem.quantity,
+            unitPrice: convertedUnitPrice,
+            lineTotal: lineTotal,
+            type: customItem.isTax ? 'tax' : 'other',
           };
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          // Add to totals (except tax)
-          if (item.type !== 'tax') {
-            subtotal += Number(item.lineTotal);
+          
+          // Add to appropriate totals based on whether it's a tax
+          if (customItem.isTax) {
+            taxAmount += lineTotal;
+            feeBreakdown.taxes += lineTotal;
           } else {
-            taxAmount += Number(item.lineTotal);
+            subtotal += lineTotal;
+            feeBreakdown.other += lineTotal;
           }
         }
       }
       
       // Add additional charge if provided
       if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
-        // Get company settings for currency conversion
-        const settings = await this.companySettingsRepository.findByCompanyId(companyId);
-        if (!settings) {
-          throw new AppError('Company settings not found', 400);
-        }
-        
-        // Get exchange rate settings for currency conversion
-        const defaultExchangeRateSettings = {
-          baseCurrency: 'USD' as 'USD',
-          targetCurrency: 'JMD' as 'JMD',
-          exchangeRate: 1,
-          autoUpdate: false,
-          lastUpdated: new Date().toISOString()
-        };
-        
-        const exchangeRateSettings = (settings.exchangeRateSettings && 
-          typeof settings.exchangeRateSettings === 'object' &&
-          'baseCurrency' in settings.exchangeRateSettings)
-          ? settings.exchangeRateSettings as any
-          : defaultExchangeRateSettings;
-        
-        const displayCurrency = getDisplayCurrency(exchangeRateSettings);
         
         // Determine the source currency for additional charge (default to display currency if not specified)
         const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
@@ -625,6 +740,9 @@ export class BillingService {
     return this.generateInvoice({
       userId,
       packageIds: packages.map(pkg => pkg.id),
+      customLineItems: [],
+      generateFees: true,
+      isDraft: false,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
     }, companyId);
   }
@@ -659,6 +777,27 @@ export class BillingService {
         throw new AppError('One or more packages do not belong to this user', 403);
       }
       
+      // Get company settings for currency conversion
+      const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+      if (!settings) {
+        throw new AppError('Company settings not found', 400);
+      }
+      
+      // Get exchange rate settings for currency conversion
+      const defaultExchangeRateSettings = {
+        baseCurrency: 'USD' as 'USD',
+        targetCurrency: 'JMD' as 'JMD',
+        exchangeRate: 1,
+        autoUpdate: false,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      const exchangeRateSettings = (settings.exchangeRateSettings && 
+        typeof settings.exchangeRateSettings === 'object' &&
+        'baseCurrency' in settings.exchangeRateSettings)
+        ? settings.exchangeRateSettings as any
+        : defaultExchangeRateSettings;
+      
       // Initialize totals
       let subtotal = 0;
       let taxAmount = 0;
@@ -672,45 +811,75 @@ export class BillingService {
         taxes: 0,
       };
       
-      // Calculate fees for each package
+      // Calculate fees for packages (if generateFees is true and packages are provided)
       const fixedFeesApplied = new Set<string>();
-      for (const packageId of validatedData.packageIds) {
-        const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied);
-        // Aggregate fee breakdown (parse as numbers)
-        feeBreakdown.shipping += Number(packageFees.shipping) || 0;
-        feeBreakdown.handling += Number(packageFees.handling) || 0;
-        feeBreakdown.customs += Number(packageFees.customs) || 0;
-        feeBreakdown.other += Number(packageFees.other) || 0;
-        feeBreakdown.taxes += Number(packageFees.taxes) || 0;
-        // Track line items
-        lineItems.push(...packageFees.lineItems);
-        // Add to totals (parse as numbers)
-        subtotal += Number(packageFees.subtotal) || 0;
-        taxAmount += Number(packageFees.taxes) || 0;
+      if (validatedData.generateFees && validatedData.packageIds.length > 0) {
+        for (const packageId of validatedData.packageIds) {
+          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
+          // Aggregate fee breakdown (parse as numbers)
+          feeBreakdown.shipping += Number(packageFees.shipping) || 0;
+          feeBreakdown.handling += Number(packageFees.handling) || 0;
+          feeBreakdown.customs += Number(packageFees.customs) || 0;
+          feeBreakdown.other += Number(packageFees.other) || 0;
+          feeBreakdown.taxes += Number(packageFees.taxes) || 0;
+          // Track line items
+          lineItems.push(...packageFees.lineItems);
+          // Add to totals (parse as numbers)
+          subtotal += Number(packageFees.subtotal) || 0;
+          taxAmount += Number(packageFees.taxes) || 0;
+        }
+      }
+      
+      // Add custom line items to preview
+      if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
+        const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
+        // For storage/calculations, always use company's base currency regardless of user preference
+        const storageCurrency = getDisplayCurrency(exchangeRateSettings);
+        
+        for (const customItem of validatedData.customLineItems) {
+          // Determine the source currency for this line item (default to storage currency if not specified)
+          const sourceCurrency = customItem.currency || storageCurrency;
+          
+          // Convert unit price to company's base currency for calculations
+          const originalUnitPrice = customItem.unitPrice;
+          const convertedUnitPrice = convertCurrency(
+            originalUnitPrice,
+            sourceCurrency,
+            storageCurrency,
+            exchangeRateSettings
+          );
+          
+          const lineTotal = customItem.quantity * convertedUnitPrice;
+          
+          // Create description with currency conversion info if converted
+          let description = customItem.description;
+          if (sourceCurrency !== storageCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          }
+          
+          lineItems.push({
+            packageId: customItem.packageId || null,
+            description,
+            quantity: customItem.quantity,
+            unitPrice: convertedUnitPrice,
+            lineTotal: lineTotal,
+            currency: storageCurrency,
+            type: customItem.isTax ? 'tax' : 'other',
+          });
+          
+          // Add to appropriate totals based on whether it's a tax
+          if (customItem.isTax) {
+            taxAmount += lineTotal;
+            feeBreakdown.taxes += lineTotal;
+          } else {
+            subtotal += lineTotal;
+            feeBreakdown.other += lineTotal;
+          }
+        }
       }
       
       // Add additional charge to preview if provided
       if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
-        // Get company settings for currency conversion
-        const settings = await this.companySettingsRepository.findByCompanyId(companyId);
-        if (!settings) {
-          throw new AppError('Company settings not found', 400);
-        }
-        
-        // Get exchange rate settings for currency conversion
-        const defaultExchangeRateSettings = {
-          baseCurrency: 'USD' as 'USD',
-          targetCurrency: 'JMD' as 'JMD',
-          exchangeRate: 1,
-          autoUpdate: false,
-          lastUpdated: new Date().toISOString()
-        };
-        
-        const exchangeRateSettings = (settings.exchangeRateSettings && 
-          typeof settings.exchangeRateSettings === 'object' &&
-          'baseCurrency' in settings.exchangeRateSettings)
-          ? settings.exchangeRateSettings as any
-          : defaultExchangeRateSettings;
         
         const displayCurrency = getDisplayCurrency(exchangeRateSettings);
         
@@ -743,6 +912,7 @@ export class BillingService {
           quantity: 1,
           unitPrice: convertedAmount,
           lineTotal: convertedAmount,
+          currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
           type: 'other',
         });
       }
