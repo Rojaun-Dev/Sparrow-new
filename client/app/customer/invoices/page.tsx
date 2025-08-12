@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { 
   Calendar, 
-  ChevronDown, 
   CreditCard, 
   Download, 
   Eye, 
@@ -33,21 +32,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useUserInvoices } from "@/hooks/useInvoices"
 import { Invoice, InvoiceFilterParams } from "@/lib/api/types"
@@ -386,64 +372,63 @@ export default function InvoicesPage() {
               No invoices found. Try adjusting your filters.
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px]">Invoice #</TableHead>
-                    <TableHead>Issue Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoicesData.data.map((invoice: Invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                      <TableCell>{formatDate(invoice.issueDate)}</TableCell>
-                      <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                      <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusBadgeColor(invoice.status)}>
-                          {formatStatusLabel(invoice.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              Actions <ChevronDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/customer/invoices/${invoice.id}`}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            {(invoice.status === "draft" || invoice.status === "issued" || invoice.status === "overdue") && (
-                              <DropdownMenuItem asChild>
-                                <Link href={`/customer/invoices/${invoice.id}/pay`}>
-                                  <CreditCard className="mr-2 h-4 w-4" />
-                                  Pay Now
-                                </Link>
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleDownloadPdf(invoice.id)}>
-                              <Download className="mr-2 h-4 w-4" />
-                              {downloadingInvoiceId === invoice.id && isDownloading ? 'Downloading...' : 'Download PDF'}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <ResponsiveTable
+              data={invoicesData.data}
+              keyExtractor={(invoice) => invoice.id}
+              loading={isLoading}
+              emptyMessage="No invoices found. Try adjusting your filters."
+              columns={[
+                {
+                  header: "Invoice #",
+                  accessorKey: "invoiceNumber",
+                  className: "w-[120px] font-medium",
+                  cardLabel: "Invoice Number"
+                },
+                {
+                  header: "Issue Date",
+                  accessorKey: "issueDate",
+                  cell: (invoice) => formatDate(invoice.issueDate)
+                },
+                {
+                  header: "Due Date",
+                  accessorKey: "dueDate",
+                  cell: (invoice) => formatDate(invoice.dueDate)
+                },
+                {
+                  header: "Amount",
+                  accessorKey: "totalAmount",
+                  cell: (invoice) => formatCurrency(invoice.totalAmount)
+                },
+                {
+                  header: "Status",
+                  accessorKey: "status",
+                  cell: (invoice) => (
+                    <Badge className={getStatusBadgeColor(invoice.status)}>
+                      {formatStatusLabel(invoice.status)}
+                    </Badge>
+                  )
+                }
+              ]}
+              actions={[
+                {
+                  label: "View Details",
+                  href: (invoice) => `/customer/invoices/${invoice.id}`,
+                  icon: Eye
+                },
+                {
+                  label: "Pay Now",
+                  href: (invoice) => `/customer/invoices/${invoice.id}/pay`,
+                  icon: CreditCard,
+                  hidden: (invoice) => !(invoice.status === "draft" || invoice.status === "issued" || invoice.status === "overdue")
+                },
+                {
+                  label: "Download PDF",
+                  onClick: (invoice) => handleDownloadPdf(invoice.id),
+                  icon: Download,
+                  disabled: (invoice) => downloadingInvoiceId === invoice.id && isDownloading
+                }
+              ]}
+            />
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">

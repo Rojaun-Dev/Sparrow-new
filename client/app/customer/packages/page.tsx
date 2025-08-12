@@ -2,13 +2,13 @@
 
 import Link from "next/link"
 import { 
-  ChevronDown, 
   Download, 
   Filter, 
   Package, 
   Search, 
   X,
-  Loader2
+  Loader2,
+  Eye
 } from "lucide-react"
 import { useState, useEffect } from "react";
 
@@ -29,21 +29,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import { useUserPackagesWithPagination } from "@/hooks"
@@ -267,59 +254,69 @@ export default function PackagesPage() {
               No packages found. Try adjusting your filters or create a pre-alert.
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[150px]">Tracking #</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Weight</TableHead>
-                    <TableHead className="hidden md:table-cell">Received Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {packagesData.data.map((pkg: PackageType) => (
-                    <TableRow key={pkg.id}>
-                      <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
-                      <TableCell>{pkg.description}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusBadgeColor(pkg.status)}>
-                          {formatStatusLabel(pkg.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {pkg.weight ? `${pkg.weight} lbs` : 'N/A'}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {pkg.receivedDate ? formatDate(pkg.receivedDate) : 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              Actions <ChevronDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/customer/packages/${pkg.id}`}>View Details</Link>
-                            </DropdownMenuItem>
-                            {pkg.photos && pkg.photos.length > 0 && (
-                              <DropdownMenuItem>View Photos</DropdownMenuItem>
-                            )}
-                            {pkg.status === "ready_for_pickup" && (
-                              <DropdownMenuItem>Schedule Pickup</DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <ResponsiveTable
+              data={packagesData.data}
+              keyExtractor={(pkg) => pkg.id}
+              loading={isLoading}
+              emptyMessage="No packages found. Try adjusting your filters or create a pre-alert."
+              columns={[
+                {
+                  header: "Tracking #",
+                  accessorKey: "trackingNumber",
+                  className: "w-[150px] font-medium",
+                  cardLabel: "Tracking Number"
+                },
+                {
+                  header: "Description",
+                  accessorKey: "description"
+                },
+                {
+                  header: "Status",
+                  accessorKey: "status",
+                  cell: (pkg) => (
+                    <Badge className={getStatusBadgeColor(pkg.status)}>
+                      {formatStatusLabel(pkg.status)}
+                    </Badge>
+                  )
+                },
+                {
+                  header: "Weight",
+                  accessorKey: "weight",
+                  hiddenOnMobile: true,
+                  cell: (pkg) => pkg.weight ? `${pkg.weight} lbs` : 'N/A'
+                },
+                {
+                  header: "Received Date",
+                  accessorKey: "receivedDate",
+                  hiddenOnMobile: true,
+                  cardLabel: "Received",
+                  cell: (pkg) => pkg.receivedDate ? formatDate(pkg.receivedDate) : 'N/A'
+                }
+              ]}
+              actions={[
+                {
+                  label: "View Details",
+                  href: (pkg) => `/customer/packages/${pkg.id}`,
+                  icon: Eye
+                },
+                {
+                  label: "View Photos",
+                  onClick: (pkg) => {
+                    // Handle view photos action
+                    console.log("View photos for package:", pkg.id);
+                  },
+                  hidden: (pkg) => !pkg.photos || pkg.photos.length === 0
+                },
+                {
+                  label: "Schedule Pickup",
+                  onClick: (pkg) => {
+                    // Handle schedule pickup action
+                    console.log("Schedule pickup for package:", pkg.id);
+                  },
+                  hidden: (pkg) => pkg.status !== "ready_for_pickup"
+                }
+              ]}
+            />
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
