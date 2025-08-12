@@ -1058,7 +1058,7 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
         return [
           { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>{row.trackingNumber}</Link> },
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> },
-          { key: 'weight', label: 'Weight', render: (row: any) => row.weight ? `${row.weight} kg` : '-' },
+          { key: 'weight', label: 'Weight', render: (row: any) => row.weight ? `${row.weight} lbs` : '-' },
           { key: 'receivedDate', label: 'Received', render: (row: any) => formatDate?.(row.receivedDate) },
         ];
       case 'prealert':
@@ -1266,7 +1266,7 @@ function EnhancedDataTableWithQuickInvoice(props: any) {
   const columns = [
     { key: 'trackingNumber', label: 'Tracking Number', render: (row: any) => <Link className="text-primary underline" href={`/admin/packages/${row.id}`}>{row.trackingNumber}</Link> },
     { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> },
-    { key: 'weight', label: 'Weight', render: (row: any) => row.weight ? `${row.weight} kg` : '-' },
+    { key: 'weight', label: 'Weight', render: (row: any) => row.weight ? `${row.weight} lbs` : '-' },
     { key: 'receivedDate', label: 'Received', render: (row: any) => props.formatDate?.(row.receivedDate) },
     { key: 'actions', label: 'Actions', render: (row: any) => (
       <Button size="sm" variant="outline" onClick={() => props.onQuickInvoice(row.id)}>

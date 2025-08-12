@@ -7,6 +7,7 @@ import { AdminSidebarDesktop, AdminSidebarMobile } from "@/components/admin/side
 import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 import { IOSParentUrlDetector } from "@/components/ios/IOSParentUrlDetector"
 import { IOSDebugInfo } from "@/components/ios/IOSDebugInfo"
+import DynamicTitle from "@/components/DynamicTitle"
 
 // Config to prevent static optimization
 export const dynamic = 'force-dynamic';
@@ -14,10 +15,6 @@ export const revalidate = 0;
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "SparrowX Admin Dashboard",
-  description: "Admin Dashboard for SparrowX Package Forwarding Platform",
-}
 
 export default function AdminLayout({
   children,
@@ -28,6 +25,7 @@ export default function AdminLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <DynamicTitle />
           <IOSParentUrlDetector />
           <IOSDebugInfo />
           <div className="flex min-h-screen flex-col">
