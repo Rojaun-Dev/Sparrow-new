@@ -1,6 +1,6 @@
 'use client';
 
-import { InvoiceCreator } from '@/components/invoices/InvoiceCreator';
+import { InvoiceCreator, InvoiceCreatorSkeleton } from '@/components/invoices/InvoiceCreator';
 import { useGenerateInvoice, usePreviewInvoice } from '@/hooks/useInvoices';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +10,9 @@ export default function CreateInvoicePage() {
   const { toast } = useToast();
   const generateInvoice = useGenerateInvoice();
   const previewInvoice = usePreviewInvoice();
+  
+  // Example: You can use loading state like this:
+  // const [isLoading, setIsLoading] = useState(true);
 
   const handleSave = async (data: any) => {
     try {
@@ -73,12 +76,26 @@ export default function CreateInvoicePage() {
     }
   };
 
+  // Example: Conditional rendering with loading state
+  // if (isLoading) {
+  //   return <InvoiceCreatorSkeleton />;
+  // }
+
   return (
-    <InvoiceCreator
-      mode="create"
-      onSave={handleSave}
-      onPreview={handlePreview}
-      onGenerate={handleGenerate}
-    />
+    <div className="flex flex-col">
+      <div className='p-6'>
+        <h1 className="text-3xl font-bold tracking-tight">Create Invoice</h1>
+        <p className="text-muted-foreground">
+          Create a new invoice for your customers with detailed package information and fees.
+        </p>
+      </div>
+
+      <InvoiceCreator
+        mode="create"
+        onSave={handleSave}
+        onPreview={handlePreview}
+        onGenerate={handleGenerate}
+      />
+    </div>
   );
 } 

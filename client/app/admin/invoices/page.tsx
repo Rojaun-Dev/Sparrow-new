@@ -25,6 +25,7 @@ import { CurrencySelector } from '@/components/ui/currency-selector';
 import type { InvoiceStatus } from '@/lib/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
+import { useCompanyLogo } from '@/hooks/useCompanyAssets';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -116,6 +117,7 @@ export default function InvoicesPage() {
   const { data: printUser } = useUser(printInvoice?.userId);
   const { data: printCompany } = useMyAdminCompany();
   const { data: printPackages } = usePackagesByInvoiceId(printInvoiceId || '');
+  const { logoUrl: printLogoUrl, isUsingBanner: printIsUsingBanner } = useCompanyLogo(printCompany?.id);
 
   // Deduplicate and process items for print
   let printItems = printInvoice && Array.isArray(printInvoice.items) ? [...printInvoice.items] : [];
@@ -428,6 +430,8 @@ export default function InvoicesPage() {
               packages={printPackages || []}
               user={printUser}
               company={printCompany}
+              companyLogo={printLogoUrl}
+              isUsingBanner={printIsUsingBanner}
               buttonText="Download PDF"
               buttonProps={{ className: 'print-pdf-btn' }}
               onDownloadComplete={() => setPrintDialogOpen(false)}

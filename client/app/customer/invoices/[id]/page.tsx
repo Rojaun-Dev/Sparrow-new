@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SupportedCurrency } from "@/lib/api/types"
+import { useCompanyLogo } from "@/hooks/useCompanyAssets"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -365,6 +366,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   
   // Fetch company data
   const { data: company } = useMyCompany();
+  const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -501,6 +503,8 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
               packages={relatedPackages}
               user={user}
               company={company}
+              companyLogo={logoUrl}
+              isUsingBanner={isUsingBanner}
               buttonText="Download PDF"
               currency={selectedCurrency}
               exchangeRateSettings={exchangeRateSettings || undefined}
@@ -654,10 +658,12 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                     <span className="text-sm text-muted-foreground">Subtotal</span>
                     <span>{convertAndFormat(parseFloat(invoice.subtotal?.toString() || "0"))}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Tax</span>
-                    <span>{convertAndFormat(parseFloat(invoice.taxAmount?.toString() || "0"))}</span>
-                  </div>
+                  {parseFloat(invoice.taxAmount?.toString() || "0") > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Tax</span>
+                      <span>{convertAndFormat(parseFloat(invoice.taxAmount?.toString() || "0"))}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-medium">
                     <span>Total</span>
                     <span>{convertAndFormat(parseFloat(invoice.totalAmount?.toString() || "0"))}</span>

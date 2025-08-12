@@ -18,6 +18,8 @@ export const customLineItemSchema = z.object({
   quantity: z.number().min(0),
   unitPrice: z.number().min(0),
   packageId: z.string().uuid().optional(), // Optional package association
+  currency: z.enum(['USD', 'JMD']).optional(), // Currency of the line item
+  isTax: z.boolean().optional().default(false), // Whether this item is a tax charge
 });
 
 // Validation schema for generating an invoice
@@ -530,6 +532,32 @@ export class BillingService {
         taxes: 0,
       };
       
+      // Get company settings for currency conversion (moved up to be available for custom line items)
+      const settings = await this.companySettingsRepository.findByCompanyId(companyId);
+      if (!settings) {
+        throw new AppError('Company settings not found', 400);
+      }
+      
+      // Get exchange rate settings for currency conversion
+      const defaultExchangeRateSettings = {
+        baseCurrency: 'USD' as 'USD',
+        targetCurrency: 'JMD' as 'JMD',
+        exchangeRate: 1,
+        autoUpdate: false,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      const exchangeRateSettings = (settings.exchangeRateSettings && 
+        typeof settings.exchangeRateSettings === 'object' &&
+        'baseCurrency' in settings.exchangeRateSettings)
+        ? settings.exchangeRateSettings as any
+        : defaultExchangeRateSettings;
+      
+      const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
+      
+      // For storage, always use company's base currency regardless of user preference
+      const storageCurrency = getDisplayCurrency(exchangeRateSettings);
+      
       // Create invoice record
       const invoiceData = {
         userId: validatedData.userId,
@@ -583,47 +611,51 @@ export class BillingService {
       // Add custom line items
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
         for (const customItem of validatedData.customLineItems) {
-          const lineTotal = customItem.quantity * customItem.unitPrice;
+          // Determine the source currency for this line item (default to storage currency if not specified)
+          const sourceCurrency = customItem.currency || storageCurrency;
+          
+          // Convert unit price to company's base currency for storage
+          const originalUnitPrice = customItem.unitPrice;
+          const convertedUnitPrice = convertCurrency(
+            originalUnitPrice,
+            sourceCurrency,
+            storageCurrency,
+            exchangeRateSettings
+          );
+          
+          const lineTotal = customItem.quantity * convertedUnitPrice;
+          
+          // Create description with currency conversion info if converted
+          let description = customItem.description;
+          if (sourceCurrency !== storageCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          }
+          
           const lineItemData = {
             invoiceId: invoice.id,
             companyId,
             packageId: customItem.packageId || null,
-            description: customItem.description,
+            description,
             quantity: customItem.quantity,
-            unitPrice: customItem.unitPrice,
+            unitPrice: convertedUnitPrice,
             lineTotal: lineTotal,
-            type: 'other' as any,
+            type: customItem.isTax ? 'tax' : 'other',
           };
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          subtotal += lineTotal;
-          feeBreakdown.other += lineTotal;
+          
+          // Add to appropriate totals based on whether it's a tax
+          if (customItem.isTax) {
+            taxAmount += lineTotal;
+            feeBreakdown.taxes += lineTotal;
+          } else {
+            subtotal += lineTotal;
+            feeBreakdown.other += lineTotal;
+          }
         }
       }
       
       // Add additional charge if provided
       if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
-        // Get company settings for currency conversion
-        const settings = await this.companySettingsRepository.findByCompanyId(companyId);
-        if (!settings) {
-          throw new AppError('Company settings not found', 400);
-        }
-        
-        // Get exchange rate settings for currency conversion
-        const defaultExchangeRateSettings = {
-          baseCurrency: 'USD' as 'USD',
-          targetCurrency: 'JMD' as 'JMD',
-          exchangeRate: 1,
-          autoUpdate: false,
-          lastUpdated: new Date().toISOString()
-        };
-        
-        const exchangeRateSettings = (settings.exchangeRateSettings && 
-          typeof settings.exchangeRateSettings === 'object' &&
-          'baseCurrency' in settings.exchangeRateSettings)
-          ? settings.exchangeRateSettings as any
-          : defaultExchangeRateSettings;
-        
-        const displayCurrency = getDisplayCurrency(exchangeRateSettings);
         
         // Determine the source currency for additional charge (default to display currency if not specified)
         const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
@@ -800,19 +832,49 @@ export class BillingService {
       
       // Add custom line items to preview
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
+        const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
+        // For storage/calculations, always use company's base currency regardless of user preference
+        const storageCurrency = getDisplayCurrency(exchangeRateSettings);
+        
         for (const customItem of validatedData.customLineItems) {
-          const lineTotal = customItem.quantity * customItem.unitPrice;
+          // Determine the source currency for this line item (default to storage currency if not specified)
+          const sourceCurrency = customItem.currency || storageCurrency;
+          
+          // Convert unit price to company's base currency for calculations
+          const originalUnitPrice = customItem.unitPrice;
+          const convertedUnitPrice = convertCurrency(
+            originalUnitPrice,
+            sourceCurrency,
+            storageCurrency,
+            exchangeRateSettings
+          );
+          
+          const lineTotal = customItem.quantity * convertedUnitPrice;
+          
+          // Create description with currency conversion info if converted
+          let description = customItem.description;
+          if (sourceCurrency !== storageCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          }
+          
           lineItems.push({
             packageId: customItem.packageId || null,
-            description: customItem.description,
+            description,
             quantity: customItem.quantity,
-            unitPrice: customItem.unitPrice,
+            unitPrice: convertedUnitPrice,
             lineTotal: lineTotal,
-            currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
-            type: 'other',
+            currency: storageCurrency,
+            type: customItem.isTax ? 'tax' : 'other',
           });
-          subtotal += lineTotal;
-          feeBreakdown.other += lineTotal;
+          
+          // Add to appropriate totals based on whether it's a tax
+          if (customItem.isTax) {
+            taxAmount += lineTotal;
+            feeBreakdown.taxes += lineTotal;
+          } else {
+            subtotal += lineTotal;
+            feeBreakdown.other += lineTotal;
+          }
         }
       }
       

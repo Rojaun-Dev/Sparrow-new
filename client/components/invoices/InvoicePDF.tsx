@@ -356,6 +356,30 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
           </View>
         </View>
 
+          {/* Related Packages */}
+          {uniquePackages && uniquePackages.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Related Packages</Text>
+              <View style={styles.tableHeader}>
+                <Text style={styles.description}>Description</Text>
+                <Text style={styles.amount}>Sender</Text>
+                <Text style={styles.amount}>Tracking #</Text>
+              </View>
+              {uniquePackages.map((pkg: any, index: number) => (
+                <View key={`package-${index}`} style={styles.tableRow}>
+                  <Text style={styles.description}>{pkg.description || 'No description'}</Text>
+                  <Text style={styles.amount}>{pkg.senderInfo?.name || '-'}</Text>
+                  {/* Render as a clickable link if possible, otherwise as text */}
+                  {/* @react-pdf/renderer supports <Link> for URLs */}
+                  <Text style={styles.amount}>
+                    {pkg.trackingNumber ? (
+                      <Link src={`${appBaseUrl}/admin/packages/${pkg.id}`}>{pkg.trackingNumber}</Link>
+                    ) : '-'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         {/* Invoice Items */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Invoice Items</Text>
@@ -382,40 +406,18 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
             <Text style={styles.description}>Subtotal</Text>
             <Text style={styles.amount}>{formatWithCurrency(subtotal)}</Text>
           </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.description}>Tax</Text>
-            <Text style={styles.amount}>{formatWithCurrency(totalTax)}</Text>
-          </View>
+          {totalTax > 0 && (
+            <View style={styles.tableRow}>
+              <Text style={styles.description}>Tax</Text>
+              <Text style={styles.amount}>{formatWithCurrency(totalTax)}</Text>
+            </View>
+          )}
           <View style={styles.tableRow}>
             <Text style={styles.description}>Total</Text>
             <Text style={styles.amount}>{formatWithCurrency(total)}</Text>
           </View>
         </View>
 
-        {/* Related Packages */}
-        {uniquePackages && uniquePackages.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Related Packages</Text>
-            <View style={styles.tableHeader}>
-              <Text style={styles.description}>Description</Text>
-              <Text style={styles.amount}>Sender</Text>
-              <Text style={styles.amount}>Tracking #</Text>
-            </View>
-            {uniquePackages.map((pkg: any, index: number) => (
-              <View key={`package-${index}`} style={styles.tableRow}>
-                <Text style={styles.description}>{pkg.description || 'No description'}</Text>
-                <Text style={styles.amount}>{pkg.senderInfo?.name || '-'}</Text>
-                {/* Render as a clickable link if possible, otherwise as text */}
-                {/* @react-pdf/renderer supports <Link> for URLs */}
-                <Text style={styles.amount}>
-                  {pkg.trackingNumber ? (
-                    <Link src={`${appBaseUrl}/admin/packages/${pkg.id}`}>{pkg.trackingNumber}</Link>
-                  ) : '-'}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Notes */}
         {invoice.notes && (
@@ -424,14 +426,6 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
             <Text style={{ fontSize: 10 }}>{invoice.notes}</Text>
           </View>
         )}
-
-        {/* Payment Information */}
-        <View style={styles.notes}>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5 }}>Payment Information:</Text>
-          <Text style={{ fontSize: 10 }}>
-            Please include the invoice number in your payment reference.
-          </Text>
-        </View>
 
         {/* Footer */}
         <View style={styles.footer}>
