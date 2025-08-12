@@ -8,15 +8,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useUserStatistics, useUserPackages, useCreatePreAlertWithDocuments } from "@/hooks";
 import { PreAlert, Package as PackageType } from "@/lib/api/types";
@@ -324,30 +317,43 @@ export default function CustomerDashboard() {
                 No packages found. Create a pre-alert to get started.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tracking #</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {packagesData?.map((pkg: PackageType) => (
-                    <TableRow key={pkg.id}>
-                      <TableCell className="font-medium">{pkg.trackingNumber}</TableCell>
-                      <TableCell>{pkg.description}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusBadgeColor(pkg.status)}>
-                          {formatStatusLabel(pkg.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatDate(pkg.createdAt)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <ResponsiveTable
+                data={packagesData || []}
+                keyExtractor={(pkg) => pkg.id}
+                loading={packagesLoading}
+                emptyMessage="No packages found. Create a pre-alert to get started."
+                columns={[
+                  {
+                    header: "Tracking #",
+                    accessorKey: "trackingNumber",
+                    className: "font-medium",
+                    cardLabel: "Tracking Number"
+                  },
+                  {
+                    header: "Description",
+                    accessorKey: "description"
+                  },
+                  {
+                    header: "Status",
+                    accessorKey: "status",
+                    cell: (pkg) => (
+                      <Badge className={getStatusBadgeColor(pkg.status)}>
+                        {formatStatusLabel(pkg.status)}
+                      </Badge>
+                    )
+                  },
+                  {
+                    header: "Date",
+                    accessorKey: "createdAt",
+                    cell: (pkg) => formatDate(pkg.createdAt)
+                  }
+                ]}
+                cardClassName="hover:bg-muted/50 cursor-pointer"
+                onRowClick={(pkg) => {
+                  // Navigate to package details (optional)
+                  window.location.href = `/customer/packages/${pkg.id}`;
+                }}
+              />
             )}
           </CardContent>
           <CardFooter>

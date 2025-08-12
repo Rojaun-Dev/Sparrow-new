@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { 
   Calendar, 
-  ChevronDown, 
   CreditCard, 
   Download, 
   Eye, 
@@ -32,21 +31,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { 
@@ -381,70 +367,71 @@ export default function PaymentsPage() {
                   </div>
                 </>
               ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[120px]">Invoice #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Payment Method</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(paymentsData.data ?? []).map((payment: Payment) => (
-                        <TableRow key={payment.id}>
-                          <TableCell className="font-medium">
-                            {payment.invoiceNumber ? (
-                              <Link href={`/customer/invoices/${payment.invoiceId}`} className="text-primary hover:underline">
-                                {payment.invoiceNumber}
-                              </Link>
-                            ) : (
-                              payment.invoiceId
-                            )}
-                          </TableCell>
-                          <TableCell>{formatDate(payment.paymentDate, payment)}</TableCell>
-                          <TableCell>
-                            {formatPaymentMethod(payment.paymentMethod, payment)}
-                          </TableCell>
-                          <TableCell>{formatCurrency(payment.amount, payment)}</TableCell>
-                          <TableCell>
-                            <Badge className={getStatusBadgeColor(payment.status)}>
-                              {formatStatusLabel(payment.status)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  Actions <ChevronDown className="ml-2 h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {payment.invoiceId && (
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/customer/invoices/${payment.invoiceId}`}>
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      View Invoice
-                                    </Link>
-                                  </DropdownMenuItem>
-                                )}
-                                {payment.status === "completed" && payment.amount > 0 && (
-                                  <DropdownMenuItem disabled>
-                                    <X className="mr-2 h-4 w-4" />
-                                    Request Refund
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <ResponsiveTable
+                  data={paymentsData.data ?? []}
+                  keyExtractor={(payment) => payment.id}
+                  loading={isLoading}
+                  emptyMessage="No payment transactions found. Try adjusting your filters."
+                  columns={[
+                    {
+                      header: "Invoice #",
+                      accessorKey: "invoiceNumber",
+                      className: "w-[120px] font-medium",
+                      cardLabel: "Invoice Number",
+                      cell: (payment) => payment.invoiceNumber ? (
+                        <Link href={`/customer/invoices/${payment.invoiceId}`} className="text-primary hover:underline">
+                          {payment.invoiceNumber}
+                        </Link>
+                      ) : (
+                        payment.invoiceId || "N/A"
+                      )
+                    },
+                    {
+                      header: "Date",
+                      accessorKey: "paymentDate",
+                      cell: (payment) => formatDate(payment.paymentDate, payment)
+                    },
+                    {
+                      header: "Payment Method",
+                      accessorKey: "paymentMethod",
+                      hiddenOnMobile: true,
+                      cardLabel: "Method",
+                      cell: (payment) => formatPaymentMethod(payment.paymentMethod, payment)
+                    },
+                    {
+                      header: "Amount",
+                      accessorKey: "amount",
+                      cell: (payment) => formatCurrency(payment.amount, payment)
+                    },
+                    {
+                      header: "Status",
+                      accessorKey: "status",
+                      cell: (payment) => (
+                        <Badge className={getStatusBadgeColor(payment.status)}>
+                          {formatStatusLabel(payment.status)}
+                        </Badge>
+                      )
+                    }
+                  ]}
+                  actions={[
+                    {
+                      label: "View Invoice",
+                      href: (payment) => `/customer/invoices/${payment.invoiceId}`,
+                      icon: Eye,
+                      hidden: (payment) => !payment.invoiceId
+                    },
+                    {
+                      label: "Request Refund",
+                      onClick: (payment) => {
+                        // Handle refund request
+                        console.log("Request refund for payment:", payment.id);
+                      },
+                      icon: X,
+                      disabled: () => true, // Currently disabled
+                      hidden: (payment) => !(payment.status === "completed" && payment.amount > 0)
+                    }
+                  ]}
+                />
               )}
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
