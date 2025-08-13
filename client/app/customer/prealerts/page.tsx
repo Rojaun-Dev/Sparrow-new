@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { 
   Calendar, 
-  ChevronDown, 
   Eye, 
   Filter, 
   Package, 
@@ -32,21 +31,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useUserPreAlerts, useCancelPreAlert } from "@/hooks"
 import { PreAlert, PreAlertFilterParams } from "@/lib/api/types"
@@ -246,78 +232,72 @@ export default function PreAlertsPage() {
               No pre-alerts found. Try adjusting your filters or create a new pre-alert.
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[180px]">Tracking #</TableHead>
-                    <TableHead>Courier</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="hidden md:table-cell">Est. Weight</TableHead>
-                    <TableHead className="hidden md:table-cell">Est. Arrival</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {preAlertsData.data.map((preAlert: PreAlert) => (
-                    <TableRow key={preAlert.id}>
-                      <TableCell className="font-medium">{preAlert.trackingNumber}</TableCell>
-                      <TableCell>{preAlert.courier}</TableCell>
-                      <TableCell>{preAlert.description}</TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {preAlert.weight ? `${preAlert.weight} lbs` : 'N/A'}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {preAlert.estimatedArrival 
-                          ? formatDate(preAlert.estimatedArrival) 
-                          : 'N/A'
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusBadgeColor(preAlert.status)}>
-                          {formatStatusLabel(preAlert.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              Actions <ChevronDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/customer/prealerts/${preAlert.id}`}>
-                                <Eye className="mr-2 h-4 w-4" /> 
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            {preAlert.status === "pending" && (
-                              <DropdownMenuItem 
-                                onClick={() => handleCancelPreAlert(preAlert.id)}
-                                disabled={cancelPreAlert.isPending}
-                              >
-                                <X className="mr-2 h-4 w-4" />
-                                {cancelPreAlert.isPending ? 'Cancelling...' : 'Cancel Pre-Alert'}
-                              </DropdownMenuItem>
-                            )}
-                            {preAlert.status === "matched" && preAlert.packageId && (
-                              <DropdownMenuItem asChild>
-                                <Link href={`/customer/packages/${preAlert.packageId}`}>
-                                  <Package className="mr-2 h-4 w-4" />
-                                  View Package
-                                </Link>
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <ResponsiveTable
+              data={preAlertsData.data}
+              keyExtractor={(preAlert) => preAlert.id}
+              loading={isLoading}
+              emptyMessage="No pre-alerts found. Try adjusting your filters or create a new pre-alert."
+              columns={[
+                {
+                  header: "Tracking #",
+                  accessorKey: "trackingNumber",
+                  className: "w-[180px] font-medium",
+                  cardLabel: "Tracking Number"
+                },
+                {
+                  header: "Courier",
+                  accessorKey: "courier"
+                },
+                {
+                  header: "Description",
+                  accessorKey: "description"
+                },
+                {
+                  header: "Est. Weight",
+                  accessorKey: "weight",
+                  hiddenOnMobile: true,
+                  cardLabel: "Weight",
+                  cell: (preAlert) => preAlert.weight ? `${preAlert.weight} lbs` : 'N/A'
+                },
+                {
+                  header: "Est. Arrival",
+                  accessorKey: "estimatedArrival",
+                  hiddenOnMobile: true,
+                  cardLabel: "Arrival",
+                  cell: (preAlert) => preAlert.estimatedArrival ? formatDate(preAlert.estimatedArrival) : 'N/A'
+                },
+                {
+                  header: "Status",
+                  accessorKey: "status",
+                  cell: (preAlert) => (
+                    <Badge className={getStatusBadgeColor(preAlert.status)}>
+                      {formatStatusLabel(preAlert.status)}
+                    </Badge>
+                  )
+                }
+              ]}
+              actions={[
+                {
+                  label: "View Details",
+                  href: (preAlert) => `/customer/prealerts/${preAlert.id}`,
+                  icon: Eye
+                },
+                {
+                  label: cancelPreAlert.isPending ? 'Cancelling...' : 'Cancel Pre-Alert',
+                  onClick: (preAlert) => handleCancelPreAlert(preAlert.id),
+                  icon: X,
+                  variant: "destructive",
+                  disabled: () => cancelPreAlert.isPending,
+                  hidden: (preAlert) => preAlert.status !== "pending"
+                },
+                {
+                  label: "View Package",
+                  href: (preAlert) => `/customer/packages/${preAlert.packageId}`,
+                  icon: Package,
+                  hidden: (preAlert) => !(preAlert.status === "matched" && preAlert.packageId)
+                }
+              ]}
+            />
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">

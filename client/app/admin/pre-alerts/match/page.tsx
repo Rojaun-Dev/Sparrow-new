@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePreAlerts } from "@/hooks/usePreAlerts";
 import { usePackages } from "@/hooks/usePackages";
 import { useMatchPreAlertToPackage } from "@/hooks/usePackages";
+import { useUsers } from "@/hooks/useUsers";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -13,22 +14,65 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import type { PreAlert, Package } from "@/lib/api/types";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function MatchPreAlertsPage() {
   const [selectedPreAlert, setSelectedPreAlert] = useState<PreAlert | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
   const [preAlertSearch, setPreAlertSearch] = useState("");
   const [packageSearch, setPackageSearch] = useState("");
+  const [debouncedPreAlertSearch, setDebouncedPreAlertSearch] = useState("");
+  const [debouncedPackageSearch, setDebouncedPackageSearch] = useState("");
+  const [preAlertPage, setPreAlertPage] = useState(1);
+  const [packagePage, setPackagePage] = useState(1);
   const [sendNotification, setSendNotification] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const { toast } = useToast();
 
-  // Fetch unmatched pre-alerts
-  const { data: preAlertsData, isLoading: preAlertsLoading } = usePreAlerts({ status: "pending", search: preAlertSearch });
-  // Fetch all packages (could be filtered to customer packages if needed)
-  const { data: packagesData, isLoading: packagesLoading } = usePackages({ search: packageSearch });
+  const pageLimit = 10; // Items per page
+
+  // Debounce search inputs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPreAlertSearch(preAlertSearch);
+      setPreAlertPage(1); // Reset to first page when searching
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [preAlertSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPackageSearch(packageSearch);
+      setPackagePage(1); // Reset to first page when searching
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [packageSearch]);
+
+  // Fetch unmatched pre-alerts with pagination
+  const { data: preAlertsData, isLoading: preAlertsLoading } = usePreAlerts({ 
+    status: "pending", 
+    search: debouncedPreAlertSearch,
+    page: preAlertPage,
+    limit: pageLimit
+  });
+  
+  // Fetch all packages with pagination
+  const { data: packagesData, isLoading: packagesLoading } = usePackages({ 
+    search: debouncedPackageSearch,
+    page: packagePage,
+    limit: pageLimit
+  });
+  
+  // Fetch all users to map userIds to names
+  const { data: usersData } = useUsers();
 
   const matchMutation = useMatchPreAlertToPackage();
+
+  // Helper function to get user name from userId
+  const getUserName = (userId: string) => {
+    const user = usersData?.find(u => u.id === userId);
+    return user ? `${user.firstName} ${user.lastName}` : userId;
+  };
 
   const handleMatch = () => {
     if (!selectedPreAlert || !selectedPackage) return;
@@ -109,7 +153,7 @@ export default function MatchPreAlertsPage() {
                           {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
                         </Badge>
                       </div>
-                      <div className="text-sm text-muted-foreground">User: {alert.userId}</div>
+                      <div className="text-sm text-muted-foreground">User: {getUserName(alert.userId)}</div>
                     </CardContent>
                   </Card>
                 ))
@@ -139,7 +183,7 @@ export default function MatchPreAlertsPage() {
                         onClick={() => setSelectedPreAlert(alert)}
                       >
                         <TableCell>{alert.trackingNumber}</TableCell>
-                        <TableCell>{alert.userId}</TableCell>
+                        <TableCell>{getUserName(alert.userId)}</TableCell>
                         <TableCell>
                           <Badge variant={
                             alert.status === 'pending' ? 'secondary'
@@ -158,6 +202,35 @@ export default function MatchPreAlertsPage() {
                 </TableBody>
               </Table>
             </div>
+            {/* Pre-alerts Pagination */}
+            {preAlertsData?.pagination && preAlertsData.pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 px-2">
+                <div className="text-sm text-muted-foreground">
+                  Page {preAlertsData.pagination.page} of {preAlertsData.pagination.totalPages} 
+                  ({preAlertsData.pagination.totalItems || preAlertsData.pagination.total || 0} total)
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPreAlertPage(prev => Math.max(1, prev - 1))}
+                    disabled={preAlertPage === 1 || preAlertsLoading}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPreAlertPage(prev => prev + 1)}
+                    disabled={preAlertPage >= (preAlertsData?.pagination?.totalPages || 1) || preAlertsLoading}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         {/* Packages List */}
@@ -245,6 +318,35 @@ export default function MatchPreAlertsPage() {
                 </TableBody>
               </Table>
             </div>
+            {/* Packages Pagination */}
+            {packagesData?.pagination && packagesData.pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 px-2">
+                <div className="text-sm text-muted-foreground">
+                  Page {packagesData.pagination.page} of {packagesData.pagination.totalPages} 
+                  ({packagesData.pagination.totalItems || packagesData.pagination.total || 0} total)
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPackagePage(prev => Math.max(1, prev - 1))}
+                    disabled={packagePage === 1 || packagesLoading}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPackagePage(prev => prev + 1)}
+                    disabled={packagePage >= (packagesData?.pagination?.totalPages || 1) || packagesLoading}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

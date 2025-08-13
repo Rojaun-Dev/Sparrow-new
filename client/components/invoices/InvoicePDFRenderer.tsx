@@ -37,7 +37,7 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
   currency = 'USD',
   exchangeRateSettings
 }) => {
-  // Validate required props
+  // Validate required props with more thorough checks
   if (!invoice || !user || !company) {
     console.warn('InvoicePDFRenderer: Missing required props', { 
       invoice: !!invoice, 
@@ -53,6 +53,62 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
       >
         <Download className="mr-2 h-4 w-4" />
         Data Missing
+      </Button>
+    );
+  }
+
+  // Additional validation for invoice structure
+  if (!invoice.id || !invoice.invoiceNumber) {
+    console.warn('InvoicePDFRenderer: Invalid invoice data', { 
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber
+    });
+    return (
+      <Button 
+        variant="outline" 
+        size="sm"
+        disabled
+        {...buttonProps}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Invalid Invoice
+      </Button>
+    );
+  }
+
+  // Validate user structure
+  if (!user.firstName || !user.lastName) {
+    console.warn('InvoicePDFRenderer: Invalid user data', { 
+      firstName: user.firstName,
+      lastName: user.lastName
+    });
+    return (
+      <Button 
+        variant="outline" 
+        size="sm"
+        disabled
+        {...buttonProps}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Invalid User Data
+      </Button>
+    );
+  }
+
+  // Validate company structure
+  if (!company.name) {
+    console.warn('InvoicePDFRenderer: Invalid company data', { 
+      name: company.name
+    });
+    return (
+      <Button 
+        variant="outline" 
+        size="sm"
+        disabled
+        {...buttonProps}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Invalid Company Data
       </Button>
     );
   }
@@ -92,8 +148,12 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
   };
 
   // BlobProvider - Modern approach for complex PDF generation scenarios
+  // Add key to force re-render and avoid reconciler issues
+  const renderKey = `${invoice.id}-${packages?.length || 0}-${currency}-${invoice.status || 'unknown'}`;
+  
   return (
     <BlobProvider 
+      key={renderKey}
       document={
         <InvoicePDF 
           invoice={invoice}
@@ -110,6 +170,14 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
       {({ loading, url, error }) => {
         if (error) {
           console.error('InvoicePDFRenderer: PDF generation error', error);
+          // Log additional context for debugging
+          console.error('Error context:', {
+            invoiceId: invoice?.id,
+            packagesCount: packages?.length,
+            currency,
+            hasUser: !!user,
+            hasCompany: !!company
+          });
           return (
             <Button 
               variant="outline" 
