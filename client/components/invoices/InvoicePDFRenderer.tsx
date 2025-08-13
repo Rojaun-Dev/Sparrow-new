@@ -92,8 +92,12 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
   };
 
   // BlobProvider - Modern approach for complex PDF generation scenarios
+  // Add key to force re-render and avoid reconciler issues
+  const renderKey = `${invoice.id}-${packages?.length || 0}-${currency}-${invoice.status || 'unknown'}`;
+  
   return (
     <BlobProvider 
+      key={renderKey}
       document={
         <InvoicePDF 
           invoice={invoice}
@@ -110,6 +114,14 @@ const InvoicePDFRenderer: React.FC<InvoicePDFRendererProps> = ({
       {({ loading, url, error }) => {
         if (error) {
           console.error('InvoicePDFRenderer: PDF generation error', error);
+          // Log additional context for debugging
+          console.error('Error context:', {
+            invoiceId: invoice?.id,
+            packagesCount: packages?.length,
+            currency,
+            hasUser: !!user,
+            hasCompany: !!company
+          });
           return (
             <Button 
               variant="outline" 

@@ -366,16 +366,17 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
                 <Text style={styles.amount}>Tracking #</Text>
               </View>
               {uniquePackages.map((pkg: any, index: number) => (
-                <View key={`package-${index}`} style={styles.tableRow}>
+                <View key={`package-${pkg.id || index}`} style={styles.tableRow}>
                   <Text style={styles.description}>{pkg.description || 'No description'}</Text>
                   <Text style={styles.amount}>{pkg.senderInfo?.name || '-'}</Text>
-                  {/* Render as a clickable link if possible, otherwise as text */}
-                  {/* @react-pdf/renderer supports <Link> for URLs */}
-                  <Text style={styles.amount}>
-                    {pkg.trackingNumber ? (
-                      <Link src={`${appBaseUrl}/admin/packages/${pkg.id}`}>{pkg.trackingNumber}</Link>
-                    ) : '-'}
-                  </Text>
+                  {/* Fixed: Avoid nested conditional rendering inside Text components */}
+                  {pkg.trackingNumber ? (
+                    <Link src={`${appBaseUrl}/admin/packages/${pkg.id}`} style={styles.amount}>
+                      {pkg.trackingNumber}
+                    </Link>
+                  ) : (
+                    <Text style={styles.amount}>-</Text>
+                  )}
                 </View>
               ))}
             </View>
@@ -389,7 +390,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({
           </View>
           {groupedItems && groupedItems.length > 0 ? (
             groupedItems.map((item: any, index: number) => (
-              <View key={`item-${index}`} style={styles.tableRow}>
+              <View key={`item-${item.id || item.description || index}`} style={styles.tableRow}>
                 <Text style={styles.description}>{item.description}</Text>
                 <Text style={styles.amount}>{formatWithCurrency(item.lineTotal)}</Text>
               </View>
