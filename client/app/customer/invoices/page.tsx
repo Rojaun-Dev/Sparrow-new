@@ -40,12 +40,14 @@ import { Invoice, InvoiceFilterParams } from "@/lib/api/types"
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrency } from "@/hooks/useCurrency"
 import { CurrencySelector } from "@/components/ui/currency-selector"
-import { invoiceService } from "@/lib/api/invoiceService"
-import { packageService } from "@/lib/api/packageService"
 import { usersService } from "@/lib/api"
+import { packageService } from "@/lib/api/packageService"
 import { companyService } from "@/lib/api/companyService"
-import InvoicePDF from "@/components/invoices/InvoicePDF"
-import { pdf } from "@react-pdf/renderer"
+import InvoicePDFRenderer from "@/components/invoices/InvoicePDFRenderer"
+import { PayNowButton } from "@/components/invoices/PayNowButton"
+import { usePaymentAvailability } from "@/hooks/usePayWiPay"
+import { useMyCompany } from "@/hooks/useCompanies"
+import { useCompanyLogo } from "@/hooks/useCompanyAssets"
 
 export default function InvoicesPage() {
   const { toast } = useToast();
@@ -75,9 +77,12 @@ export default function InvoicesPage() {
   // Currency handling
   const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
 
-  // PDF Download state
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+  // Payment availability check
+  const { data: paymentSettings } = usePaymentAvailability();
+  
+  // Company data for PDF generation
+  const { data: company } = useMyCompany();
+  const { logoUrl, isUsingBanner } = useCompanyLogo(company?.id);
 
   // Apply filters when the apply button is clicked
   const applyFilters = () => {
@@ -129,105 +134,111 @@ export default function InvoicesPage() {
     }
   };
 
-  // Handle PDF download
-  const handleDownloadPdf = async (id: string) => {
+  // Handle PDF download with InvoicePDFRenderer approach
+  const handleDownloadPdf = async (invoice: Invoice) => {
     try {
-      setIsDownloading(true);
-      setDownloadingInvoiceId(id);
-      
-      // Fetch all necessary data for the PDF
-      const invoice = await invoiceService.getInvoice(id);
-      
-      if (!invoice) {
-        throw new Error("Invoice not found");
-      }
-      
-      // Fetch associated packages
-      const packages = await packageService.getPackagesByInvoiceId(id);
-      
-      // Fetch user data
+      // Fetch user data for the invoice
       const user = await usersService.getUser(invoice.userId);
       
-      // Fetch company data
-      let company;
-      if (invoice.companyId) {
-        company = await companyService.getCompanyById(invoice.companyId);
-      } else {
-        // Fallback to current company if not specified in invoice
-        company = await companyService.getCurrentCompany();
-      }
+      // Fetch packages for the invoice
+      const packages = await packageService.getPackagesByInvoiceId(invoice.id);
       
-      // Check if we have all required data
-      if (!invoice || !packages || !user || !company) {
-        throw new Error("Could not fetch all required data for PDF generation");
-      }
-      
-      // Generate PDF using react-pdf
-      const pdfDocument = (
-        <InvoicePDF
-          invoice={invoice}
-          packages={packages}
-          user={user}
-          company={company}
-          currency={selectedCurrency}
-          exchangeRateSettings={exchangeRateSettings || undefined}
-        />
-      );
-      
-      try {
-        // Attempt to generate PDF with react-pdf
-        const blob = await pdf(pdfDocument).toBlob();
-        
-        // Create download link
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `invoice-${invoice.invoiceNumber || id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        
-        // Clean up
-        URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
+      if (!user) {
         toast({
-          title: "PDF Downloaded",
-          description: "Invoice PDF has been downloaded successfully.",
+          title: "Error",
+          description: "Could not fetch user data for PDF generation.",
+          variant: "destructive",
         });
-      } catch (pdfError) {
-        console.error("Error generating PDF with react-pdf:", pdfError);
-        
-        // Fallback to a placeholder PDF if react-pdf fails
-        const blob = await fetch('data:application/pdf;base64,JVBERi0xLjcKJeLjz9MKNSAwIG9iago8PCAvVHlwZSAvWE9iamVjdCAvU3VidHlwZSAvSW1hZ2UgL1dpZHRoIDEgL0hlaWdodCAxIC9CaXRzUGVyQ29tcG9uZW50IDggL0NvbG9yU3BhY2UgL0RldmljZVJHQiAvRmlsdGVyIC9GbGF0ZURlY29kZSAvTGVuZ3RoIDEyID4+CnN0cmVhbQp4nGNgYGAAAoEADABkQAENCmVuZHN0cmVhbQplbmRvYmoKNiAwIG9iago8PCAvVHlwZSAvWE9iamVjdCAvU3VidHlwZSAvRm9ybSAvUmVzb3VyY2VzIDw8IC9YT2JqZWN0IDw8IC9JbTEgNSAwIFIgPj4gPj4gL0JCb3ggWzAgMCAxMDAgMTAwXSAvTWF0cml4IFsxIDAgMCAxIDAgMF0gL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAzNSA+PgpzdHJlYW0KeJxjYGBgYGRiYWVj5+Dk4jYyNjE1M7ewtLK2sbWzd3B0cnZxdXP38PTy9vEN9QsIDAoOCQ0Lj4iMAgoCAJpkEc8KZW5kc3RyZWFtCmVuZG9iago0IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9NZWRpYUJveCBbMCAwIDU5NS4yNzU1OSA4NDEuODg5NzZdIC9SZXNvdXJjZXMgPDwgL1hPYmplY3QgPDwgL0ZtMSA2IDAgUiA+PiAvUHJvY1NldCBbL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSV0gPj4gL0NvbnRlbnRzIDE0IDAgUiAvUGFyZW50IDEzIDAgUiA+PgplbmRvYmoKMTMgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFs0IDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL0NhdGFsb2cgL1BhZ2VzIDEzIDAgUiA+PgplbmRvYmoKMTQgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCA0MiA+PgpzdHJlYW0KeJzT1I8vyk1MUbBScipOLVJwSS1OISTP5ypQcMlXCi1RcNQzUlCKhaoBIv0NCgplbm5kc3RyZWFtCmVuZG9iagp4cmVmCjAgMTUKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDExIDAwMDAwIG4gCjAwMDAwMDA1NjEgMDAwMDAgbiAKMDAwMDAwMDE1OSAwMDAwMCBuIAowMDAwMDAwNDAzIDAwMDAwIG4gCjAwMDAwMDAwMTUgMDAwMDAgbiAKMDAwMDAwMDE5MyAwMDAwMCBuIAowMDAwMDAwNTAzIDAwMDAwIG4gCjAwMDAwMDA1ODQgMDAwMDAgbiAKMDAwMDAwMDYyMSAwMDAwMCBuIAowMDAwMDAwNjQzIDAwMDAwIG4gCjAwMDAwMDA3NTMgMDAwMDAgbiAKMDAwMDAwMDYxMSAwMDAwMCBuIAowMDAwMDAwNjEwIDAwMDAwIG4gCjAwMDAwMDA2MTAgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSAxNSAvUm9vdCAyIDAgUiAvSW5mbyAxIDAgUiAvSUQgWzwzNzVkMGNmODUxMjEwZGJiYjhmOTc0MWQ0NDlmMzJlZj48MzM2YTlmZjE0MzUzN2Y0M2ZkMDY0MWEyMGI1ODRlZWI+XSA+PgpzdGFydHhyZWYKNzA3CiUlRU9GCg==')
-          .then(res => res.blob());
-        
-        // Create download link for fallback PDF
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `invoice-${invoice.invoiceNumber || id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        
-        // Clean up
-        URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        toast({
-          title: "PDF Downloaded",
-          description: "Invoice PDF has been downloaded successfully.",
-        });
+        return;
       }
+      
+      // Import the PDF generation logic from the renderer
+      const { pdf } = await import('@react-pdf/renderer');
+      const InvoicePDF = (await import('@/components/invoices/InvoicePDF')).default;
+      const React = (await import('react')).default;
+      
+      const pdfDocument = React.createElement(InvoicePDF, {
+        invoice,
+        packages: packages || [],
+        user,
+        company,
+        companyLogo: logoUrl,
+        isUsingBanner,
+        currency: selectedCurrency,
+        exchangeRateSettings: exchangeRateSettings || undefined
+      });
+      
+      // Generate and download the PDF
+      const blob = await pdf(pdfDocument).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "PDF Downloaded",
+        description: "Invoice PDF has been downloaded successfully.",
+      });
     } catch (error) {
-      console.error("Error in handleDownloadPdf:", error);
+      console.error("Error downloading PDF:", error);
       toast({
         title: "Error",
         description: "Failed to download invoice PDF. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsDownloading(false);
-      setDownloadingInvoiceId(null);
+    }
+  };
+
+  // Handle payment initiation directly
+  const handlePayNow = async (invoice: Invoice) => {
+    try {
+      // Import the usePayWiPay hook dynamically
+      const { usePayWiPay } = await import('@/hooks/usePayWiPay');
+      
+      // Since we can't use hooks here, we'll make a direct API call
+      // Import the API client
+      const { ApiClient } = await import('@/lib/api/apiClient');
+      const apiClient = new ApiClient();
+      
+      // Store authentication token in session storage before redirect
+      const token = localStorage.getItem('token');
+      if (token) {
+        sessionStorage.setItem('wipay_auth_token', token);
+      }
+      
+      // Store the selected currency in session storage for after payment return
+      sessionStorage.setItem('wipay_currency', selectedCurrency);
+      
+      // Construct the response URL to point to our payment result page
+      const returnUrl = `${window.location.origin}/customer/invoices/${invoice.id}`;
+      
+      // Call API to create payment request
+      const response = await apiClient.post('/companies/current/payments/wipay/request', {
+        invoiceId: invoice.id,
+        responseUrl: returnUrl,
+        origin: 'SparrowX-Customer-Portal',
+        currency: selectedCurrency
+      });
+      
+      // Redirect to payment page
+      if (response && response.redirectUrl) {
+        window.location.href = response.redirectUrl;
+      } else {
+        throw new Error('No redirect URL returned from payment service');
+      }
+    } catch (error) {
+      console.error("Error initiating payment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to initiate payment. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -407,7 +418,7 @@ export default function InvoicesPage() {
                       {formatStatusLabel(invoice.status)}
                     </Badge>
                   )
-                }
+                },
               ]}
               actions={[
                 {
@@ -417,15 +428,14 @@ export default function InvoicesPage() {
                 },
                 {
                   label: "Pay Now",
-                  href: (invoice) => `/customer/invoices/${invoice.id}/pay`,
+                  onClick: (invoice) => handlePayNow(invoice),
                   icon: CreditCard,
-                  hidden: (invoice) => !(invoice.status === "draft" || invoice.status === "issued" || invoice.status === "overdue")
+                  hidden: (invoice) => !(invoice.status === "draft" || invoice.status === "issued" || invoice.status === "overdue") || !paymentSettings?.isEnabled
                 },
                 {
                   label: "Download PDF",
-                  onClick: (invoice) => handleDownloadPdf(invoice.id),
-                  icon: Download,
-                  disabled: (invoice) => downloadingInvoiceId === invoice.id && isDownloading
+                  onClick: (invoice) => handleDownloadPdf(invoice),
+                  icon: Download
                 }
               ]}
             />

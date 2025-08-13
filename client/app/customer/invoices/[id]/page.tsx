@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select"
 import { SupportedCurrency } from "@/lib/api/types"
 import { useCompanyLogo } from "@/hooks/useCompanyAssets"
+import { PayNowButton } from "@/components/invoices/PayNowButton"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -168,119 +169,6 @@ function CompanyNameDisplay({ companyId }: { companyId: string }) {
   return <p className="text-base">{company.name}</p>;
 }
 
-// PayNowButton component
-function PayNowButton({ invoice }: { invoice: any }) {
-  const { initiate, isLoading, error } = usePayWiPay();
-  const { data: paymentSettings, isLoading: isLoadingPaymentSettings } = usePaymentAvailability();
-  const [showError, setShowError] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('USD');
-  const { settings } = useCompanySettings();
-  
-  // Check if WiPay is enabled in company settings
-  const isWiPayEnabled = paymentSettings?.isEnabled;
-  
-  // Check if exchange rate is available
-  const hasExchangeRate = settings?.exchangeRateSettings?.exchangeRate && settings?.exchangeRateSettings?.exchangeRate > 0;
-  
-  // Get exchange rate settings
-  const exchangeRate = settings?.exchangeRateSettings?.exchangeRate || 150;
-  
-  const handlePayment = async () => {
-    if (!isWiPayEnabled) {
-      setShowError(true);
-      return;
-    }
-    
-    try {
-      await initiate({
-        invoiceId: invoice.id,
-        origin: 'SparrowX-Customer-Portal',
-        currency: selectedCurrency
-      });
-    } catch (err) {
-      console.error("Payment initiation error:", err);
-      setShowError(true);
-    }
-  };
-  
-  if (isLoadingPaymentSettings) {
-    return (
-      <div className="space-y-3 w-full">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-4 w-3/4 mx-auto" />
-      </div>
-    );
-  }
-  
-  if (!isWiPayEnabled) {
-    return (
-      <div className="space-y-3 w-full">
-        <Button className="w-full" variant="outline" disabled>
-          <CreditCard className="mr-2 h-4 w-4" />
-          Online Payment Not Available
-        </Button>
-        <div className="text-xs text-muted-foreground text-center">
-          Online payments are not enabled. Please pay in person or contact support.
-        </div>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="space-y-3 w-full">
-      {showError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            {error || "There was a problem initiating the payment. Please try again or contact support."}
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {hasExchangeRate && (
-        <div className="mb-4">
-          <label className="text-sm font-medium mb-1 block">
-            Select Payment Currency
-          </label>
-          <Select 
-            value={selectedCurrency}
-            onValueChange={(value) => setSelectedCurrency(value as SupportedCurrency)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select Currency" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="USD">USD ($)</SelectItem>
-              <SelectItem value="JMD">JMD (J$)</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <div className="text-xs text-muted-foreground mt-1">
-            {selectedCurrency === 'JMD' ? (
-              <>Exchange rate: $1 USD = J${settings?.exchangeRateSettings?.exchangeRate ?? 150} JMD</>
-            ) : (
-              <>Prices shown in USD</>
-            )}
-          </div>
-        </div>
-      )}
-      
-      <Button 
-        className="w-full" 
-        onClick={handlePayment} 
-        disabled={isLoading}
-      >
-        <CreditCard className="mr-2 h-4 w-4" />
-        {isLoading ? "Processing..." : `Pay Now (${selectedCurrency})`}
-      </Button>
-      
-      <div className="text-xs text-muted-foreground text-center">
-        Secure payment processing provided by WiPay
-      </div>
-    </div>
-  );
-}
 
 export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
@@ -349,6 +237,50 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
       window.history.replaceState({}, '', url);
     }
   }, [searchParams, hasProcessedCallback]);
+  
+  // Handle manual PDF download without using InvoicePDFRenderer
+  const handleManualPDFDownload = async (invoice: any) => {
+    try {
+      if (!invoice || !user || !company) {
+        console.error('Missing required data for PDF generation');
+        return;
+      }
+
+      // Import PDF generation dependencies
+      const { pdf } = await import('@react-pdf/renderer');
+      const InvoicePDF = (await import('@/components/invoices/InvoicePDF')).default;
+      const React = (await import('react')).default;
+
+      // Create PDF document
+      const pdfDocument = React.createElement(InvoicePDF, {
+        invoice,
+        packages: uniquePackages || [],
+        user,
+        company,
+        companyLogo: logoUrl,
+        isUsingBanner,
+        currency: selectedCurrency,
+        exchangeRateSettings: exchangeRateSettings || undefined
+      });
+
+      // Generate and download PDF
+      const blob = await pdf(pdfDocument).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+
+      // Clean up
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log('PDF downloaded successfully');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
+  };
   
   // Fetch invoice data using the useInvoice hook
   const { data: invoice, isLoading, isError, error } = useInvoice(resolvedParams.id);
@@ -497,28 +429,15 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             </Select>
           </div>
           
-          {invoice && relatedPackages && user && company ? (
-            <InvoicePDFRenderer
-              invoice={invoice}
-              packages={relatedPackages}
-              user={user}
-              company={company}
-              companyLogo={logoUrl}
-              isUsingBanner={isUsingBanner}
-              buttonText="Download PDF"
-              currency={selectedCurrency}
-              exchangeRateSettings={exchangeRateSettings || undefined}
-            />
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Loading PDF...
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleManualPDFDownload(invoice)}
+            disabled={!invoice || !user || !company}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download PDF
+          </Button>
         </div>
       </div>
 
@@ -706,7 +625,10 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   </Button>
                 </div>
               ) : (
-                <PayNowButton invoice={invoice} />
+                <PayNowButton 
+                  invoice={invoice} 
+                  currency={selectedCurrency}
+                />
               )}
             </CardContent>
           </Card>
