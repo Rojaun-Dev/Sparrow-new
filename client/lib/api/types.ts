@@ -2,7 +2,8 @@
 export interface PaginatedResponse<T> {
   data: T[];
   pagination: {
-    total: number;
+    total?: number; // Legacy field, some APIs might still use this
+    totalItems?: number; // Current field used by backend
     page: number;
     limit: number;
     totalPages: number;
