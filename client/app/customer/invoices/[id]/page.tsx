@@ -31,7 +31,7 @@ import { useUser } from "@/hooks/useUsers"
 import { useMyCompany } from "@/hooks/useCompanies"
 import InvoicePDFRenderer from "@/components/invoices/InvoicePDFRenderer"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePayWiPay, usePaymentAvailability } from "@/hooks/usePayWiPay"
+import { usePayWiPay, usePaymentAvailability, useWiPayStatus } from "@/hooks/usePayWiPay"
 import { useCompanySettings } from "@/hooks/useCompanySettings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/hooks/useAuth"
@@ -186,6 +186,42 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   const searchParams = useSearchParams();
   const router = useRouter();
   
+  // WiPay status processing
+  const { handleCallback } = useWiPayStatus();
+  
+  // Process WiPay callback
+  const processWiPayCallback = async (callbackData: any) => {
+    try {
+      console.log('Processing WiPay callback:', callbackData);
+      
+      // Call the backend to process the callback
+      const result = await handleCallback.mutateAsync(callbackData);
+      
+      if (result && result.success) {
+        setPaymentStatus(callbackData.status);
+        setPaymentMessage(result.message || callbackData.message);
+        setPaymentTransactionId(callbackData.transaction_id);
+        setShowPaymentModal(true);
+        
+        console.log('WiPay callback processed successfully:', result);
+      } else {
+        // Handle callback processing failure
+        setPaymentStatus('failed');
+        setPaymentMessage(result?.message || 'Payment processing failed');
+        setPaymentError('Failed to process payment callback');
+        setShowPaymentModal(true);
+        
+        console.error('WiPay callback processing failed:', result);
+      }
+    } catch (error) {
+      console.error('Error processing WiPay callback:', error);
+      setPaymentStatus('failed');
+      setPaymentMessage('An error occurred while processing the payment');
+      setPaymentError('Network or processing error');
+      setShowPaymentModal(true);
+    }
+  };
+  
   // Refresh auth token on component mount
   useEffect(() => {
     // Check if we're returning from WiPay
@@ -224,11 +260,16 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
     
     // Only process if we have payment parameters and haven't processed them yet
     if (status && !hasProcessedCallback) {
-      setPaymentStatus(status);
-      setPaymentMessage(message);
-      setPaymentTransactionId(transactionId);
-      setShowPaymentModal(true);
       setHasProcessedCallback(true);
+      
+      // Process callback through backend
+      processWiPayCallback({
+        status,
+        message,
+        transaction_id: transactionId,
+        // Include all other query parameters that WiPay might send
+        ...Object.fromEntries(searchParams.entries())
+      });
       
       // Clean up URL parameters to avoid reprocessing on refresh
       // but preserve the invoice ID
@@ -236,7 +277,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
       url.search = '';
       window.history.replaceState({}, '', url);
     }
-  }, [searchParams, hasProcessedCallback]);
+  }, [searchParams, hasProcessedCallback, handleCallback]);
   
   // Handle manual PDF download without using InvoicePDFRenderer
   const handleManualPDFDownload = async (invoice: any) => {
