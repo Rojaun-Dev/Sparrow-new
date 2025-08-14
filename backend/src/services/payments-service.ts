@@ -440,6 +440,34 @@ export class PaymentsService extends BaseService<typeof payments> {
     // Format to 2 decimal places as required by WiPay
     const formattedAmount = convertedAmount.toFixed(2);
     
+    // Create a short unique identifier for WiPay (max 17 chars)
+    // Using timestamp + random suffix to ensure uniqueness
+    const timestamp = Date.now().toString(36); // Base36 timestamp (shorter)
+    const randomSuffix = Math.random().toString(36).substring(2, 6); // 4 random chars
+    const shortOrderId = `${timestamp}-${randomSuffix}`.substring(0, 17);
+
+    // Create a pending payment record first to get the payment ID
+    const payment = await this.paymentsRepository.create({
+      invoiceId: invoice.id,
+      userId: invoice.userId,
+      amount: amountToStore, // Store the amount in the currency being used for payment
+      paymentMethod: 'online',
+      status: 'pending',
+      meta: {
+        currency: currency,
+        originalAmount: originalAmount,
+        convertedAmount: Number(formattedAmount),
+        exchangeRate: exchangeRateSettings.exchangeRate as number,
+        baseCurrency: exchangeRateSettings.baseCurrency as string,
+        paymentCreatedAt: new Date().toISOString(),
+        wiPayOrderId: shortOrderId // Store the mapping for callback lookup
+      }
+    }, companyId);
+    
+    if (!payment) {
+      throw new Error('Failed to create payment record');
+    }
+
     // Create WiPay request payload according to documentation
     const payload: {
       account_number: string;
@@ -467,37 +495,20 @@ export class PaymentsService extends BaseService<typeof payments> {
       currency: currency,
       environment: paymentSettings.wipay.environment === 'production' ? 'live' : 'sandbox',
       fee_structure: paymentSettings.wipay.feeStructure || 'merchant_absorb',
-      order_id: invoice.invoiceNumber || invoice.id,
+      order_id: shortOrderId, // Use short order ID for WiPay (17 char limit)
       response_url: validatedData.responseUrl,
       country_code: 'JM', // Always use JM as specified
       origin: validatedData.origin || 'SparrowX',
       method: 'credit_card' // Required according to documentation
     };
     
-    // Prepare metadata for the payment
-    const meta = {
-      currency: currency,
-      originalAmount: originalAmount,
-      convertedAmount: Number(formattedAmount),
-      exchangeRate: exchangeRateSettings.exchangeRate as number,
-      baseCurrency: exchangeRateSettings.baseCurrency as string,
-      wiPayRequestPayload: payload,
-      paymentCreatedAt: new Date().toISOString()
+    // Update payment metadata with WiPay request payload
+    const updatedMeta = {
+      ...payment.meta,
+      wiPayRequestPayload: payload
     };
     
-    // Create a pending payment record
-    const payment = await this.paymentsRepository.create({
-      invoiceId: invoice.id,
-      userId: invoice.userId,
-      amount: amountToStore, // Store the amount in the currency being used for payment
-      paymentMethod: 'online',
-      status: 'pending',
-      meta: meta
-    }, companyId);
-    
-    if (!payment) {
-      throw new Error('Failed to create payment record');
-    }
+    await this.update(payment.id, { meta: updatedMeta }, companyId);
     
     // Make API request to WiPay
     try {
@@ -537,7 +548,7 @@ export class PaymentsService extends BaseService<typeof payments> {
           currency: currency,
           redirectUrl: response.data.url,
           transactionId: response.data.transaction_id || '',
-          meta: meta
+          meta: updatedMeta
         };
       } else {
         console.error('Invalid WiPay response format:', response.data);
@@ -549,7 +560,7 @@ export class PaymentsService extends BaseService<typeof payments> {
         await this.update(payment.id, {
           status: 'failed',
           meta: {
-            ...meta,
+            ...updatedMeta,
             error: error.message || 'Unknown error',
             errorTimestamp: new Date().toISOString()
           }
@@ -592,20 +603,42 @@ export class PaymentsService extends BaseService<typeof payments> {
     
     console.log('WiPay callback data received:', JSON.stringify(callbackData, null, 2));
     
-    // Extract reference from callback data - could be in different fields depending on WiPay version
-    const paymentId = callbackData.reference || callbackData.order_id || callbackData.payment_id;
+    // Extract order_id from callback data - this should be the short order ID we sent
+    const wiPayOrderId = callbackData.order_id;
     
-    if (!paymentId) {
-      return { success: false, message: 'Missing payment reference in callback data' };
+    if (!wiPayOrderId) {
+      console.error('WiPay callback missing order_id. Available fields:', Object.keys(callbackData));
+      return { success: false, message: 'Missing order_id in callback data' };
     }
     
-    // Get the payment by ID
+    console.log('Processing callback for WiPay order ID:', wiPayOrderId);
+    
+    // Find the payment by the wiPayOrderId stored in metadata
     try {
-      const payment = await this.getById(paymentId, companyId);
+      // Search for pending payments and find the one with matching wiPayOrderId
+      const searchParams = {
+        status: 'pending',
+        pageSize: 100 // Get more records to search through
+      };
+      
+      const paymentsResult = await this.paymentsRepository.search(companyId, searchParams);
+      
+      // Find the payment with matching wiPayOrderId in meta
+      const payment = paymentsResult.data.find(p => {
+        const meta = p.meta as Record<string, any> | undefined;
+        return meta?.wiPayOrderId === wiPayOrderId;
+      });
       
       if (!payment) {
-        return { success: false, message: 'Payment not found' };
+        console.error('No payment found with WiPay order ID:', wiPayOrderId);
+        console.error('Available pending payments:', paymentsResult.data.map(p => {
+          const meta = p.meta as Record<string, any> | undefined;
+          return { id: p.id, wiPayOrderId: meta?.wiPayOrderId };
+        }));
+        return { success: false, message: `Payment not found for order ID: ${wiPayOrderId}` };
       }
+      
+      console.log('Found payment:', payment.id, 'for WiPay order ID:', wiPayOrderId);
       
       // Verify payment is in pending state
       if (payment.status !== 'pending') {
@@ -715,9 +748,13 @@ export class PaymentsService extends BaseService<typeof payments> {
       };
     } catch (error: any) {
       console.error('Error handling WiPay callback:', error);
+      console.error('Callback data that failed processing:', JSON.stringify(callbackData, null, 2));
+      console.error('WiPay Order ID attempted:', wiPayOrderId);
+      console.error('Company ID:', companyId);
+      
       return { 
         success: false, 
-        message: `Payment not found or error processing callback: ${error.message || 'Unknown error'}` 
+        message: `Error processing callback: ${error.message || 'Unknown error'}` 
       };
     }
   }

@@ -122,6 +122,75 @@ export default function PaymentsPage() {
     }
   };
 
+  // Handle retry payment
+  const handleRetryPayment = async (payment: Payment) => {
+    try {
+      const response = await fetch(`/api/v1/companies/current/payments/${payment.id}/retry`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          responseUrl: `${window.location.origin}/customer/invoices/${payment.invoiceId}`
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: "Payment Retry Initiated",
+          description: "Redirecting to payment gateway...",
+        });
+        
+        // Redirect to the new payment
+        window.location.href = result.redirectUrl;
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to retry payment');
+      }
+    } catch (error: any) {
+      console.error('Error retrying payment:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to retry payment. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle delete payment
+  const handleDeletePayment = async (payment: Payment) => {
+    if (!confirm(`Are you sure you want to delete this ${payment.status} payment?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/companies/current/payments/${payment.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Payment Deleted",
+          description: "The payment has been successfully deleted.",
+        });
+        
+        // Refresh the payments data
+        refetch();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete payment');
+      }
+    } catch (error: any) {
+      console.error('Error deleting payment:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete payment. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Format date string
   const formatDate = (dateString: string | null | undefined, payment?: Payment) => {
     // First try using the payment metadata for WiPay transactions
@@ -250,9 +319,12 @@ export default function PaymentsPage() {
       </div>
 
       <Tabs defaultValue="history" className="w-full" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="history">Transaction History</TabsTrigger>
+          <TabsTrigger value="pending">Pending Payments</TabsTrigger>
+          <TabsTrigger value="methods">Payment Methods</TabsTrigger>
+        </TabsList>
 
-        {/* NOTE: this used to be a tabinated page, hence why its in tabs, 
-        its now just a page dedicated to Payments and not setting up payment methods */}
         <TabsContent value="history" className="mt-6">
           <Card>
             <CardHeader>
@@ -406,11 +478,24 @@ export default function PaymentsPage() {
                     {
                       header: "Status",
                       accessorKey: "status",
-                      cell: (payment) => (
-                        <Badge className={getStatusBadgeColor(payment.status)}>
-                          {formatStatusLabel(payment.status)}
-                        </Badge>
-                      )
+                      cell: (payment) => {
+                        const meta = payment.meta as Record<string, any> | undefined;
+                        const wiPayCallback = meta?.wiPayCallback;
+                        const transactionId = payment.transactionId || wiPayCallback?.transaction_id;
+                        
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <Badge className={getStatusBadgeColor(payment.status)}>
+                              {formatStatusLabel(payment.status)}
+                            </Badge>
+                            {payment.paymentMethod === 'online' && meta?.currency && (
+                              <span className="text-xs text-muted-foreground">
+                                {meta.currency} • {transactionId ? `TX: ${transactionId.slice(-8)}` : 'WiPay'}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
                     }
                   ]}
                   actions={[
@@ -461,6 +546,101 @@ export default function PaymentsPage() {
                 </div>
               </div>
             </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="pending" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Payments</CardTitle>
+              <CardDescription>Manage your pending and failed payment attempts.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : !paymentsData?.data || paymentsData.data.filter(p => p.status === 'pending' || p.status === 'failed').length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No pending payments found.
+                </div>
+              ) : (
+                <ResponsiveTable
+                  data={paymentsData.data.filter(p => p.status === 'pending' || p.status === 'failed')}
+                  keyExtractor={(payment) => payment.id}
+                  loading={isLoading}
+                  emptyMessage="No pending payments found."
+                  columns={[
+                    {
+                      header: "Invoice",
+                      accessorKey: "invoiceId",
+                      cell: (payment) => (
+                        <Link href={`/customer/invoices/${payment.invoiceId}`} className="text-primary hover:underline">
+                          {payment.invoiceNumber || payment.invoiceId.slice(0, 8)}
+                        </Link>
+                      )
+                    },
+                    {
+                      header: "Amount",
+                      accessorKey: "amount",
+                      cell: (payment) => {
+                        const meta = payment.meta as Record<string, any> | undefined;
+                        const currency = meta?.currency || 'USD';
+                        const symbol = currency === 'JMD' ? 'J$' : '$';
+                        return `${symbol}${parseFloat(payment.amount.toString()).toFixed(2)}`;
+                      }
+                    },
+                    {
+                      header: "Status",
+                      accessorKey: "status",
+                      cell: (payment) => {
+                        const meta = payment.meta as Record<string, any> | undefined;
+                        const wiPayCallback = meta?.wiPayCallback;
+                        const transactionId = payment.transactionId || wiPayCallback?.transaction_id;
+                        
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <Badge 
+                              variant={payment.status === 'failed' ? 'destructive' : 'secondary'}
+                            >
+                              {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                            </Badge>
+                            {payment.paymentMethod === 'online' && meta?.currency && (
+                              <span className="text-xs text-muted-foreground">
+                                {meta.currency} • {transactionId ? `TX: ${transactionId.slice(-8)}` : 'WiPay'}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
+                    },
+                    {
+                      header: "Date",
+                      accessorKey: "createdAt",
+                      cell: (payment) => new Date(payment.createdAt).toLocaleDateString()
+                    },
+                    {
+                      header: "Transaction ID",
+                      accessorKey: "transactionId",
+                      cell: (payment) => payment.transactionId || 'N/A',
+                      hiddenOnMobile: true
+                    }
+                  ]}
+                  actions={[
+                    {
+                      label: "Retry Payment",
+                      onClick: (payment) => handleRetryPayment(payment),
+                      icon: CreditCard
+                    },
+                    {
+                      label: "Delete",
+                      onClick: (payment) => handleDeletePayment(payment),
+                      variant: "destructive" as const
+                    }
+                  ]}
+                />
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
         
