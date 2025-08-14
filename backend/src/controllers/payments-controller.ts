@@ -702,18 +702,14 @@ export class PaymentsController {
         userId: req.userId || 'system',
         companyId,
         action: 'DELETE',
-        resource: 'Payment',
-        resourceId: paymentId,
+        entityType: 'Payment',
+        entityId: paymentId,
         details: `Deleted ${payment.status} payment for invoice ${payment.invoiceId}`,
-        metadata: {
-          paymentAmount: payment.amount,
-          paymentMethod: payment.paymentMethod,
-          originalStatus: payment.status,
-          transactionId: payment.transactionId
-        }
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
       });
       
-      res.status(200).json({ 
+      return res.status(200).json({ 
         message: 'Payment deleted successfully',
         deletedPayment: {
           id: payment.id,
@@ -724,6 +720,7 @@ export class PaymentsController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
@@ -786,19 +783,14 @@ export class PaymentsController {
         userId: req.userId || originalPayment.userId,
         companyId,
         action: 'RETRY',
-        resource: 'Payment',
-        resourceId: result.paymentId,
+        entityType: 'Payment',
+        entityId: result.paymentId,
         details: `Retried payment for invoice ${originalPayment.invoiceId} (original payment: ${paymentId})`,
-        metadata: {
-          originalPaymentId: paymentId,
-          originalStatus: originalPayment.status,
-          newPaymentId: result.paymentId,
-          currency: currency,
-          amount: result.amount
-        }
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
       });
       
-      res.status(200).json({
+      return res.status(200).json({
         message: 'Payment retry initiated successfully',
         redirectUrl: result.redirectUrl,
         newPaymentId: result.paymentId,
@@ -808,6 +800,7 @@ export class PaymentsController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 } 

@@ -504,7 +504,7 @@ export class PaymentsService extends BaseService<typeof payments> {
     
     // Update payment metadata with WiPay request payload
     const updatedMeta = {
-      ...payment.meta,
+      ...(payment.meta as Record<string, any> || {}),
       wiPayRequestPayload: payload
     };
     
