@@ -727,7 +727,7 @@ export class PaymentsService extends BaseService<typeof payments> {
       }, 2));
       
       // Update the payment
-      const updatedPayment = await this.update(paymentId, updateData, companyId);
+      const updatedPayment = await this.update(payment.id, updateData, companyId);
       
       console.log('Payment after update:', JSON.stringify(updatedPayment, (key, value) => {
         if (key === 'paymentDate' && value) {
