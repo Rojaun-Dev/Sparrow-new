@@ -244,6 +244,24 @@ class PaymentService {
     const id = companyId || await this.getCompanyId();
     return apiClient.downloadFile(`${this.baseUrl}/${id}/payments/export-csv`, params);
   }
+
+  /**
+   * Retry a failed payment
+   */
+  async retryPayment(paymentId: string, responseUrl?: string): Promise<any> {
+    const companyId = await this.getCompanyId();
+    return apiClient.post(`${this.baseUrl}/${companyId}/payments/${paymentId}/retry`, {
+      responseUrl
+    });
+  }
+
+  /**
+   * Delete a pending or failed payment
+   */
+  async deletePayment(paymentId: string): Promise<void> {
+    const companyId = await this.getCompanyId();
+    return apiClient.delete(`${this.baseUrl}/${companyId}/payments/${paymentId}`);
+  }
 }
 
 // Export as singleton
