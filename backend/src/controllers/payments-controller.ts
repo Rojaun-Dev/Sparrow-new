@@ -671,4 +671,143 @@ export class PaymentsController {
       next(error);
     }
   };
+
+  /**
+   * Delete a payment (only pending/failed payments allowed)
+   */
+  deletePayment = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const paymentId = req.params.id;
+      
+      // Get the payment to check its status
+      const payment = await this.paymentsService.getById(paymentId, companyId);
+      
+      if (!payment) {
+        return res.status(404).json({ message: 'Payment not found' });
+      }
+      
+      // Only allow deletion of pending or failed payments
+      if (payment.status !== 'pending' && payment.status !== 'failed') {
+        return res.status(400).json({ 
+          message: 'Only pending or failed payments can be deleted' 
+        });
+      }
+      
+      // Delete the payment
+      await this.paymentsService.delete(paymentId, companyId);
+      
+      // Create audit log
+      await this.auditLogsService.createLog({
+        userId: req.userId || 'system',
+        companyId,
+        action: 'DELETE',
+        resource: 'Payment',
+        resourceId: paymentId,
+        details: `Deleted ${payment.status} payment for invoice ${payment.invoiceId}`,
+        metadata: {
+          paymentAmount: payment.amount,
+          paymentMethod: payment.paymentMethod,
+          originalStatus: payment.status,
+          transactionId: payment.transactionId
+        }
+      });
+      
+      res.status(200).json({ 
+        message: 'Payment deleted successfully',
+        deletedPayment: {
+          id: payment.id,
+          status: payment.status,
+          amount: payment.amount,
+          invoiceId: payment.invoiceId
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Retry a failed payment by creating a new WiPay request
+   */
+  retryPayment = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.companyId as string;
+      const paymentId = req.params.id;
+      
+      // Get the original payment to check its status and get invoice details
+      const originalPayment = await this.paymentsService.getById(paymentId, companyId);
+      
+      if (!originalPayment) {
+        return res.status(404).json({ message: 'Payment not found' });
+      }
+      
+      // Only allow retry of pending or failed payments
+      if (originalPayment.status !== 'pending' && originalPayment.status !== 'failed') {
+        return res.status(400).json({ 
+          message: 'Only pending or failed payments can be retried' 
+        });
+      }
+      
+      // Get the invoice to verify it's still payable
+      const invoicesService = new InvoicesService();
+      const invoice = await invoicesService.getInvoiceById(originalPayment.invoiceId, companyId);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: 'Associated invoice not found' });
+      }
+      
+      if (invoice.status === 'paid') {
+        return res.status(400).json({ 
+          message: 'Invoice has already been paid' 
+        });
+      }
+      
+      // Extract metadata from original payment to maintain currency settings
+      const originalMeta = originalPayment.meta as Record<string, any> | undefined;
+      const currency = originalMeta?.currency || 'USD';
+      
+      // Delete the old payment record
+      await this.paymentsService.delete(paymentId, companyId);
+      
+      // Create a new WiPay request with same parameters
+      const wiPayRequest = {
+        invoiceId: originalPayment.invoiceId,
+        responseUrl: req.body.responseUrl || `${req.get('origin')}/customer/invoices/${originalPayment.invoiceId}`,
+        origin: 'SparrowX-Retry',
+        currency: currency
+      };
+      
+      // Create new WiPay payment request
+      const result = await this.paymentsService.createWiPayRequest(wiPayRequest, companyId);
+      
+      // Create audit log for the retry
+      await this.auditLogsService.createLog({
+        userId: req.userId || originalPayment.userId,
+        companyId,
+        action: 'RETRY',
+        resource: 'Payment',
+        resourceId: result.paymentId,
+        details: `Retried payment for invoice ${originalPayment.invoiceId} (original payment: ${paymentId})`,
+        metadata: {
+          originalPaymentId: paymentId,
+          originalStatus: originalPayment.status,
+          newPaymentId: result.paymentId,
+          currency: currency,
+          amount: result.amount
+        }
+      });
+      
+      res.status(200).json({
+        message: 'Payment retry initiated successfully',
+        redirectUrl: result.redirectUrl,
+        newPaymentId: result.paymentId,
+        originalPaymentId: paymentId,
+        currency: currency,
+        amount: result.amount
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 } 

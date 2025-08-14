@@ -56,6 +56,20 @@ router.put(
   paymentsController.updatePayment
 );
 
+// Delete payment (only pending/failed payments)
+router.delete(
+  '/:id',
+  /*checkRole(['admin_l1', 'admin_l2', 'customer']),*/
+  paymentsController.deletePayment
+);
+
+// Retry a failed payment
+router.post(
+  '/:id/retry',
+  /*checkRole(['admin_l1', 'admin_l2', 'customer']),*/
+  paymentsController.retryPayment
+);
+
 // Process a refund
 router.post(
   '/:id/refund',
