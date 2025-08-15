@@ -181,4 +181,33 @@ export function useDownloadPaymentReceipt() {
       return true;
     },
   });
+}
+
+// Hook for retrying a failed payment
+export function useRetryPayment() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ paymentId, responseUrl }: { paymentId: string; responseUrl?: string }) => 
+      paymentService.retryPayment(paymentId, responseUrl),
+    onSuccess: () => {
+      // Invalidate payments lists to refresh data
+      queryClient.invalidateQueries({ queryKey: paymentKeys.lists() });
+      // Also invalidate invoices since payment status affects invoice status
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}
+
+// Hook for deleting a pending/failed payment
+export function useDeletePayment() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (paymentId: string) => paymentService.deletePayment(paymentId),
+    onSuccess: () => {
+      // Invalidate payments lists to refresh data
+      queryClient.invalidateQueries({ queryKey: paymentKeys.lists() });
+    },
+  });
 } 
