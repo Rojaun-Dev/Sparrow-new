@@ -10,7 +10,8 @@ import {
   Search, 
   X,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from "lucide-react"
 import { useState } from "react"
 
@@ -42,7 +43,7 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useUserPayments, useDownloadPaymentReceipt } from "@/hooks"
+import { useUserPayments, useDownloadPaymentReceipt, useRetryPayment, useDeletePayment } from "@/hooks"
 import { Payment, PaymentFilterParams } from "@/lib/api/types"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -76,6 +77,10 @@ export default function PaymentsPage() {
 
   // Receipt Download mutation
   const downloadReceipt = useDownloadPaymentReceipt();
+  
+  // Retry and Delete payment mutations
+  const retryPayment = useRetryPayment();
+  const deletePayment = useDeletePayment();
   
   // Apply filters when the apply button is clicked
   const applyFilters = () => {
@@ -125,28 +130,19 @@ export default function PaymentsPage() {
   // Handle retry payment
   const handleRetryPayment = async (payment: Payment) => {
     try {
-      const response = await fetch(`/api/v1/companies/current/payments/${payment.id}/retry`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          responseUrl: `${window.location.origin}/customer/invoices/${payment.invoiceId}`
-        })
+      const result = await retryPayment.mutateAsync({
+        paymentId: payment.id,
+        responseUrl: `${window.location.origin}/customer/invoices/${payment.invoiceId}`
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        toast({
-          title: "Payment Retry Initiated",
-          description: "Redirecting to payment gateway...",
-        });
-        
-        // Redirect to the new payment
+      
+      toast({
+        title: "Payment Retry Initiated",
+        description: "Redirecting to payment gateway...",
+      });
+      
+      // Redirect to the new payment
+      if (result.redirectUrl) {
         window.location.href = result.redirectUrl;
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to retry payment');
       }
     } catch (error: any) {
       console.error('Error retrying payment:', error);
@@ -165,22 +161,12 @@ export default function PaymentsPage() {
     }
 
     try {
-      const response = await fetch(`/api/v1/companies/current/payments/${payment.id}`, {
-        method: 'DELETE',
+      await deletePayment.mutateAsync(payment.id);
+      
+      toast({
+        title: "Payment Deleted",
+        description: "The payment has been successfully deleted.",
       });
-
-      if (response.ok) {
-        toast({
-          title: "Payment Deleted",
-          description: "The payment has been successfully deleted.",
-        });
-        
-        // Refresh the payments data
-        refetch();
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to delete payment');
-      }
     } catch (error: any) {
       console.error('Error deleting payment:', error);
       toast({
@@ -455,9 +441,19 @@ export default function PaymentsPage() {
                       )
                     },
                     {
-                      header: "Date",
+                      header: "Payment Completed",
                       accessorKey: "paymentDate",
-                      cell: (payment) => formatDate(payment.paymentDate, payment)
+                      cell: (payment) => payment.status === 'completed' ? formatDate(payment.paymentDate, payment) : 'N/A'
+                    },
+                    {
+                      header: "Date Created",
+                      accessorKey: "createdAt",
+                      hiddenOnMobile: true,
+                      cell: (payment) => new Date(payment.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
                     },
                     {
                       header: "Payment Method",
@@ -500,6 +496,12 @@ export default function PaymentsPage() {
                       href: (payment) => `/customer/invoices/${payment.invoiceId}`,
                       icon: Eye,
                       hidden: (payment) => !payment.invoiceId
+                    },
+                    {
+                      label: "Retry Payment",
+                      onClick: (payment) => handleRetryPayment(payment),
+                      icon: CreditCard,
+                      hidden: (payment) => !(payment.status === "pending" || payment.status === "failed")
                     },
                     {
                       label: "Request Refund",
