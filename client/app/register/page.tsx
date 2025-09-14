@@ -16,12 +16,13 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
-import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
+import { LoginRedirectModal } from "@/components/ui/login-redirect-modal"
 import { cn } from "@/lib/utils"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 // Import the registration schema
 import { registrationSchema, type RegistrationFormValues } from "@/lib/validations/auth"
+import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)

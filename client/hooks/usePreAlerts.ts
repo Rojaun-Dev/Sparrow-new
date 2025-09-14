@@ -2,6 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { preAlertService } from '@/lib/api/preAlertService';
 import { PreAlert, PreAlertFilterParams } from '@/lib/api/types';
 
+// Profile keys for statistics invalidation
+const profileKeys = {
+  all: ['profile'] as const,
+  statistics: () => [...profileKeys.all, 'statistics'] as const,
+};
+
 // Key factory for preAlert queries
 const preAlertKeys = {
   all: ['preAlerts'] as const,
@@ -46,6 +52,8 @@ export function useCreatePreAlert() {
     onSuccess: () => {
       // Invalidate all preAlert lists to trigger a refetch
       queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
+      // Invalidate statistics cache to update pre-alert counts
+      queryClient.invalidateQueries({ queryKey: profileKeys.statistics() });
     },
   });
 }
@@ -60,6 +68,8 @@ export function useCreatePreAlertWithDocuments() {
     onSuccess: () => {
       // Invalidate all preAlert lists to trigger a refetch
       queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
+      // Invalidate statistics cache to update pre-alert counts
+      queryClient.invalidateQueries({ queryKey: profileKeys.statistics() });
     },
   });
 }
@@ -139,6 +149,8 @@ export function useCancelPreAlert() {
       
       // Invalidate the preAlerts list to trigger a refetch
       queryClient.invalidateQueries({ queryKey: preAlertKeys.lists() });
+      // Invalidate statistics cache to update pre-alert counts
+      queryClient.invalidateQueries({ queryKey: profileKeys.statistics() });
     },
   });
 }
