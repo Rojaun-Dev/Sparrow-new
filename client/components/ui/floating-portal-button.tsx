@@ -10,9 +10,10 @@ import { isIOSMobileInIframe, redirectIOSMobileToMainApp } from "@/lib/utils/ifr
 
 interface FloatingPortalButtonProps {
   className?: string
+  hidden?: boolean
 }
 
-export function FloatingPortalButton({ className }: FloatingPortalButtonProps) {
+export function FloatingPortalButton({ className, hidden }: FloatingPortalButtonProps) {
   const { user, isAuthenticated } = useAuth()
   const router = useRouter()
 
@@ -50,7 +51,7 @@ export function FloatingPortalButton({ className }: FloatingPortalButtonProps) {
     }
   }
 
-  if (!isVisible) return null
+  if (!isVisible || hidden) return null
 
   return (
     <Button

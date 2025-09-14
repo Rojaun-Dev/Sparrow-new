@@ -83,6 +83,8 @@ export function useUpdatePackageStatus() {
       );
       // Invalidate the packages list to trigger a refetch
       queryClient.invalidateQueries({ queryKey: packageKeys.lists() });
+      // Invalidate statistics cache to update package status counts
+      queryClient.invalidateQueries({ queryKey: ['profile', 'statistics'] });
     },
   });
 }
@@ -115,6 +117,8 @@ export function useMatchPreAlertToPackage() {
       // Invalidate both packages and pre-alerts lists
       queryClient.invalidateQueries({ queryKey: packageKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ['preAlerts', 'list'] });
+      // Invalidate statistics cache to update pre-alert and package counts
+      queryClient.invalidateQueries({ queryKey: ['profile', 'statistics'] });
     },
   });
 }
