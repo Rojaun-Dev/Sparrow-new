@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const { companyLogo, companyName, companyBanner, companySubdomain, forceRefresh } = useCompanyContext()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -385,10 +386,10 @@ export default function LoginPage() {
       </div>
       
       {/* Floating Portal Button */}
-      <FloatingPortalButton />
+      <FloatingPortalButton hidden={isModalOpen} />
 
       {/* Login Redirect Modal */}
-      <LoginRedirectModal />
+      <LoginRedirectModal onOpenChange={setIsModalOpen} />
     </div>
   )
 }
