@@ -10,18 +10,18 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import { useCompanyContext } from "@/hooks/useCompanyContext"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
-import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
+import { LoginRedirectModal } from "@/components/ui/login-redirect-modal"
 import { cn } from "@/lib/utils"
 import { isIOSMobileInIframe, redirectIOSMobileToMainApp, storeParentWebsiteUrl, isIOSMobile, getParentUrlFromCookieOrUrl } from "@/lib/utils/iframe-detection"
 
 // Import the login schema
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth"
+import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -386,6 +386,9 @@ export default function LoginPage() {
       
       {/* Floating Portal Button */}
       <FloatingPortalButton />
+
+      {/* Login Redirect Modal */}
+      <LoginRedirectModal />
     </div>
   )
 }

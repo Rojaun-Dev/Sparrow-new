@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { FormFieldFeedback } from "@/components/ui/form-field-feedback"
-import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
+import { LoginRedirectModal } from "@/components/ui/login-redirect-modal"
 import { cn } from "@/lib/utils"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
@@ -574,8 +574,8 @@ export default function RegisterPage() {
         </div>
       </div>
       
-      {/* Floating Portal Button */}
-      <FloatingPortalButton />
+      {/* Login Redirect Modal */}
+      <LoginRedirectModal />
     </div>
   )
 }
