@@ -22,6 +22,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 // Import the registration schema
 import { registrationSchema, type RegistrationFormValues } from "@/lib/validations/auth"
+import { FloatingPortalButton } from "@/components/ui/floating-portal-button"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -574,8 +575,8 @@ export default function RegisterPage() {
         </div>
       </div>
       
-      {/* Login Redirect Modal */}
-      <LoginRedirectModal />
+      {/* Floating Portal Button */}
+      <FloatingPortalButton />
     </div>
   )
 }
