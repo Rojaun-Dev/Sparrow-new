@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { 
   Dialog,
@@ -25,14 +25,26 @@ interface LoginRedirectModalProps {
 export function LoginRedirectModal({ className, onOpenChange }: LoginRedirectModalProps) {
   const { user, isAuthenticated } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [initialAuthState, setInitialAuthState] = useState<boolean | null>(null)
 
-  // Show modal when user is authenticated
+  // Track initial authentication state to distinguish between initial login and returning while logged in
   useEffect(() => {
-    const shouldOpen = isAuthenticated && user
-    setOpen(shouldOpen)
-    onOpenChange?.(shouldOpen)
-  }, [isAuthenticated, user, onOpenChange])
+    if (initialAuthState === null) {
+      setInitialAuthState(isAuthenticated)
+    }
+  }, [isAuthenticated, initialAuthState])
+
+  // Show modal only when user visits login/register pages while already authenticated
+  useEffect(() => {
+    const isLoginOrRegisterPage = pathname === '/' || pathname === '/register'
+    const wasAlreadyAuthenticated = initialAuthState === true
+    const shouldShow = isAuthenticated && user && isLoginOrRegisterPage && wasAlreadyAuthenticated
+
+    setOpen(shouldShow)
+    onOpenChange?.(shouldShow)
+  }, [isAuthenticated, user, pathname, initialAuthState, onOpenChange])
 
   // Get portal route based on user role
   const getPortalRoute = (): string => {
