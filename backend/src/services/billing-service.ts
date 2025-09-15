@@ -18,7 +18,6 @@ export const customLineItemSchema = z.object({
   quantity: z.number().min(0),
   unitPrice: z.number().min(0),
   packageId: z.string().uuid().optional(), // Optional package association
-  currency: z.enum(['USD', 'JMD']).optional(), // Currency of the line item
   isTax: z.boolean().optional().default(false), // Whether this item is a tax charge
 });
 
@@ -628,8 +627,8 @@ export class BillingService {
       // Add custom line items
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
         for (const customItem of validatedData.customLineItems) {
-          // Determine the source currency for this line item (default to storage currency if not specified)
-          const sourceCurrency = customItem.currency || storageCurrency;
+          // Use storage currency for all custom line items
+          const sourceCurrency = storageCurrency;
           
           // Convert unit price to company's base currency for storage
           const originalUnitPrice = customItem.unitPrice;
@@ -870,8 +869,8 @@ export class BillingService {
         const storageCurrency = getDisplayCurrency(exchangeRateSettings);
         
         for (const customItem of validatedData.customLineItems) {
-          // Determine the source currency for this line item (default to storage currency if not specified)
-          const sourceCurrency = customItem.currency || storageCurrency;
+          // Use storage currency for all custom line items
+          const sourceCurrency = storageCurrency;
           
           // Convert unit price to company's base currency for calculations
           const originalUnitPrice = customItem.unitPrice;
