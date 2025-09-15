@@ -21,8 +21,8 @@ import { toast } from "@/components/ui/use-toast"
 import { Pencil, UserPlus, Trash2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { useGenerateInvoice } from '@/hooks/useInvoices'
 import { AssignUserModal } from "@/components/packages/AssignUserModal"
+import { QuickInvoiceDialog } from "@/components/invoices/QuickInvoiceDialog"
 import { useQueryClient } from "@tanstack/react-query"
 import { useUser } from "@/hooks/useUsers"
 import { DutyFeeModal } from "@/components/duty-fee-modal"
@@ -73,7 +73,6 @@ export default function AdminPackageDetailPage() {
   const tagsArray = form?.tags ? form.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
   const router = useRouter();
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
-  const generateInvoice = useGenerateInvoice();
   const queryClient = useQueryClient();
   
   // Add state for assign user modal
@@ -755,42 +754,12 @@ export default function AdminPackageDetailPage() {
         </div>
       </div>
       {/* Quick Invoice Dialog */}
-      <Dialog open={showQuickInvoice} onOpenChange={setShowQuickInvoice}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Invoice for this Package?</DialogTitle>
-          </DialogHeader>
-          <div>
-            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
-            {generateInvoice.isError && (
-              <div className="text-red-600 mt-2 text-sm">{generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}</div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                generateInvoice.mutate(
-                  { userId: packageData.userId, packageIds: [packageData.id] } as any,
-                  {
-                    onSuccess: (invoice: any) => {
-                      setShowQuickInvoice(false);
-                      if (invoice && invoice.id) {
-                        router.push(`/admin/invoices/${invoice.id}`);
-                      }
-                    },
-                  }
-                );
-              }}
-              disabled={generateInvoice.isPending}
-            >
-              {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
-            </Button>
-            <Button variant="outline" onClick={() => setShowQuickInvoice(false)} disabled={generateInvoice.isPending}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <QuickInvoiceDialog
+        open={showQuickInvoice}
+        onOpenChange={setShowQuickInvoice}
+        packageId={packageData?.id || null}
+        userId={packageData?.userId || null}
+      />
       {/* Add the AssignUserModal at the end of the component */}
       <AssignUserModal
         open={assignUserModalOpen}
