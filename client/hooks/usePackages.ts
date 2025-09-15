@@ -89,6 +89,41 @@ export function useUpdatePackageStatus() {
   });
 }
 
+// Hook for bulk updating package status
+export function useBulkUpdatePackageStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ packageIds, status, sendNotification }: {
+      packageIds: string[];
+      status: string;
+      sendNotification?: boolean
+    }) => {
+      // Update packages sequentially to avoid overwhelming the server
+      const results = [];
+      for (const packageId of packageIds) {
+        const result = await packageService.updatePackageStatus(packageId, status, undefined, sendNotification);
+        results.push(result);
+      }
+      return results;
+    },
+    onSuccess: (updatedPackages: Package[]) => {
+      // Update each package in the cache
+      updatedPackages.forEach(updatedPackage => {
+        queryClient.setQueryData(
+          packageKeys.detail(updatedPackage.id),
+          updatedPackage
+        );
+      });
+
+      // Invalidate the packages list to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: packageKeys.lists() });
+      // Invalidate statistics cache to update package status counts
+      queryClient.invalidateQueries({ queryKey: ['profile', 'statistics'] });
+    },
+  });
+}
+
 // Hook for uploading package photos
 export function useUploadPackagePhotos() {
   const queryClient = useQueryClient();

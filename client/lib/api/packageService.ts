@@ -27,6 +27,7 @@ class PackageService {
       params: {
         search: filters.search,
         status: filters.status,
+        userId: filters.userId,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
         page: filters.page,
