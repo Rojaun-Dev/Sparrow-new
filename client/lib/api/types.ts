@@ -286,6 +286,7 @@ export interface PackageFilterParams extends PaginationParams {
   dateFrom?: string;
   dateTo?: string;
   tags?: string[];
+  userId?: string;
 }
 
 export interface PreAlertFilterParams extends PaginationParams {
