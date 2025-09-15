@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { 
   Search, 
   Plus, 
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Dialog, 
   DialogContent,
@@ -54,12 +56,11 @@ import { useUsers } from '@/hooks/useUsers';
 import type { Package, PackageStatus, PaginatedResponse } from '@/lib/api/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { useGenerateInvoice, useInvoiceByPackageId } from '@/hooks/useInvoices';
-import { useRouter } from 'next/navigation';
 import { apiClient } from "@/lib/api/apiClient";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { ImportStatusAlert, ImportStatusProps } from "@/components/admin/ImportStatusAlert";
 import { AssignUserModal } from "@/components/packages/AssignUserModal";
+import { QuickInvoiceDialog } from "@/components/invoices/QuickInvoiceDialog";
 
 // Status maps
 const STATUS_LABELS: Record<string, string> = {
@@ -82,64 +83,11 @@ const STATUS_VARIANTS: Record<string, string> = {
   returned: "destructive"
 }
 
-function QuickInvoiceDialog({ open, onOpenChange, packageId, userId }: { open: boolean, onOpenChange: (open: boolean) => void, packageId: string | null, userId: string | null }) {
-  const { data: relatedInvoice, isLoading: isLoadingRelatedInvoice } = useInvoiceByPackageId(packageId || '');
-  const generateInvoice = useGenerateInvoice();
-  const router = useRouter();
-  if (!packageId || !userId) return null;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Generate Invoice for this Package?</DialogTitle>
-        </DialogHeader>
-        <div>
-          {isLoadingRelatedInvoice ? (
-            <p>Checking for existing invoice...</p>
-          ) : relatedInvoice ? (
-            <div className="text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2 mb-2">
-              This package already has an invoice. You cannot generate another invoice for it.
-            </div>
-          ) : (
-            <p>This will generate an invoice for this package and redirect you to the invoice detail page.</p>
-          )}
-          {generateInvoice.isError && (
-            <div className="text-red-600 mt-2 text-sm">
-              {generateInvoice.error instanceof Error ? generateInvoice.error.message : 'Failed to generate invoice.'}
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button
-            onClick={() => {
-              generateInvoice.mutate(
-                { userId, packageIds: [packageId] },
-                {
-                  onSuccess: (invoice: any) => {
-                    onOpenChange(false);
-                    if (invoice && invoice.id) {
-                      router.push(`/admin/invoices/${invoice.id}`);
-                    }
-                  },
-                }
-              );
-            }}
-            disabled={generateInvoice.isPending || !!relatedInvoice || isLoadingRelatedInvoice}
-          >
-            {generateInvoice.isPending ? 'Generating...' : 'Confirm'}
-          </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={generateInvoice.isPending}>
-            Cancel
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function PackagesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -181,6 +129,7 @@ export default function PackagesPage() {
   } = usePackages({
     search: searchQuery,
     status: activeTab === 'all' ? undefined : activeTab as PackageStatus,
+    userId: selectedCustomer || undefined,
     page,
     limit: pageSize,
   });
@@ -337,6 +286,7 @@ export default function PackagesPage() {
       {
         search: searchQuery,
         status: activeTab === 'all' ? undefined : activeTab,
+        userId: selectedCustomer || undefined,
         page,
         limit: pageSize,
       },
@@ -514,18 +464,43 @@ export default function PackagesPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search packages..."
-                  className="pl-8 w-full sm:w-[300px]"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setPage(1); // Reset to first page on search
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search packages..."
+                    className="pl-8 w-full sm:w-[300px]"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setPage(1); // Reset to first page on search
+                    }}
+                  />
+                </div>
+
+                {/* Customer Filter */}
+                <Select
+                  value={selectedCustomer || "all"}
+                  onValueChange={(value) => {
+                    setSelectedCustomer(value === "all" ? "" : value);
+                    setPage(1); // Reset to first page on filter change
                   }}
-                />
+                >
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Filter by customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All customers</SelectItem>
+                    {usersData && Array.isArray(usersData) && usersData.map((user: any) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName}
+                        {user.email && <span className="text-xs text-muted-foreground ml-1">({user.email})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
               <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button asChild>
             <Link href="/admin/packages/register">

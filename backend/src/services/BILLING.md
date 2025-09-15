@@ -32,6 +32,13 @@ The fee calculation process follows these steps:
 
 3. **Fee Limits**: Apply minimum thresholds and maximum caps to fee amounts
 
+4. **Currency Conversion**: Handle multi-currency scenarios:
+   - Convert fees from their original currency to company's base currency
+   - Support for USD and JMD currencies
+   - Exchange rate configuration per company
+   - Automatic conversion during fee calculation
+   - Display currency conversion information in line item descriptions
+
 ## Invoice Generation
 
 The invoice generation process includes:
@@ -44,6 +51,30 @@ The invoice generation process includes:
    - Set issue and due dates
    - Calculate subtotal, tax, and total amounts
 
+### Invoice Types
+
+The system supports two main invoice generation workflows:
+
+#### 1. Manual Invoice Generation (`generateInvoice`)
+- **Purpose**: Full-featured invoice creation with custom line items and additional charges
+- **Features**:
+  - Select specific packages
+  - Add custom line items with descriptions, quantities, unit prices
+  - Include additional charges
+  - Set custom issue and due dates
+  - Control fee generation (enable/disable automatic fees)
+  - Create draft invoices
+  - Support for multi-currency scenarios with preferred currency
+
+#### 2. Quick Invoice Generation (`generateInvoiceForUser`)
+- **Purpose**: Streamlined invoice creation for all unbilled packages of a user
+- **Features**:
+  - Automatically includes all unbilled packages for a user
+  - Generates standard fees based on company fee configuration
+  - Uses default due date (7 days from creation)
+  - Simplified workflow for common billing scenarios
+  - Used by admin interfaces for rapid billing processing
+
 ## API Endpoints
 
 The billing system exposes the following API endpoints:
@@ -52,6 +83,38 @@ The billing system exposes the following API endpoints:
 - `POST /companies/:companyId/billing/invoices/preview`: Preview invoice calculation
 - `POST /companies/:companyId/billing/invoices/generate`: Generate an invoice
 - `POST /companies/:companyId/billing/users/:userId/generate-invoice`: Generate invoice for user's unbilled packages
+
+## Audit Logging & Notifications
+
+The billing system includes comprehensive audit logging and notification features:
+
+### Audit Logging
+- **Manual Invoice Creation**: Logs when admin users manually create invoices
+- **Quick Invoice Creation**: Logs when admin users use quick invoice generation
+- **Tracked Information**:
+  - Admin user ID and company ID
+  - Invoice details (ID, number, amount, customer)
+  - Package information (IDs and count)
+  - IP address and user agent
+  - Timestamp and action type
+
+### Email Notifications
+- **Conditional Sending**: Only sends if user has email notifications enabled
+- **User Preference Checks**: Respects user's billing update notification preferences
+- **Invoice Information**: Includes invoice number, dates, amount, and package count
+- **Company Branding**: Uses company name in notification emails
+- **Error Handling**: Graceful handling of email sending failures (doesn't fail invoice creation)
+
+## Recent Improvements & Bug Fixes
+
+### Currency Field Cleanup (Latest)
+- **Issue**: Currency field was being included in line item data before database insertion
+- **Root Cause**: Database schema doesn't support currency field in `invoice_items` table
+- **Solution**:
+  - Removed currency field from `customLineItemSchema` validation
+  - Updated currency handling to use company's base currency for all line items
+  - Currency field is removed from line item data before database insertion
+- **Impact**: Eliminates ORM errors and improves data consistency
 
 ## Implementation Details
 
@@ -108,6 +171,44 @@ calculateFeeAmount(fee, baseAmount, packageData) {
 }
 ```
 
+### Advanced Fee Calculation Logic
+
+The system implements a sophisticated fee calculation engine with the following features:
+
+#### Fee Application Order
+1. **Base Fees First**: Calculate all non-percentage fees (fixed, per-weight, etc.)
+2. **Duty Fees**: Add any duty fees associated with packages
+3. **Subtotal Calculation**: Calculate subtotal from all base fees
+4. **Percentage Fees**: Calculate percentage-based fees using calculated base amounts
+5. **Tax Calculation**: Apply tax fees as final step
+
+#### Fixed Fee Deduplication
+- Fixed fees are applied only once per invoice (tracked with `fixedFeesApplied` Set)
+- Prevents duplicate charges when multiple packages qualify for the same fixed fee
+- Example: "Processing Fee" of $5 applies once regardless of package count
+
+#### Currency Conversion Flow
+```typescript
+// 1. Calculate fee in original currency
+const originalAmount = calculateFeeAmount(fee, baseAmount, packageData);
+
+// 2. Convert to display currency if needed
+const convertedAmount = convertCurrency(
+  originalAmount,
+  fee.currency,
+  displayCurrency,
+  exchangeRateSettings
+);
+
+// 3. Apply limits in converted currency
+const finalAmount = applyLimits(convertedAmount, fee.metadata);
+
+// 4. Create line item with conversion note
+const description = fee.currency !== displayCurrency
+  ? `${fee.name} (${fee.currency} ${originalAmount} → ${displayCurrency})`
+  : fee.name;
+```
+
 ## Usage Examples
 
 ### Calculating Fees for a Package
@@ -124,7 +225,7 @@ console.log(`Subtotal: ${fees.subtotal}`);
 console.log(`Total: ${fees.total}`);
 ```
 
-### Generating an Invoice
+### Generating a Manual Invoice
 
 ```typescript
 const invoice = await billingService.generateInvoice({
@@ -132,8 +233,38 @@ const invoice = await billingService.generateInvoice({
   packageIds: [
     '123e4567-e89b-12d3-a456-426614174001',
     '123e4567-e89b-12d3-a456-426614174002'
-  ]
+  ],
+  customLineItems: [
+    {
+      description: 'Expedited Processing Fee',
+      quantity: 1,
+      unitPrice: 25.00,
+      isTax: false
+    }
+  ],
+  additionalCharge: 10.00,
+  additionalChargeCurrency: 'USD',
+  notes: 'Rush delivery requested',
+  sendNotification: true,
+  generateFees: true,
+  preferredCurrency: 'USD'
 }, companyId);
+```
+
+### Generating a Quick Invoice
+
+```typescript
+// Generate invoice for all unbilled packages of a user
+const invoice = await billingService.generateInvoiceForUser(
+  '123e4567-e89b-12d3-a456-426614174000', // userId
+  companyId
+);
+
+// This automatically:
+// - Finds all unbilled packages for the user
+// - Calculates standard fees for each package
+// - Creates invoice with 7-day due date
+// - Generates audit log entry
 ```
 
 ### Previewing an Invoice

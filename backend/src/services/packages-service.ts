@@ -47,7 +47,7 @@ export class PackagesService {
    * Get all packages for a company (paginated, with filtering)
    */
   async getAllPackages(companyId: string, page = 1, limit = 10, filters: any = {}) {
-    // Accept filters: status, search, dateFrom, dateTo, sortBy, sortOrder
+    // Accept filters: status, search, userId, dateFrom, dateTo, sortBy, sortOrder
     const db = this.packagesRepository.getDatabaseInstance();
     const offset = (page - 1) * limit;
 
@@ -79,6 +79,9 @@ export class PackagesService {
     const conditions: SQL<unknown>[] = [eq(packages.companyId, companyId)];
     if (filters.status) {
       conditions.push(eq(packages.status, filters.status as any));
+    }
+    if (filters.userId) {
+      conditions.push(eq(packages.userId, filters.userId));
     }
     if (filters.dateFrom) {
       const fromDate = new Date(filters.dateFrom);

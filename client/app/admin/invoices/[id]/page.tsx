@@ -4,7 +4,7 @@ import { useInvoice, useDownloadInvoicePdf, useCancelInvoice } from "@/hooks/use
 import { useGenerateInvoicePdf } from "@/hooks/useGenerateInvoicePdf";
 import { useState } from "react";
 import Link from 'next/link';
-import { usePackages, useUpdatePackageStatus } from '@/hooks/usePackages';
+import { usePackages, useUpdatePackageStatus, useBulkUpdatePackageStatus } from '@/hooks/usePackages';
 import { useUser } from '@/hooks/useUsers';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -109,6 +109,7 @@ export default function InvoiceDetailPage() {
   const { generatePdf, isLoading: isPdfLoading } = useGenerateInvoicePdf(invoiceId || "");
   const { toast } = useToast();
   const updatePackageStatus = useUpdatePackageStatus();
+  const bulkUpdatePackageStatus = useBulkUpdatePackageStatus();
   
   // Currency conversion
   const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert, exchangeRateSettings } = useCurrency();
@@ -168,21 +169,72 @@ export default function InvoiceDetailPage() {
     ? packages.filter((pkg, idx, arr) => arr.findIndex(p => p.id === pkg.id) === idx)
     : [];
 
+  // Helper function to check if packages need to be marked as ready for pickup
+  const hasPackagesNotReadyForPickup = uniquePackages.some(pkg => pkg.status !== 'ready_for_pickup' && pkg.status !== 'delivered');
+
+  // Helper function to check if packages need to be marked as delivered
+  const hasPackagesNotDelivered = uniquePackages.some(pkg => pkg.status !== 'delivered');
+
+  // Handle marking packages as ready for pickup
+  const handleMarkAsReadyForPickup = async () => {
+    if (!uniquePackages.length) return;
+
+    const packagesToUpdate = uniquePackages.filter(pkg => pkg.status !== 'ready_for_pickup' && pkg.status !== 'delivered');
+
+    if (packagesToUpdate.length === 0) {
+      toast({
+        title: "No packages to update",
+        description: "All packages are already ready for pickup or delivered.",
+      });
+      return;
+    }
+
+    try {
+      await bulkUpdatePackageStatus.mutateAsync({
+        packageIds: packagesToUpdate.map(pkg => pkg.id),
+        status: 'ready_for_pickup',
+        sendNotification: true
+      });
+
+      // Refresh packages data
+      refetchPackages();
+
+      // Show success message
+      toast({
+        title: "Packages marked as ready for pickup",
+        description: `Successfully marked ${packagesToUpdate.length} package(s) as ready for pickup.`,
+      });
+    } catch (error) {
+      console.error('Error marking packages as ready for pickup:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark packages as ready for pickup. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Handle marking packages as delivered
   const handleMarkAsDelivered = async () => {
     if (!uniquePackages.length) return;
-    
+
+    const packagesToUpdate = uniquePackages.filter(pkg => pkg.status !== 'delivered');
+
+    if (packagesToUpdate.length === 0) {
+      toast({
+        title: "No packages to update",
+        description: "All packages are already delivered.",
+      });
+      return;
+    }
+
     try {
-      // Mark all packages as delivered
-      await Promise.all(
-        uniquePackages.map(pkg => 
-          updatePackageStatus.mutateAsync({
-            id: pkg.id,
-            status: 'delivered',
-            sendNotification: true
-          })
-        )
-      );
+      // Mark undelivered packages as delivered
+      await bulkUpdatePackageStatus.mutateAsync({
+        packageIds: packagesToUpdate.map(pkg => pkg.id),
+        status: 'delivered',
+        sendNotification: true
+      });
       
       // Refresh packages data
       refetchPackages();
@@ -193,7 +245,7 @@ export default function InvoiceDetailPage() {
       // Show success message
       toast({
         title: "Packages marked as delivered",
-        description: `Successfully marked ${uniquePackages.length} package(s) as delivered.`,
+        description: `Successfully marked ${packagesToUpdate.length} package(s) as delivered.`,
       });
     } catch (error) {
       console.error('Error marking packages as delivered:', error);
@@ -343,7 +395,54 @@ export default function InvoiceDetailPage() {
               </div>
               <Separator />
               <div>
-                <h3 className="mb-4 text-base font-medium">Related Packages</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-medium">Related Packages</h3>
+                  <div className="flex gap-2">
+                    {/* Action button for 'issued' status - mark packages as ready for pickup */}
+                    {invoice?.status === 'issued' && hasPackagesNotReadyForPickup && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleMarkAsReadyForPickup}
+                        disabled={bulkUpdatePackageStatus.isPending}
+                        className="flex items-center gap-2"
+                      >
+                        {bulkUpdatePackageStatus.isPending ? (
+                          <>
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            📦 Mark All as Ready for Pickup
+                          </>
+                        )}
+                      </Button>
+                    )}
+
+                    {/* Action button for 'paid' status - mark undelivered packages as delivered */}
+                    {invoice?.status === 'paid' && hasPackagesNotDelivered && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleMarkAsDelivered}
+                        disabled={bulkUpdatePackageStatus.isPending}
+                        className="flex items-center gap-2"
+                      >
+                        {bulkUpdatePackageStatus.isPending ? (
+                          <>
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            ✅ Mark All as Delivered
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 {packagesLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-10 w-full" />
