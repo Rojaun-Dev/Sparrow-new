@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Dialog, 
   DialogContent,
@@ -86,6 +87,7 @@ const STATUS_VARIANTS: Record<string, string> = {
 export default function PackagesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -127,6 +129,7 @@ export default function PackagesPage() {
   } = usePackages({
     search: searchQuery,
     status: activeTab === 'all' ? undefined : activeTab as PackageStatus,
+    userId: selectedCustomer || undefined,
     page,
     limit: pageSize,
   });
@@ -283,6 +286,7 @@ export default function PackagesPage() {
       {
         search: searchQuery,
         status: activeTab === 'all' ? undefined : activeTab,
+        userId: selectedCustomer || undefined,
         page,
         limit: pageSize,
       },
@@ -460,18 +464,43 @@ export default function PackagesPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search packages..."
-                  className="pl-8 w-full sm:w-[300px]"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setPage(1); // Reset to first page on search
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search packages..."
+                    className="pl-8 w-full sm:w-[300px]"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setPage(1); // Reset to first page on search
+                    }}
+                  />
+                </div>
+
+                {/* Customer Filter */}
+                <Select
+                  value={selectedCustomer || "all"}
+                  onValueChange={(value) => {
+                    setSelectedCustomer(value === "all" ? "" : value);
+                    setPage(1); // Reset to first page on filter change
                   }}
-                />
+                >
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Filter by customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All customers</SelectItem>
+                    {usersData && Array.isArray(usersData) && usersData.map((user: any) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName}
+                        {user.email && <span className="text-xs text-muted-foreground ml-1">({user.email})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
               <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button asChild>
             <Link href="/admin/packages/register">
