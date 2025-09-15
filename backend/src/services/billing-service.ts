@@ -487,29 +487,31 @@ export class BillingService {
     try {
       // Validate data
       const validatedData = generateInvoiceSchema.parse(data);
-      
+
       // Check if user exists in this company
       const user = await this.usersRepository.findById(validatedData.userId, companyId);
       if (!user) {
         throw new AppError('User not found', 404);
       }
-      
+
       // Check if all packages exist and belong to the user
-      const packagePromises = validatedData.packageIds.map(id => 
-        this.packagesRepository.findById(id, companyId)
-      );
-      const packages = await Promise.all(packagePromises);
-      
-      // Verify all packages exist
-      if (packages.some(pkg => !pkg)) {
-        throw new AppError('One or more packages not found', 404);
+      if (validatedData.packageIds.length > 0) {
+        const packagePromises = validatedData.packageIds.map(id =>
+          this.packagesRepository.findById(id, companyId)
+        );
+        const packages = await Promise.all(packagePromises);
+
+        // Verify all packages exist
+        if (packages.some(pkg => !pkg)) {
+          throw new AppError('One or more packages not found', 404);
+        }
+
+        // Verify all packages belong to the user
+        if (packages.some(pkg => pkg && pkg.userId !== validatedData.userId)) {
+          throw new AppError('One or more packages do not belong to this user', 403);
+        }
       }
-      
-      // Verify all packages belong to the user
-      if (packages.some(pkg => pkg && pkg.userId !== validatedData.userId)) {
-        throw new AppError('One or more packages do not belong to this user', 403);
-      }
-      
+
       // Generate invoice number
       const invoiceNumber = await this.generateInvoiceNumber(companyId);
       
@@ -574,16 +576,22 @@ export class BillingService {
       
       // Insert invoice
       const invoice = await this.invoicesRepository.create(invoiceData, companyId);
-      
+
       if (!invoice) {
         throw new AppError('Failed to create invoice', 500);
       }
-      
+
       // Calculate fees for packages (if generateFees is true and packages are provided)
       const fixedFeesApplied = new Set<string>();
       if (validatedData.generateFees && validatedData.packageIds.length > 0) {
         for (const packageId of validatedData.packageIds) {
-          const packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
+          let packageFees;
+          try {
+            packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
+          } catch (feeError) {
+            logger.error({ err: feeError, packageId, companyId }, 'Error calculating package fees');
+            throw new AppError(`Error calculating fees for package ${packageId}: ${feeError instanceof Error ? feeError.message : 'Unknown error'}`, 500);
+          }
           // Aggregate fee breakdown
           feeBreakdown.shipping += Number(packageFees.shipping) || 0;
           feeBreakdown.handling += Number(packageFees.handling) || 0;
@@ -592,12 +600,21 @@ export class BillingService {
           feeBreakdown.taxes += Number(packageFees.taxes) || 0;
           // Add all line items to invoice
           for (const item of packageFees.lineItems) {
-            const lineItemData = {
-              invoiceId: invoice.id,
-              companyId,
-              ...item,
-            };
-            await this.invoiceItemsRepository.create(lineItemData, companyId);
+            try {
+              const lineItemData = {
+                invoiceId: invoice.id,
+                companyId,
+                ...item,
+              };
+
+              // Remove currency field if present since the invoice_items schema doesn't support it
+              delete lineItemData.currency;
+
+              await this.invoiceItemsRepository.create(lineItemData, companyId);
+            } catch (itemError) {
+              logger.error({ err: itemError, item, invoiceId: invoice.id }, 'Error creating invoice line item');
+              throw new AppError(`Error creating invoice line item: ${itemError instanceof Error ? itemError.message : 'Unknown error'}`, 500);
+            }
             // Add to totals (except tax)
             if (item.type !== 'tax') {
               subtotal += Number(item.lineTotal);
@@ -708,14 +725,20 @@ export class BillingService {
       
       return updatedInvoice;
     } catch (error) {
-      logger.error({ err: error }, 'Error generating invoice');
+      logger.error({
+        err: error,
+        data: data,
+        companyId: companyId,
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      }, 'Error generating invoice');
+
       if (error instanceof z.ZodError) {
         throw new AppError('Validation error', 422, error.errors);
       }
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError('Error generating invoice', 500);
+      throw new AppError(`Error generating invoice: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
     }
   }
 
@@ -723,28 +746,39 @@ export class BillingService {
    * Generate invoices for all unprocessed packages for a user
    */
   async generateInvoiceForUser(userId: string, companyId: string) {
-    // Check if user exists and belongs to this company
-    const user = await this.usersRepository.findById(userId, companyId);
-    if (!user) {
-      throw AppError.notFound('User not found');
+    try {
+      // Check if user exists and belongs to this company
+      const user = await this.usersRepository.findById(userId, companyId);
+      if (!user) {
+        throw AppError.notFound('User not found');
+      }
+
+      // Get all unbilled packages for this user
+      const packages = await this.packagesRepository.findUnbilledByUserId(userId, companyId);
+
+      if (packages.length === 0) {
+        throw AppError.badRequest('No unbilled packages found for this user');
+      }
+
+      const invoiceData = {
+        userId,
+        packageIds: packages.map(pkg => pkg.id),
+        customLineItems: [],
+        generateFees: true,
+        isDraft: false,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      };
+
+      // Generate invoice for these packages
+      return this.generateInvoice(invoiceData, companyId);
+    } catch (error) {
+      logger.error({
+        err: error,
+        userId,
+        companyId,
+      }, 'Error in generateInvoiceForUser');
+      throw error;
     }
-    
-    // Get all unbilled packages for this user
-    const packages = await this.packagesRepository.findUnbilledByUserId(userId, companyId);
-    
-    if (packages.length === 0) {
-      throw AppError.badRequest('No unbilled packages found for this user');
-    }
-    
-    // Generate invoice for these packages
-    return this.generateInvoice({
-      userId,
-      packageIds: packages.map(pkg => pkg.id),
-      customLineItems: [],
-      generateFees: true,
-      isDraft: false,
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-    }, companyId);
   }
 
   /**
