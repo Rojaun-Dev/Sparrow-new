@@ -19,6 +19,7 @@ export const customLineItemSchema = z.object({
   unitPrice: z.number().min(0),
   packageId: z.string().uuid().optional(), // Optional package association
   isTax: z.boolean().optional().default(false), // Whether this item is a tax charge
+  currency: z.enum(['USD', 'JMD']).optional(), // Source currency for this line item
 });
 
 // Validation schema for generating an invoice
@@ -627,8 +628,8 @@ export class BillingService {
       // Add custom line items
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
         for (const customItem of validatedData.customLineItems) {
-          // Use storage currency for all custom line items
-          const sourceCurrency = storageCurrency;
+          // Respect the currency provided per line item; default to display currency
+          const sourceCurrency = customItem.currency || displayCurrency;
           
           // Convert unit price to company's base currency for storage
           const originalUnitPrice = customItem.unitPrice;
@@ -865,19 +866,19 @@ export class BillingService {
       
       // Add custom line items to preview
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
-        // For storage/calculations, always use company's base currency regardless of user preference
         const storageCurrency = getDisplayCurrency(exchangeRateSettings);
+        const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
         
         for (const customItem of validatedData.customLineItems) {
-          // Use storage currency for all custom line items
-          const sourceCurrency = storageCurrency;
+          // Respect per-item currency if provided; default to display currency
+          const sourceCurrency = customItem.currency || displayCurrency;
           
-          // Convert unit price to company's base currency for calculations
+          // Convert unit price to display currency for preview consistency
           const originalUnitPrice = customItem.unitPrice;
           const convertedUnitPrice = convertCurrency(
             originalUnitPrice,
             sourceCurrency,
-            storageCurrency,
+            displayCurrency,
             exchangeRateSettings
           );
           
@@ -885,8 +886,8 @@ export class BillingService {
           
           // Create description with currency conversion info if converted
           let description = customItem.description;
-          if (sourceCurrency !== storageCurrency) {
-            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          if (sourceCurrency !== displayCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${displayCurrency})`;
           }
           
           lineItems.push({
@@ -895,7 +896,7 @@ export class BillingService {
             quantity: customItem.quantity,
             unitPrice: convertedUnitPrice,
             lineTotal: lineTotal,
-            currency: storageCurrency,
+            currency: displayCurrency,
             type: customItem.isTax ? 'tax' : 'other',
           });
           
@@ -912,8 +913,7 @@ export class BillingService {
       
       // Add additional charge to preview if provided
       if (validatedData.additionalCharge && validatedData.additionalCharge > 0) {
-        
-        const displayCurrency = getDisplayCurrency(exchangeRateSettings);
+        const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
         
         // Determine the source currency for additional charge (default to display currency if not specified)
         const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
@@ -958,6 +958,7 @@ export class BillingService {
         subtotal: Number(subtotal) || 0,
         taxAmount: Number(taxAmount) || 0,
         totalAmount: Number(totalAmount) || 0,
+        currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
         lineItems,
         feeBreakdown: {
           shipping: Number(feeBreakdown.shipping) || 0,
