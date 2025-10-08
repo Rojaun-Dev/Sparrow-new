@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useCompanySettings } from './useCompanySettings';
 import { SupportedCurrency, ExchangeRateSettings } from '@/lib/api/types';
-import { 
-  convertCurrency, 
-  formatCurrency, 
-  convertAndFormatCurrency 
+import {
+  convertCurrency,
+  formatCurrency
 } from '@/lib/utils/currency';
 import { apiClient } from '@/lib/api/apiClient';
 
 export function useCurrency() {
   const { settings } = useCompanySettings();
-  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('JMD');
   const [exchangeRateSettings, setExchangeRateSettings] = useState<ExchangeRateSettings | null>(null);
   
   // Load exchange rate settings from API
@@ -38,6 +37,8 @@ export function useCurrency() {
       const savedCurrency = localStorage.getItem('selectedCurrency') as SupportedCurrency;
       if (savedCurrency && (savedCurrency === 'USD' || savedCurrency === 'JMD')) {
         setSelectedCurrency(savedCurrency);
+      } else {
+        setSelectedCurrency('JMD'); // Default to JMD if no saved preference
       }
     }
   }, []);
