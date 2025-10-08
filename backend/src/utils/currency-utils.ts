@@ -54,7 +54,22 @@ export function formatCurrency(amount: number, currency: string): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  
+
   const symbol = currency === 'JMD' ? 'J$' : '$';
   return `${symbol}${formatter.format(amount)}`;
+}
+
+/**
+ * Round invoice total based on currency to reduce change requirements
+ * JMD: Round to nearest 100 (e.g., J$3,247.50 → J$3,200)
+ * USD: Round to nearest 10 (e.g., $32.47 → $30)
+ */
+export function roundInvoiceTotal(amount: number, currency: string): number {
+  if (currency === 'JMD') {
+    return Math.round(amount / 100) * 100;
+  } else if (currency === 'USD') {
+    return Math.round(amount / 10) * 10;
+  }
+  // For other currencies, return original amount
+  return amount;
 }

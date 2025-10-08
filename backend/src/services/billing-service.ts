@@ -9,7 +9,7 @@ import { CompanySettingsRepository } from '../repositories/company-settings-repo
 import { invoiceStatusEnum } from '../db/schema/invoices';
 import { AppError } from '../utils/app-error';
 import { FeesService } from './fees-service';
-import { convertCurrency, getDisplayCurrency } from '../utils/currency-utils';
+import { convertCurrency, getDisplayCurrency, roundInvoiceTotal } from '../utils/currency-utils';
 import logger from '../utils/logger';
 
 // Custom line item schema
@@ -707,16 +707,28 @@ export class BillingService {
         subtotal += convertedAmount;
         feeBreakdown.other += convertedAmount;
       }
-      
+
       // Calculate total
       const totalAmount = subtotal + taxAmount;
-      
+
+      // Round total based on currency to reduce change requirements
+      // (displayCurrency already declared at line 558)
+      const roundedTotal = roundInvoiceTotal(totalAmount, displayCurrency);
+
+      // Calculate rounding adjustment for transparency
+      const roundingAdjustment = roundedTotal - totalAmount;
+
       // Update invoice with final totals and fee breakdown
       await this.invoicesRepository.update(invoice.id, {
         subtotal: subtotal.toString(),
         taxAmount: taxAmount.toString(),
-        totalAmount: totalAmount.toString(),
-        feeBreakdown: feeBreakdown,
+        totalAmount: roundedTotal.toString(),
+        feeBreakdown: {
+          ...feeBreakdown,
+          originalTotal: totalAmount,
+          roundedTotal: roundedTotal,
+          roundingAdjustment: roundingAdjustment,
+        },
         notes: validatedData.notes || '',
       }, companyId);
       
@@ -948,17 +960,27 @@ export class BillingService {
           type: 'other',
         });
       }
-      
+
       // Calculate total
       const totalAmount = subtotal + taxAmount;
+
+      // Get display currency for rounding (already declared at line 882 if custom line items exist)
+      const previewDisplayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
+
+      // Round total based on currency to reduce change requirements
+      const roundedTotal = roundInvoiceTotal(totalAmount, previewDisplayCurrency);
+
+      // Calculate rounding adjustment for transparency
+      const roundingAdjustment = roundedTotal - totalAmount;
+
       // Return the preview data, including fee breakdown (all numbers)
       return {
         userId: validatedData.userId,
         packageIds: validatedData.packageIds,
         subtotal: Number(subtotal) || 0,
         taxAmount: Number(taxAmount) || 0,
-        totalAmount: Number(totalAmount) || 0,
-        currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
+        totalAmount: Number(roundedTotal) || 0,
+        currency: previewDisplayCurrency,
         lineItems,
         feeBreakdown: {
           shipping: Number(feeBreakdown.shipping) || 0,
@@ -966,6 +988,9 @@ export class BillingService {
           customs: Number(feeBreakdown.customs) || 0,
           other: Number(feeBreakdown.other) || 0,
           taxes: Number(feeBreakdown.taxes) || 0,
+          originalTotal: totalAmount,
+          roundedTotal: roundedTotal,
+          roundingAdjustment: roundingAdjustment,
         },
       };
     } catch (error) {
