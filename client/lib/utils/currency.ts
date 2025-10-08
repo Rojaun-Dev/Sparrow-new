@@ -102,9 +102,24 @@ export function convertAndFormatCurrency(
   showSymbol: boolean = true
 ): string {
   // Add debugging
-  console.log(`Convert and format: ${amount} from ${fromCurrency} to ${toCurrency}`, 
+  console.log(`Convert and format: ${amount} from ${fromCurrency} to ${toCurrency}`,
               { exchangeRateSettings });
-  
+
   const convertedAmount = convertCurrency(amount, fromCurrency, toCurrency, exchangeRateSettings);
   return formatCurrency(convertedAmount, toCurrency, showSymbol);
+}
+
+/**
+ * Round invoice total based on currency to reduce change requirements
+ * JMD: Round to nearest 100 (e.g., J$3,247.50 → J$3,200)
+ * USD: Round to nearest 10 (e.g., $32.47 → $30)
+ */
+export function roundInvoiceTotal(amount: number, currency: SupportedCurrency): number {
+  if (currency === 'JMD') {
+    return Math.round(amount / 100) * 100;
+  } else if (currency === 'USD') {
+    return Math.round(amount / 10) * 10;
+  }
+  // For other currencies, return original amount
+  return amount;
 } 

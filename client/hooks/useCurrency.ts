@@ -3,7 +3,8 @@ import { useCompanySettings } from './useCompanySettings';
 import { SupportedCurrency, ExchangeRateSettings } from '@/lib/api/types';
 import {
   convertCurrency,
-  formatCurrency
+  formatCurrency,
+  roundInvoiceTotal
 } from '@/lib/utils/currency';
 import { apiClient } from '@/lib/api/apiClient';
 
@@ -89,7 +90,7 @@ export function useCurrency() {
   // Convert and format in one step
   const convertAndFormat = (amount: number, fromCurrency: SupportedCurrency = 'USD', returnNumeric: boolean = false): string | number => {
     let convertedAmount: number;
-    
+
     // If currencies are the same, just format
     if (fromCurrency === selectedCurrency) {
       convertedAmount = amount;
@@ -99,13 +100,13 @@ export function useCurrency() {
       convertedAmount = amount;
     } else {
       // Convert the amount
-      console.log('Converting and formatting:', { 
-        amount, 
-        fromCurrency, 
-        toCurrency: selectedCurrency, 
-        rate: exchangeRateSettings.exchangeRate 
+      console.log('Converting and formatting:', {
+        amount,
+        fromCurrency,
+        toCurrency: selectedCurrency,
+        rate: exchangeRateSettings.exchangeRate
       });
-      
+
       convertedAmount = convertCurrency(
         amount,
         fromCurrency,
@@ -113,22 +114,35 @@ export function useCurrency() {
         exchangeRateSettings
       );
     }
-    
+
     // Return numeric value if requested
     if (returnNumeric) {
       return convertedAmount;
     }
-    
+
     // Return formatted string
     return formatCurrency(convertedAmount, selectedCurrency);
   };
-  
+
+  // Convert, round, and format invoice total (ensures totals are always rounded)
+  const convertAndFormatInvoiceTotal = (amount: number, fromCurrency: SupportedCurrency = 'USD'): string => {
+    // Convert to selected currency
+    let convertedAmount = convert(amount, fromCurrency);
+
+    // Round based on target currency (JMD: nearest 100, USD: nearest 10)
+    convertedAmount = roundInvoiceTotal(convertedAmount, selectedCurrency);
+
+    // Format for display
+    return format(convertedAmount);
+  };
+
   return {
     selectedCurrency,
     setSelectedCurrency: handleCurrencyChange,
     convert,
     format,
     convertAndFormat,
+    convertAndFormatInvoiceTotal,
     exchangeRateSettings
   };
 } 
