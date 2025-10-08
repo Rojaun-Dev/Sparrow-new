@@ -75,7 +75,7 @@ export default function InvoicesPage() {
   } = useUserInvoices(filters);
 
   // Currency handling
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal, exchangeRateSettings } = useCurrency();
 
   // Payment availability check
   const { data: paymentSettings } = usePaymentAvailability();
@@ -256,6 +256,11 @@ export default function InvoicesPage() {
     return convertAndFormat(amount);
   };
 
+  // Format invoice total with rounding
+  const formatInvoiceTotal = (amount: number) => {
+    return convertAndFormatInvoiceTotal(amount);
+  };
+
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -408,7 +413,7 @@ export default function InvoicesPage() {
                 {
                   header: "Amount",
                   accessorKey: "totalAmount",
-                  cell: (invoice) => formatCurrency(invoice.totalAmount)
+                  cell: (invoice) => formatInvoiceTotal(invoice.totalAmount)
                 },
                 {
                   header: "Status",

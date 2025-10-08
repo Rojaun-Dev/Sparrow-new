@@ -37,7 +37,7 @@ export default function InvoicesPage() {
   const { exportCsv } = useExportCsv();
   const { data: usersData } = useUsers();
   const usersMap = Array.isArray(usersData) ? usersData.reduce((acc, u) => { acc[u.id] = u; return acc; }, {}) : {};
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal } = useCurrency();
 
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -232,7 +232,7 @@ export default function InvoicesPage() {
                         </CardDescription>
                       </div>
                       <div className="text-lg font-semibold">
-                        {inv.totalAmount ? convertAndFormat(Number(inv.totalAmount)) : "-"}
+                        {inv.totalAmount ? convertAndFormatInvoiceTotal(Number(inv.totalAmount)) : "-"}
                       </div>
                     </CardHeader>
                     <CardContent className="p-4 pt-2 space-y-2">

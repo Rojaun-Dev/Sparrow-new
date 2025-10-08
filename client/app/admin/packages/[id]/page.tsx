@@ -20,6 +20,7 @@ import { PackageStatus } from "@/lib/api/types"
 import { toast } from "@/components/ui/use-toast"
 import { Pencil, UserPlus, Trash2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useCurrency } from "@/hooks/useCurrency"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { AssignUserModal } from "@/components/packages/AssignUserModal"
 import { QuickInvoiceDialog } from "@/components/invoices/QuickInvoiceDialog"
@@ -60,7 +61,10 @@ export default function AdminPackageDetailPage() {
   const { data: packageData, isLoading, isError, error } = usePackage(id);
   const { data: relatedInvoice, isLoading: isLoadingInvoice, isError: isInvoiceError, error: invoiceError } = useInvoiceByPackageId(id);
   const { data: prealerts, isLoading: isLoadingPrealerts } = usePreAlertsByPackageId(id);
-  
+
+  // Currency conversion
+  const { convertAndFormatInvoiceTotal } = useCurrency();
+
   // Fetch user data if packageData.userId is available
   const { data: userData, isLoading: isUserLoading } = useUser(
     packageData?.userId || undefined
@@ -713,7 +717,9 @@ export default function AdminPackageDetailPage() {
                       </div>
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
-                        <p className="text-base font-medium">${relatedInvoice.totalAmount}</p>
+                        <p className="text-base font-medium">
+                          {convertAndFormatInvoiceTotal(Number(relatedInvoice.totalAmount))}
+                        </p>
                       </div>
                       <div className="flex justify-between items-center">
                         <div>
