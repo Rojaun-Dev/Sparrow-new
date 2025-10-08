@@ -118,7 +118,7 @@ const feeTemplateFormSchema = z.object({
     required_error: "Please select a calculation method",
   }),
   amount: z.number({ required_error: "Amount is required" }).min(0, { message: "Amount must be a positive number" }),
-  currency: z.string().default("USD"),
+  currency: z.string().default("JMD"),
   appliesTo: z
     .string({ required_error: "Tags are required" })
     .min(1, { message: "At least one tag is required" })

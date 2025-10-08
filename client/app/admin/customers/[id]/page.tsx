@@ -43,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/hooks/useCurrency";
 import { SupportedCurrency } from "@/lib/api/types";
+import { CurrencySelector } from "@/components/ui/currency-selector";
 
 export default function AdminCustomerViewPage() {
   const params = useParams();
@@ -733,18 +734,11 @@ export default function AdminCustomerViewPage() {
           </div>
           {tab === "invoices" && (
             <div className="flex items-center gap-2">
-              <Select
+              <CurrencySelector
                 value={selectedCurrency}
-                onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
-              >
-                <SelectTrigger className="w-[100px]">
-                  <SelectValue placeholder="Currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD ($)</SelectItem>
-                  <SelectItem value="JMD">JMD (J$)</SelectItem>
-                </SelectContent>
-              </Select>
+                onValueChange={setSelectedCurrency}
+                size="sm"
+              />
             </div>
           )}
         </div>

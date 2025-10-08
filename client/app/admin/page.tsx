@@ -78,7 +78,7 @@ import {
 
 import { Skeleton } from "@/components/ui/skeleton"
 
-import { 
+import {
 
   Select,
 
@@ -91,6 +91,8 @@ import {
   SelectValue,
 
 } from "@/components/ui/select"
+
+import { CurrencySelector } from "@/components/ui/currency-selector"
 
 
 
@@ -286,18 +288,11 @@ export default function AdminDashboard() {
         {isAdminL2 && (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Currency:</span>
-            <Select
+            <CurrencySelector
               value={selectedCurrency}
               onValueChange={handleCurrencyChange}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Currency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">USD ($)</SelectItem>
-                <SelectItem value="JMD">JMD (J$)</SelectItem>
-              </SelectContent>
-            </Select>
+              size="sm"
+            />
           </div>
         )}
       </div>
