@@ -587,7 +587,7 @@ export class BillingService {
         for (const packageId of validatedData.packageIds) {
           let packageFees;
           try {
-            packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
+            packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, displayCurrency);
           } catch (feeError) {
             logger.error({ err: feeError, packageId, companyId }, 'Error calculating package fees');
             throw new AppError(`Error calculating fees for package ${packageId}: ${feeError instanceof Error ? feeError.message : 'Unknown error'}`, 500);
@@ -601,10 +601,21 @@ export class BillingService {
           // Add all line items to invoice
           for (const item of packageFees.lineItems) {
             try {
+              // Convert line item amounts from display currency to storage currency if needed
+              const unitPriceInStorage = displayCurrency === storageCurrency
+                ? Number(item.unitPrice)
+                : convertCurrency(Number(item.unitPrice), displayCurrency, storageCurrency, exchangeRateSettings);
+
+              const lineTotalInStorage = displayCurrency === storageCurrency
+                ? Number(item.lineTotal)
+                : convertCurrency(Number(item.lineTotal), displayCurrency, storageCurrency, exchangeRateSettings);
+
               const lineItemData = {
                 invoiceId: invoice.id,
                 companyId,
                 ...item,
+                unitPrice: unitPriceInStorage,
+                lineTotal: lineTotalInStorage,
               };
 
               // Remove currency field if present since the invoice_items schema doesn't support it
@@ -615,7 +626,7 @@ export class BillingService {
               logger.error({ err: itemError, item, invoiceId: invoice.id }, 'Error creating invoice line item');
               throw new AppError(`Error creating invoice line item: ${itemError instanceof Error ? itemError.message : 'Unknown error'}`, 500);
             }
-            // Add to totals (except tax)
+            // Add to totals in display currency (will convert to storage currency later)
             if (item.type !== 'tax') {
               subtotal += Number(item.lineTotal);
             } else {
@@ -630,43 +641,52 @@ export class BillingService {
         for (const customItem of validatedData.customLineItems) {
           // Respect the currency provided per line item; default to display currency
           const sourceCurrency = customItem.currency || displayCurrency;
-          
-          // Convert unit price to company's base currency for storage
+
+          // Convert unit price to display currency for calculations
           const originalUnitPrice = customItem.unitPrice;
-          const convertedUnitPrice = convertCurrency(
+          const unitPriceInDisplay = convertCurrency(
             originalUnitPrice,
             sourceCurrency,
-            storageCurrency,
+            displayCurrency,
             exchangeRateSettings
           );
-          
-          const lineTotal = customItem.quantity * convertedUnitPrice;
-          
-          // Create description with currency conversion info if converted
+
+          const lineTotalInDisplay = customItem.quantity * unitPriceInDisplay;
+
+          // Convert to storage currency for database
+          const unitPriceInStorage = displayCurrency === storageCurrency
+            ? unitPriceInDisplay
+            : convertCurrency(unitPriceInDisplay, displayCurrency, storageCurrency, exchangeRateSettings);
+
+          const lineTotalInStorage = displayCurrency === storageCurrency
+            ? lineTotalInDisplay
+            : convertCurrency(lineTotalInDisplay, displayCurrency, storageCurrency, exchangeRateSettings);
+
+          // Create description with currency conversion info if source differs from display
           let description = customItem.description;
-          if (sourceCurrency !== storageCurrency) {
-            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          if (sourceCurrency !== displayCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${displayCurrency})`;
           }
-          
+
           const lineItemData = {
             invoiceId: invoice.id,
             companyId,
             packageId: customItem.packageId || null,
             description,
             quantity: customItem.quantity,
-            unitPrice: convertedUnitPrice,
-            lineTotal: lineTotal,
+            unitPrice: unitPriceInStorage,
+            lineTotal: lineTotalInStorage,
             type: customItem.isTax ? 'tax' : 'other',
           };
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          
-          // Add to appropriate totals based on whether it's a tax
+
+          // Add to appropriate totals in display currency
           if (customItem.isTax) {
-            taxAmount += lineTotal;
-            feeBreakdown.taxes += lineTotal;
+            taxAmount += lineTotalInDisplay;
+            feeBreakdown.taxes += lineTotalInDisplay;
           } else {
-            subtotal += lineTotal;
-            feeBreakdown.other += lineTotal;
+            subtotal += lineTotalInDisplay;
+            feeBreakdown.other += lineTotalInDisplay;
           }
         }
       }
@@ -676,22 +696,27 @@ export class BillingService {
         
         // Determine the source currency for additional charge (default to display currency if not specified)
         const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
-        
-        // Convert additional charge to display currency
+
+        // Convert additional charge to display currency for calculations
         const originalAmount = validatedData.additionalCharge;
-        const convertedAmount = convertCurrency(
+        const amountInDisplay = convertCurrency(
           originalAmount,
           sourceCurrency,
           displayCurrency,
           exchangeRateSettings
         );
-        
+
+        // Convert to storage currency for database
+        const amountInStorage = displayCurrency === storageCurrency
+          ? amountInDisplay
+          : convertCurrency(amountInDisplay, displayCurrency, storageCurrency, exchangeRateSettings);
+
         // Create description with currency conversion info if converted
         let description = 'Additional Charge';
         if (sourceCurrency !== displayCurrency) {
           description += ` (${sourceCurrency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
         }
-        
+
         const addCharge = {
           invoiceId: invoice.id,
           companyId,
@@ -699,34 +724,49 @@ export class BillingService {
           // packageId: null,
           description,
           quantity: 1,
-          unitPrice: convertedAmount,
-          lineTotal: convertedAmount,
+          unitPrice: amountInStorage,
+          lineTotal: amountInStorage,
           type: 'other',
         };
         await this.invoiceItemsRepository.create(addCharge, companyId);
-        subtotal += convertedAmount;
-        feeBreakdown.other += convertedAmount;
+        subtotal += amountInDisplay;
+        feeBreakdown.other += amountInDisplay;
       }
 
       // Calculate total
       const totalAmount = subtotal + taxAmount;
 
-      // Round total based on currency to reduce change requirements
-      // (displayCurrency already declared at line 558)
-      const roundedTotal = roundInvoiceTotal(totalAmount, displayCurrency);
+      // Round total based on display currency (the currency the user is working in)
+      // This ensures proper rounding (JMD to nearest 100, USD to nearest 10)
+      const roundedTotalInDisplayCurrency = roundInvoiceTotal(totalAmount, displayCurrency);
 
-      // Calculate rounding adjustment for transparency
-      const roundingAdjustment = roundedTotal - totalAmount;
+      // Convert rounded total from display currency to storage currency for database storage
+      const roundedTotal = displayCurrency === storageCurrency
+        ? roundedTotalInDisplayCurrency
+        : convertCurrency(roundedTotalInDisplayCurrency, displayCurrency, storageCurrency, exchangeRateSettings);
+
+      // Calculate rounding adjustment for transparency (in display currency)
+      const roundingAdjustment = roundedTotalInDisplayCurrency - totalAmount;
+
+      // Also convert subtotal and tax to storage currency if needed
+      const subtotalInStorageCurrency = displayCurrency === storageCurrency
+        ? subtotal
+        : convertCurrency(subtotal, displayCurrency, storageCurrency, exchangeRateSettings);
+
+      const taxAmountInStorageCurrency = displayCurrency === storageCurrency
+        ? taxAmount
+        : convertCurrency(taxAmount, displayCurrency, storageCurrency, exchangeRateSettings);
 
       // Update invoice with final totals and fee breakdown
+      // Store amounts in storage currency, but keep rounding info in display currency
       await this.invoicesRepository.update(invoice.id, {
-        subtotal: subtotal.toString(),
-        taxAmount: taxAmount.toString(),
+        subtotal: subtotalInStorageCurrency.toString(),
+        taxAmount: taxAmountInStorageCurrency.toString(),
         totalAmount: roundedTotal.toString(),
         feeBreakdown: {
           ...feeBreakdown,
           originalTotal: totalAmount,
-          roundedTotal: roundedTotal,
+          roundedTotal: roundedTotalInDisplayCurrency,
           roundingAdjustment: roundingAdjustment,
         },
         notes: validatedData.notes || '',
