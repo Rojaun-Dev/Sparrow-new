@@ -57,7 +57,7 @@ export function useAdminStatistics() {
         return saved;
       }
     }
-    return 'USD'; // Default currency
+    return 'JMD'; // Default currency
   });
 
   useEffect(() => {
