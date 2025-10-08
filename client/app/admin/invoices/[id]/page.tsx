@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCompanyLogo } from "@/hooks/useCompanyAssets";
+import { CurrencySelector } from "@/components/ui/currency-selector";
 
 function CustomerNameDisplay({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId);
@@ -300,18 +301,11 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <Select
+            <CurrencySelector
               value={selectedCurrency}
-              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
-            >
-              <SelectTrigger className="w-[100px]">
-                <SelectValue placeholder="Currency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">USD ($)</SelectItem>
-                <SelectItem value="JMD">JMD (J$)</SelectItem>
-              </SelectContent>
-            </Select>
+              onValueChange={setSelectedCurrency}
+              size="sm"
+            />
           </div>
           {invoice?.status === 'cancelled' ? (
             <Button variant="outline" size="sm" disabled>
