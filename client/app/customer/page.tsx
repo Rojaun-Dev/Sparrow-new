@@ -16,11 +16,16 @@ import { PreAlert, Package as PackageType } from "@/lib/api/types";
 import { useToast } from "@/components/ui/use-toast";
 import { FileUpload } from "@/components/ui/file-upload";
 import { ShippingInfoCard } from "@/components/customer/ShippingInfoCard";
+import { useCurrency } from "@/hooks/useCurrency";
+import { CurrencySelector } from "@/components/ui/currency-selector";
 
 export default function CustomerDashboard() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Currency conversion
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
   
   // Form state for pre-alert
   const [preAlertForm, setPreAlertForm] = useState({
@@ -155,17 +160,9 @@ export default function CustomerDashboard() {
 
   // Format status label for display
   const formatStatusLabel = (status: string) => {
-    return status.split('_').map(word => 
+    return status.split('_').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
-  };
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
   };
 
   // Handle refresh
@@ -177,10 +174,18 @@ export default function CustomerDashboard() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <Button size="sm" onClick={handleRefresh}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Currency:</span>
+          <CurrencySelector
+            value={selectedCurrency}
+            onValueChange={setSelectedCurrency}
+            size="sm"
+          />
+          <Button size="sm" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {statsError && (
@@ -273,9 +278,9 @@ export default function CustomerDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {statistics?.outstandingInvoices 
-                    ? formatCurrency(statistics.outstandingInvoices.amount) 
-                    : '$0.00'}
+                  {statistics?.outstandingInvoices
+                    ? convertAndFormat(statistics.outstandingInvoices.amount)
+                    : convertAndFormat(0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {statistics?.outstandingInvoices?.count || 0} unpaid invoices
@@ -514,7 +519,7 @@ export default function CustomerDashboard() {
                       <p className="text-sm text-muted-foreground">Date: {formatDate(payment.date)}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold">{formatCurrency(payment.amount)}</p>
+                      <p className="text-sm font-bold">{convertAndFormat(payment.amount)}</p>
                       <Badge variant="outline" className="bg-green-50 text-green-700">Paid</Badge>
                     </div>
                   </div>
