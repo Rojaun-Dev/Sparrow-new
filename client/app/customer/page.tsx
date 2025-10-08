@@ -25,7 +25,7 @@ export default function CustomerDashboard() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Currency conversion
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal } = useCurrency();
   
   // Form state for pre-alert
   const [preAlertForm, setPreAlertForm] = useState({
@@ -279,8 +279,8 @@ export default function CustomerDashboard() {
               <>
                 <div className="text-2xl font-bold">
                   {statistics?.outstandingInvoices
-                    ? convertAndFormat(statistics.outstandingInvoices.amount)
-                    : convertAndFormat(0)}
+                    ? convertAndFormatInvoiceTotal(statistics.outstandingInvoices.amount)
+                    : convertAndFormatInvoiceTotal(0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {statistics?.outstandingInvoices?.count || 0} unpaid invoices

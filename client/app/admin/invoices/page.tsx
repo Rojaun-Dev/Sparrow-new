@@ -321,7 +321,7 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
                         <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell>{inv.totalAmount ? convertAndFormat(Number(inv.totalAmount)) : "-"}</TableCell>
+                        <TableCell>{inv.totalAmount ? convertAndFormatInvoiceTotal(Number(inv.totalAmount)) : "-"}</TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             <Link href={`/admin/invoices/${inv.id}`} passHref legacyBehavior>
