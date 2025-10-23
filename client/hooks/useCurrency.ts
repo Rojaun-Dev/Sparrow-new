@@ -136,6 +136,27 @@ export function useCurrency() {
     return format(convertedAmount);
   };
 
+  // Format invoice total using the rounded value from feeBreakdown if available
+  // This prevents floating-point errors from currency conversion
+  const formatInvoiceTotal = (invoice: any): string => {
+    // Check if invoice has rounded total in feeBreakdown
+    if (invoice.feeBreakdown?.roundedTotal && invoice.feeBreakdown?.displayCurrency) {
+      const roundedTotal = invoice.feeBreakdown.roundedTotal;
+      const displayCurrency = invoice.feeBreakdown.displayCurrency as SupportedCurrency;
+
+      // If rounded total is in selected currency, format it directly
+      if (displayCurrency === selectedCurrency) {
+        return format(roundedTotal);
+      }
+
+      // Otherwise convert and format
+      return convertAndFormat(roundedTotal, displayCurrency);
+    }
+
+    // Fallback: convert totalAmount from storage currency (USD)
+    return convertAndFormat(Number(invoice.totalAmount) || 0, 'USD');
+  };
+
   return {
     selectedCurrency,
     setSelectedCurrency: handleCurrencyChange,
@@ -143,6 +164,7 @@ export function useCurrency() {
     format,
     convertAndFormat,
     convertAndFormatInvoiceTotal,
+    formatInvoiceTotal,
     exchangeRateSettings
   };
 } 
