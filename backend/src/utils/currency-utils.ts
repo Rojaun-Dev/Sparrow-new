@@ -61,29 +61,38 @@ export function formatCurrency(amount: number, currency: string): string {
 
 /**
  * Round invoice total based on currency to reduce change requirements
- * JMD: Round to nearest 100 (e.g., J$3,247.50 → J$3,200)
- * USD: Round to nearest 10 (e.g., $32.47 → $30)
+ * JMD: Round UP to nearest 100 (e.g., J$3,247.50 → J$3,300)
+ * USD: Round UP to nearest 10 (e.g., $32.47 → $40)
+ *
+ * Note: Always rounds UP (using Math.ceil) to ensure business never loses money
+ * and to simplify change handling for customers.
  *
  * Special handling for small amounts:
  * - If amount > 0 but rounds to 0, use minimum increment instead
  * - Ensures invoices always have a non-zero total if there are charges
  */
 export function roundInvoiceTotal(amount: number, currency: string): number {
+  console.log('🔵 roundInvoiceTotal CALLED:', { amount, currency });
+
   // Handle zero or negative amounts
   if (amount <= 0) {
+    console.log('🔵 roundInvoiceTotal: amount <= 0, returning 0');
     return 0;
   }
 
   if (currency === 'JMD') {
-    const rounded = Math.round(amount / 100) * 100;
+    const rounded = Math.ceil(amount / 100) * 100;
+    console.log('🔵 roundInvoiceTotal JMD:', { input: amount, rounded });
     // If rounds to 0 but amount is positive, use minimum of 100
     return rounded === 0 ? 100 : rounded;
   } else if (currency === 'USD') {
-    const rounded = Math.round(amount / 10) * 10;
+    const rounded = Math.ceil(amount / 10) * 10;
+    console.log('🔵 roundInvoiceTotal USD:', { input: amount, rounded });
     // If rounds to 0 but amount is positive, use minimum of 10
     return rounded === 0 ? 10 : rounded;
   }
 
   // For other currencies, return original amount
+  console.log('🔵 roundInvoiceTotal: other currency, returning original:', amount);
   return amount;
 }
