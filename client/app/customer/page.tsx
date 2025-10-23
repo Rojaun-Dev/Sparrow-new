@@ -279,8 +279,8 @@ export default function CustomerDashboard() {
               <>
                 <div className="text-2xl font-bold">
                   {statistics?.outstandingInvoices
-                    ? convertAndFormatInvoiceTotal(statistics.outstandingInvoices.amount)
-                    : convertAndFormatInvoiceTotal(0)}
+                    ? convertAndFormat(statistics.outstandingInvoices.amount)
+                    : convertAndFormat(0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {statistics?.outstandingInvoices?.count || 0} unpaid invoices

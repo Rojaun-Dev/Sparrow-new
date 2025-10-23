@@ -63,7 +63,7 @@ export default function AdminPackageDetailPage() {
   const { data: prealerts, isLoading: isLoadingPrealerts } = usePreAlertsByPackageId(id);
 
   // Currency conversion
-  const { convertAndFormatInvoiceTotal } = useCurrency();
+  const { formatInvoiceTotal } = useCurrency();
 
   // Fetch user data if packageData.userId is available
   const { data: userData, isLoading: isUserLoading } = useUser(
@@ -718,7 +718,7 @@ export default function AdminPackageDetailPage() {
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
                         <p className="text-base font-medium">
-                          {convertAndFormatInvoiceTotal(Number(relatedInvoice.totalAmount))}
+                          {formatInvoiceTotal(relatedInvoice)}
                         </p>
                       </div>
                       <div className="flex justify-between items-center">

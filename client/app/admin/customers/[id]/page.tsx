@@ -55,7 +55,7 @@ export default function AdminCustomerViewPage() {
   const [companyId, setCompanyId] = useState<string | undefined>(params.companyId as string | undefined);
 
   // Currency conversion
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal, convert } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert, formatInvoiceTotal } = useCurrency();
 
   // Profile
   const { data: user, isLoading: userLoading, error: userError } = useUser(userId);
@@ -1092,7 +1092,7 @@ function EnhancedDataTable({ type, data, loading, error, formatDate, formatCurre
           { key: 'invoiceNumber', label: 'Invoice #', render: (row: any) => <Link className="text-primary underline" href={`/admin/invoices/${row.id}`}>{row.invoiceNumber}</Link> },
           { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} type="invoice" /> },
           { key: 'totalAmount', label: 'Total', render: (row: any) => {
-            return convertAndFormatInvoiceTotal(Number(row.totalAmount || row.amount || 0));
+            return formatInvoiceTotal(row);
           }},
           { key: 'issueDate', label: 'Issued', render: (row: any) => formatDate?.(row.issueDate || row.createdAt) },
           { key: 'actions', label: 'Actions', render: (row: any) => 

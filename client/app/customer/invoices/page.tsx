@@ -256,9 +256,9 @@ export default function InvoicesPage() {
     return convertAndFormat(amount);
   };
 
-  // Format invoice total with rounding
+  // Format invoice total (already rounded in database)
   const formatInvoiceTotal = (amount: number) => {
-    return convertAndFormatInvoiceTotal(amount);
+    return convertAndFormat(amount);
   };
 
   // Get status badge color based on status

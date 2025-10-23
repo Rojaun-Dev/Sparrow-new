@@ -335,7 +335,7 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
                     <p className="text-base font-medium">
-                      {convertAndFormatInvoiceTotal(
+                      {convertAndFormat(
                         typeof relatedInvoice.totalAmount === 'string'
                           ? parseFloat(relatedInvoice.totalAmount)
                           : relatedInvoice.totalAmount

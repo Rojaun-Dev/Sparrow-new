@@ -113,7 +113,7 @@ export default function InvoiceDetailPage() {
   const bulkUpdatePackageStatus = useBulkUpdatePackageStatus();
   
   // Currency conversion
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal, convert, exchangeRateSettings } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convert, exchangeRateSettings, formatInvoiceTotal } = useCurrency();
   
   // Payment form state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -525,7 +525,7 @@ export default function InvoiceDetailPage() {
                       <tr>
                         <td colSpan={2}></td>
                         <td className="text-right font-bold">Total</td>
-                        <td className="text-right font-bold">{convertAndFormatInvoiceTotal(total)}</td>
+                        <td className="text-right font-bold">{formatInvoiceTotal(invoice)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -549,7 +549,7 @@ export default function InvoiceDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Due:</span>
                   <span className="font-bold text-lg">
-                    {convertAndFormatInvoiceTotal(total)}
+                    {formatInvoiceTotal(invoice)}
                   </span>
                 </div>
                 <Separator />

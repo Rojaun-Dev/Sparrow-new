@@ -37,7 +37,7 @@ export default function InvoicesPage() {
   const { exportCsv } = useExportCsv();
   const { data: usersData } = useUsers();
   const usersMap = Array.isArray(usersData) ? usersData.reduce((acc, u) => { acc[u.id] = u; return acc; }, {}) : {};
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, formatInvoiceTotal } = useCurrency();
 
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -232,7 +232,7 @@ export default function InvoicesPage() {
                         </CardDescription>
                       </div>
                       <div className="text-lg font-semibold">
-                        {inv.totalAmount ? convertAndFormatInvoiceTotal(Number(inv.totalAmount)) : "-"}
+                        {inv.totalAmount ? formatInvoiceTotal(inv) : "-"}
                       </div>
                     </CardHeader>
                     <CardContent className="p-4 pt-2 space-y-2">
@@ -321,7 +321,7 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell>{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "-"}</TableCell>
                         <TableCell>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell>{inv.totalAmount ? convertAndFormatInvoiceTotal(Number(inv.totalAmount)) : "-"}</TableCell>
+                        <TableCell>{inv.totalAmount ? formatInvoiceTotal(inv) : "-"}</TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             <Link href={`/admin/invoices/${inv.id}`} passHref legacyBehavior>
