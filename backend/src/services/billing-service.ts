@@ -866,7 +866,6 @@ export class BillingService {
       
       // Add custom line items to preview
       if (validatedData.customLineItems && validatedData.customLineItems.length > 0) {
-        const storageCurrency = getDisplayCurrency(exchangeRateSettings);
         const displayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
         
         for (const customItem of validatedData.customLineItems) {
