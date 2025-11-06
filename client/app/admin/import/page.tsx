@@ -111,18 +111,24 @@ export default function ImportPage() {
 
   const handleFileSelect = async (files: File[]) => {
     if (!files.length) return;
-    
+
     const file = files[0];
     setSelectedFile(file);
     form.setValue("file", file, { shouldValidate: true });
-    
+
     try {
       const parsed = await parseCSVFile(file);
       setParsedData(parsed);
       setShowPreview(true);
       setImportComplete(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to parse CSV file:", error);
+      // Reset state on parsing error
+      setParsedData([]);
+      setShowPreview(false);
+      setSelectedFile(null);
+      form.reset();
+      // Error toast is already shown by useImport hook
     }
   };
 
@@ -437,7 +443,19 @@ export default function ImportPage() {
                       Showing {Math.min(5, parsedData.length)} of {parsedData.length} rows
                     </div>
                   </div>
-                  
+
+                  {/* Display detected columns */}
+                  <Alert>
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <AlertTitle>CSV Parsed Successfully</AlertTitle>
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <p><strong>Total rows:</strong> {parsedData.length}</p>
+                        <p><strong>Detected columns:</strong> {Object.keys(parsedData[0] || {}).join(', ')}</p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="border rounded-md overflow-x-auto">
                     <Table>
                       <TableHeader>

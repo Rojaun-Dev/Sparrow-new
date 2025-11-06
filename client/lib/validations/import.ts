@@ -35,4 +35,22 @@ export const packageCsvRecordSchema = z.object({
     message: "Either 'Tracking Number' or 'Number' must be provided",
     path: ["Tracking Number"]
   }
-); 
+);
+
+// Schema for validating parsed CSV data
+export const parsedCsvSchema = z.object({
+  data: z.array(z.record(z.string())).min(1, "CSV file must contain at least one data row"),
+  headers: z.array(z.string()).min(1, "CSV file must have headers"),
+}).refine(
+  (parsed) => {
+    // Check if required columns exist
+    const headers = parsed.headers.map(h => h.toLowerCase());
+    return headers.includes("tracking number") || headers.includes("number");
+  },
+  {
+    message: "CSV must contain either 'Tracking Number' or 'Number' column",
+    path: ["headers"]
+  }
+);
+
+export type ParsedCsvData = z.infer<typeof parsedCsvSchema>; 
