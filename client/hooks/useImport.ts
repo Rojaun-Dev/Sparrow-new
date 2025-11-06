@@ -19,10 +19,30 @@ export function useImport(options: UseImportOptions = {}) {
     try {
       setIsParsing(true);
       const result = await importService.parseCSVFile(file);
+
+      // Validate that we got data
+      if (!result || result.length === 0) {
+        throw new Error('CSV file is empty or contains no valid data');
+      }
+
+      // Check for required columns
+      const firstRow = result[0];
+      const headers = Object.keys(firstRow);
+      const hasTrackingNumber = headers.some(h => h.toLowerCase() === 'tracking number');
+      const hasNumber = headers.some(h => h.toLowerCase() === 'number');
+
+      if (!hasTrackingNumber && !hasNumber) {
+        throw new Error('CSV must contain either "Tracking Number" or "Number" column');
+      }
+
       setParseResult(result);
+      toast.success(`Successfully parsed ${result.length} row${result.length !== 1 ? 's' : ''}`);
       return result;
     } catch (error: any) {
-      toast.error(`Error parsing CSV: ${error.message}`);
+      const errorMessage = error.message || 'Unknown error occurred while parsing CSV';
+      toast.error(`Error parsing CSV: ${errorMessage}`, {
+        duration: 5000,
+      });
       options.onError?.(error);
       throw error;
     } finally {
