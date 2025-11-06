@@ -114,25 +114,27 @@ class ImportService {
    */
   private parseCSV(csvContent: string): any[] {
     // Use PapaParse for robust CSV parsing that matches backend behavior
-    const parseResult = Papa.parse(csvContent, {
+    const parseResult: Papa.ParseResult<Record<string, string>> = Papa.parse(csvContent, {
       header: true,              // First row is headers
       skipEmptyLines: true,      // Skip empty lines
-      trimHeaders: true,         // Trim whitespace from headers
-      transform: (value) => value.trim(), // Trim all cell values
+      transform: (value: string, header: string | number) => {
+        // Trim all cell values
+        return typeof value === 'string' ? value.trim() : value;
+      },
       dynamicTyping: false,      // Keep everything as strings for now
     });
 
     // Check for parsing errors
-    if (parseResult.errors.length > 0) {
+    if (parseResult.errors && parseResult.errors.length > 0) {
       console.warn('CSV parsing warnings:', parseResult.errors);
       // Only throw if there are critical errors
-      const criticalErrors = parseResult.errors.filter(err => err.type === 'FieldMismatch');
+      const criticalErrors = parseResult.errors.filter((err: Papa.ParseError) => err.type === 'FieldMismatch');
       if (criticalErrors.length > 0) {
         throw new Error(`CSV parsing error: ${criticalErrors[0].message}`);
       }
     }
 
-    return parseResult.data;
+    return parseResult.data || [];
   }
 }
 
