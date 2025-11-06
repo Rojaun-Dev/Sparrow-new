@@ -36,7 +36,7 @@ import { useCompanySettings } from "@/hooks/useCompanySettings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/hooks/useAuth"
 import { useCurrency } from "@/hooks/useCurrency"
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -46,6 +46,7 @@ import {
 import { SupportedCurrency } from "@/lib/api/types"
 import { useCompanyLogo } from "@/hooks/useCompanyAssets"
 import { PayNowButton } from "@/components/invoices/PayNowButton"
+import { CurrencySelector } from "@/components/ui/currency-selector"
 
 // Define types for the payment history
 type PaymentHistory = {
@@ -370,7 +371,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   }
 
   // Add currency conversion support
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings, formatInvoiceTotal } = useCurrency();
 
   if (isLoading) {
     return <InvoiceDetailsSkeleton />
@@ -456,18 +457,11 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <Select
+            <CurrencySelector
               value={selectedCurrency}
-              onValueChange={(value: SupportedCurrency) => setSelectedCurrency(value)}
-            >
-              <SelectTrigger className="w-[100px]">
-                <SelectValue placeholder="Currency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">USD ($)</SelectItem>
-                <SelectItem value="JMD">JMD (J$)</SelectItem>
-              </SelectContent>
-            </Select>
+              onValueChange={setSelectedCurrency}
+              size="sm"
+            />
           </div>
           
           <Button
@@ -626,7 +620,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   )}
                   <div className="flex justify-between font-medium">
                     <span>Total</span>
-                    <span>{convertAndFormat(parseFloat(invoice.totalAmount?.toString() || "0"))}</span>
+                    <span>{formatInvoiceTotal(invoice)}</span>
                   </div>
                 </div>
               </div>

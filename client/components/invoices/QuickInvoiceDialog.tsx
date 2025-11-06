@@ -188,16 +188,13 @@ export function QuickInvoiceDialog({
 
   // Final invoice generation
   const onSubmit = async (data: InvoiceFormValues) => {
-    // Convert all custom line items to USD for backend consistency
+    // Convert all custom line items to selected currency, preserving original currency info
     const convertedCustomLineItems = customLineItems.map(item => {
-      const unitPriceInUSD = item.currency === 'USD'
-        ? item.unitPrice
-        : convert ? convert(item.unitPrice, item.currency) : item.unitPrice;
-
       return {
         description: item.description,
         quantity: item.quantity,
-        unitPrice: unitPriceInUSD,
+        unitPrice: item.unitPrice,
+        currency: item.currency,
         packageId: packageId, // Associate with the package
         isTax: false, // Custom line items are not tax by default
       };
@@ -211,6 +208,7 @@ export function QuickInvoiceDialog({
       sendNotification: data.sendNotification,
       generateFees: true, // This will automatically include duty fees
       customLineItems: convertedCustomLineItems,
+      preferredCurrency: selectedCurrency, // Use the currency the user is viewing in
     };
 
     generateInvoice.mutate(payload, {

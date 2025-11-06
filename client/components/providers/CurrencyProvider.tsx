@@ -23,13 +23,15 @@ interface CurrencyProviderProps {
 }
 
 export function CurrencyProvider({ children }: CurrencyProviderProps) {
-  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('JMD');
 
   // Load saved currency preference from localStorage on mount
   useEffect(() => {
     const savedCurrency = localStorage.getItem('selectedCurrency') as SupportedCurrency;
     if (savedCurrency && (savedCurrency === 'USD' || savedCurrency === 'JMD')) {
       setSelectedCurrency(savedCurrency);
+    } else {
+      setSelectedCurrency('JMD'); // Default to JMD if no saved preference
     }
   }, []);
 

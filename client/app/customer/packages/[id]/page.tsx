@@ -57,6 +57,7 @@ import { useInvoiceByPackageId } from "@/hooks/useInvoices"
 import { useUser } from "@/hooks/useUsers"
 import { useMyCompany } from "@/hooks/useCompanies"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useCurrency } from "@/hooks/useCurrency"
 
 // Customer Name Display Component
 function CustomerNameDisplay({ userId }: { userId: string }) {
@@ -107,6 +108,9 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
   
   // Fetch related invoice
   const { data: relatedInvoice, isLoading: isLoadingInvoice } = useInvoiceByPackageId(resolvedParams.id);
+
+  // Currency conversion
+  const { convertAndFormatInvoiceTotal } = useCurrency();
 
   // Get status badge color based on status
   const getStatusBadgeColor = (status: string) => {
@@ -331,9 +335,11 @@ export default function PackageDetailPage({ params }: { params: Promise<{ id: st
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground">Amount</h3>
                     <p className="text-base font-medium">
-                      ${typeof relatedInvoice.totalAmount === 'string' 
-                          ? parseFloat(relatedInvoice.totalAmount).toFixed(2)
-                          : relatedInvoice.totalAmount.toFixed(2)}
+                      {convertAndFormat(
+                        typeof relatedInvoice.totalAmount === 'string'
+                          ? parseFloat(relatedInvoice.totalAmount)
+                          : relatedInvoice.totalAmount
+                      )}
                     </p>
                   </div>
                   
