@@ -109,28 +109,30 @@ class ImportService {
   }
 
   /**
-   * Parse CSV content string into array of objects
+   * Parse CSV content string into array of objects using PapaParse
    * @param csvContent The CSV content as string
    */
   private parseCSV(csvContent: string): any[] {
-    const lines = csvContent.split('\n');
-    const result = [];
-    const headers = lines[0].split(',').map(header => header.trim());
-    
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      
-      const obj: Record<string, string> = {};
-      const currentLine = lines[i].split(',');
-      
-      for (let j = 0; j < headers.length; j++) {
-        obj[headers[j]] = currentLine[j]?.trim() || '';
+    // Use PapaParse for robust CSV parsing that matches backend behavior
+    const parseResult = Papa.parse(csvContent, {
+      header: true,              // First row is headers
+      skipEmptyLines: true,      // Skip empty lines
+      trimHeaders: true,         // Trim whitespace from headers
+      transform: (value) => value.trim(), // Trim all cell values
+      dynamicTyping: false,      // Keep everything as strings for now
+    });
+
+    // Check for parsing errors
+    if (parseResult.errors.length > 0) {
+      console.warn('CSV parsing warnings:', parseResult.errors);
+      // Only throw if there are critical errors
+      const criticalErrors = parseResult.errors.filter(err => err.type === 'FieldMismatch');
+      if (criticalErrors.length > 0) {
+        throw new Error(`CSV parsing error: ${criticalErrors[0].message}`);
       }
-      
-      result.push(obj);
     }
-    
-    return result;
+
+    return parseResult.data;
   }
 }
 
