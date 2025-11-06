@@ -1,4 +1,5 @@
 import { ApiClient } from './apiClient';
+import Papa from 'papaparse';
 
 class ImportService {
   private baseUrl = '/companies';
