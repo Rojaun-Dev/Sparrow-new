@@ -371,7 +371,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   }
 
   // Add currency conversion support
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, exchangeRateSettings, formatInvoiceTotal } = useCurrency();
 
   if (isLoading) {
     return <InvoiceDetailsSkeleton />
@@ -620,7 +620,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   )}
                   <div className="flex justify-between font-medium">
                     <span>Total</span>
-                    <span>{convertAndFormat(parseFloat(invoice.totalAmount?.toString() || "0"))}</span>
+                    <span>{formatInvoiceTotal(invoice)}</span>
                   </div>
                 </div>
               </div>

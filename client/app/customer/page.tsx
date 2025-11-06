@@ -25,7 +25,7 @@ export default function CustomerDashboard() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Currency conversion
-  const { selectedCurrency, setSelectedCurrency, convertAndFormat } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency, convertAndFormat, convertAndFormatInvoiceTotal } = useCurrency();
   
   // Form state for pre-alert
   const [preAlertForm, setPreAlertForm] = useState({

@@ -9,7 +9,7 @@ import { CompanySettingsRepository } from '../repositories/company-settings-repo
 import { invoiceStatusEnum } from '../db/schema/invoices';
 import { AppError } from '../utils/app-error';
 import { FeesService } from './fees-service';
-import { convertCurrency, getDisplayCurrency } from '../utils/currency-utils';
+import { convertCurrency, getDisplayCurrency, roundInvoiceTotal } from '../utils/currency-utils';
 import logger from '../utils/logger';
 
 // Custom line item schema
@@ -587,12 +587,20 @@ export class BillingService {
         for (const packageId of validatedData.packageIds) {
           let packageFees;
           try {
-            packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, validatedData.preferredCurrency);
+            packageFees = await this.calculatePackageFees(packageId, companyId, fixedFeesApplied, displayCurrency);
           } catch (feeError) {
             logger.error({ err: feeError, packageId, companyId }, 'Error calculating package fees');
             throw new AppError(`Error calculating fees for package ${packageId}: ${feeError instanceof Error ? feeError.message : 'Unknown error'}`, 500);
           }
           // Aggregate fee breakdown
+          console.log('🟠 PackageFees received:', {
+            shipping: packageFees.shipping,
+            handling: packageFees.handling,
+            customs: packageFees.customs,
+            other: packageFees.other,
+            taxes: packageFees.taxes,
+            lineItemsCount: packageFees.lineItems?.length
+          });
           feeBreakdown.shipping += Number(packageFees.shipping) || 0;
           feeBreakdown.handling += Number(packageFees.handling) || 0;
           feeBreakdown.customs += Number(packageFees.customs) || 0;
@@ -601,10 +609,21 @@ export class BillingService {
           // Add all line items to invoice
           for (const item of packageFees.lineItems) {
             try {
+              // Convert line item amounts to storage currency if needed
+              const unitPriceInStorage = displayCurrency === storageCurrency
+                ? Number(item.unitPrice)
+                : Math.round(convertCurrency(Number(item.unitPrice), displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
+              const lineTotalInStorage = displayCurrency === storageCurrency
+                ? Number(item.lineTotal)
+                : Math.round(convertCurrency(Number(item.lineTotal), displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
               const lineItemData = {
                 invoiceId: invoice.id,
                 companyId,
                 ...item,
+                unitPrice: unitPriceInStorage,
+                lineTotal: lineTotalInStorage,
               };
 
               // Remove currency field if present since the invoice_items schema doesn't support it
@@ -615,11 +634,15 @@ export class BillingService {
               logger.error({ err: itemError, item, invoiceId: invoice.id }, 'Error creating invoice line item');
               throw new AppError(`Error creating invoice line item: ${itemError instanceof Error ? itemError.message : 'Unknown error'}`, 500);
             }
-            // Add to totals (except tax)
+            // Add to totals in display currency (will convert to storage currency later)
             if (item.type !== 'tax') {
+              console.log('🟡 Adding to subtotal:', { lineTotal: item.lineTotal, parsed: Number(item.lineTotal), currentSubtotal: subtotal });
               subtotal += Number(item.lineTotal);
+              console.log('🟡 New subtotal:', subtotal);
             } else {
+              console.log('🟡 Adding to taxAmount:', { lineTotal: item.lineTotal, parsed: Number(item.lineTotal), currentTax: taxAmount });
               taxAmount += Number(item.lineTotal);
+              console.log('🟡 New taxAmount:', taxAmount);
             }
           }
         }
@@ -630,43 +653,52 @@ export class BillingService {
         for (const customItem of validatedData.customLineItems) {
           // Respect the currency provided per line item; default to display currency
           const sourceCurrency = customItem.currency || displayCurrency;
-          
-          // Convert unit price to company's base currency for storage
+
+          // Convert unit price to display currency for calculations
           const originalUnitPrice = customItem.unitPrice;
-          const convertedUnitPrice = convertCurrency(
+          const unitPriceInDisplay = convertCurrency(
             originalUnitPrice,
             sourceCurrency,
-            storageCurrency,
+            displayCurrency,
             exchangeRateSettings
           );
-          
-          const lineTotal = customItem.quantity * convertedUnitPrice;
-          
-          // Create description with currency conversion info if converted
+
+          const lineTotalInDisplay = customItem.quantity * unitPriceInDisplay;
+
+          // Create description with currency conversion info if source differs from display
           let description = customItem.description;
-          if (sourceCurrency !== storageCurrency) {
-            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${storageCurrency})`;
+          if (sourceCurrency !== displayCurrency) {
+            description += ` (${sourceCurrency} ${originalUnitPrice.toFixed(2)} → ${displayCurrency})`;
           }
-          
+
+          // Convert to storage currency if needed
+          const unitPriceInStorage = displayCurrency === storageCurrency
+            ? unitPriceInDisplay
+            : Math.round(convertCurrency(unitPriceInDisplay, displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
+          const lineTotalInStorage = displayCurrency === storageCurrency
+            ? lineTotalInDisplay
+            : Math.round(convertCurrency(lineTotalInDisplay, displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
           const lineItemData = {
             invoiceId: invoice.id,
             companyId,
             packageId: customItem.packageId || null,
             description,
             quantity: customItem.quantity,
-            unitPrice: convertedUnitPrice,
-            lineTotal: lineTotal,
+            unitPrice: unitPriceInStorage,
+            lineTotal: lineTotalInStorage,
             type: customItem.isTax ? 'tax' : 'other',
           };
           await this.invoiceItemsRepository.create(lineItemData, companyId);
-          
-          // Add to appropriate totals based on whether it's a tax
+
+          // Add to appropriate totals in display currency
           if (customItem.isTax) {
-            taxAmount += lineTotal;
-            feeBreakdown.taxes += lineTotal;
+            taxAmount += lineTotalInDisplay;
+            feeBreakdown.taxes += lineTotalInDisplay;
           } else {
-            subtotal += lineTotal;
-            feeBreakdown.other += lineTotal;
+            subtotal += lineTotalInDisplay;
+            feeBreakdown.other += lineTotalInDisplay;
           }
         }
       }
@@ -676,22 +708,27 @@ export class BillingService {
         
         // Determine the source currency for additional charge (default to display currency if not specified)
         const sourceCurrency = validatedData.additionalChargeCurrency || displayCurrency;
-        
-        // Convert additional charge to display currency
+
+        // Convert additional charge to display currency for calculations
         const originalAmount = validatedData.additionalCharge;
-        const convertedAmount = convertCurrency(
+        const amountInDisplay = convertCurrency(
           originalAmount,
           sourceCurrency,
           displayCurrency,
           exchangeRateSettings
         );
-        
+
         // Create description with currency conversion info if converted
         let description = 'Additional Charge';
         if (sourceCurrency !== displayCurrency) {
           description += ` (${sourceCurrency} ${originalAmount.toFixed(2)} → ${displayCurrency})`;
         }
-        
+
+        // Convert to storage currency if needed
+        const amountInStorage = displayCurrency === storageCurrency
+          ? amountInDisplay
+          : Math.round(convertCurrency(amountInDisplay, displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
         const addCharge = {
           invoiceId: invoice.id,
           companyId,
@@ -699,24 +736,79 @@ export class BillingService {
           // packageId: null,
           description,
           quantity: 1,
-          unitPrice: convertedAmount,
-          lineTotal: convertedAmount,
+          unitPrice: amountInStorage,
+          lineTotal: amountInStorage,
           type: 'other',
         };
         await this.invoiceItemsRepository.create(addCharge, companyId);
-        subtotal += convertedAmount;
-        feeBreakdown.other += convertedAmount;
+        subtotal += amountInDisplay;
+        feeBreakdown.other += amountInDisplay;
       }
-      
+
       // Calculate total
       const totalAmount = subtotal + taxAmount;
-      
+
+      console.log('==========================================');
+      console.log('🚨 INVOICE GENERATION - ROUNDING LOGIC 🚨');
+      console.log('==========================================');
+      console.log('📊 Totals:', { subtotal, taxAmount, totalAmount });
+      console.log('💱 Currencies:', { displayCurrency, storageCurrency });
+      console.log('==========================================');
+
+      // Round total based on display currency (the currency the user is working in)
+      // This ensures proper rounding (JMD to nearest 100, USD to nearest 10)
+      const roundedTotalInDisplayCurrency = roundInvoiceTotal(totalAmount, displayCurrency);
+      console.log('🔴 AFTER ROUNDING:', {
+        displayCurrency,
+        storageCurrency,
+        roundedTotalInDisplayCurrency,
+        willConvert: displayCurrency !== storageCurrency
+      });
+
+      // Round the value AFTER converting to storage currency to maintain integer precision
+      // This prevents floating-point errors when frontend converts back
+      let roundedTotal: number;
+      if (displayCurrency === storageCurrency) {
+        roundedTotal = roundedTotalInDisplayCurrency;
+      } else {
+        // Convert rounded display value to storage currency
+        const convertedValue = convertCurrency(roundedTotalInDisplayCurrency, displayCurrency, storageCurrency, exchangeRateSettings);
+        // Round again in storage currency to nearest cent to avoid floating-point decimals
+        roundedTotal = Math.round(convertedValue * 100) / 100;
+      }
+      console.log('🔴 FINAL VALUE TO STORE:', roundedTotal, 'type:', typeof roundedTotal);
+
+      // Calculate rounding adjustment for transparency (in display currency)
+      const roundingAdjustment = roundedTotalInDisplayCurrency - totalAmount;
+
+      // Convert subtotal and tax to storage currency if needed
+      const subtotalInStorageCurrency = displayCurrency === storageCurrency
+        ? subtotal
+        : Math.round(convertCurrency(subtotal, displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
+      const taxAmountInStorageCurrency = displayCurrency === storageCurrency
+        ? taxAmount
+        : Math.round(convertCurrency(taxAmount, displayCurrency, storageCurrency, exchangeRateSettings) * 100) / 100;
+
       // Update invoice with final totals and fee breakdown
+      // Store amounts in storage currency, but keep rounding info in display currency
+      console.log('🔴 STORING IN DATABASE:', {
+        subtotal: subtotalInStorageCurrency.toString(),
+        taxAmount: taxAmountInStorageCurrency.toString(),
+        totalAmount: roundedTotal.toString()
+      });
       await this.invoicesRepository.update(invoice.id, {
-        subtotal: subtotal.toString(),
-        taxAmount: taxAmount.toString(),
-        totalAmount: totalAmount.toString(),
-        feeBreakdown: feeBreakdown,
+        subtotal: subtotalInStorageCurrency.toString(),
+        taxAmount: taxAmountInStorageCurrency.toString(),
+        totalAmount: roundedTotal.toString(),
+        feeBreakdown: {
+          ...feeBreakdown,
+          originalTotal: totalAmount,
+          roundedTotal: roundedTotalInDisplayCurrency,
+          roundingAdjustment: roundingAdjustment,
+          displayCurrency: displayCurrency,  // Store what currency was used for rounding
+          storageCurrency: storageCurrency,  // Store what currency values are stored in
+        },
         notes: validatedData.notes || '',
       }, companyId);
       
@@ -947,17 +1039,27 @@ export class BillingService {
           type: 'other',
         });
       }
-      
+
       // Calculate total
       const totalAmount = subtotal + taxAmount;
+
+      // Get display currency for rounding (already declared at line 882 if custom line items exist)
+      const previewDisplayCurrency = validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings);
+
+      // Round total based on currency to reduce change requirements
+      const roundedTotal = roundInvoiceTotal(totalAmount, previewDisplayCurrency);
+
+      // Calculate rounding adjustment for transparency
+      const roundingAdjustment = roundedTotal - totalAmount;
+
       // Return the preview data, including fee breakdown (all numbers)
       return {
         userId: validatedData.userId,
         packageIds: validatedData.packageIds,
         subtotal: Number(subtotal) || 0,
         taxAmount: Number(taxAmount) || 0,
-        totalAmount: Number(totalAmount) || 0,
-        currency: validatedData.preferredCurrency || getDisplayCurrency(exchangeRateSettings),
+        totalAmount: Number(roundedTotal) || 0,
+        currency: previewDisplayCurrency,
         lineItems,
         feeBreakdown: {
           shipping: Number(feeBreakdown.shipping) || 0,
@@ -965,6 +1067,9 @@ export class BillingService {
           customs: Number(feeBreakdown.customs) || 0,
           other: Number(feeBreakdown.other) || 0,
           taxes: Number(feeBreakdown.taxes) || 0,
+          originalTotal: totalAmount,
+          roundedTotal: roundedTotal,
+          roundingAdjustment: roundingAdjustment,
         },
       };
     } catch (error) {
