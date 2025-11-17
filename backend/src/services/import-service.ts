@@ -5,7 +5,6 @@ import { UsersRepository } from '../repositories/users-repository';
 import { PackagesRepository } from '../repositories/packages-repository';
 import { AppError } from '../utils/app-error';
 import { packageStatusEnum } from '../db/schema/packages';
-import { db } from '../db';
 
 // Define the expected CSV structure with all possible fields from both formats
 export const csvPackageSchema = z.object({
