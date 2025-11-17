@@ -13,6 +13,7 @@ import { notFoundHandler } from './middleware/not-found-handler';
 import routes from './routes';
 import config from './config';
 import logger from './utils/logger';
+import { pool } from './db';
 
 // Create Express server
 const app = express();
@@ -58,9 +59,24 @@ app.use(limiter);
 // API routes
 app.use('/api', routes);
 
-// Health check endpoint
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' });
+// Health check endpoint with database connectivity check
+app.get('/health', async (_req, res) => {
+  try {
+    // Check database connectivity
+    await pool.query('SELECT 1');
+    res.status(200).json({
+      status: 'ok',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    logger.error('Health check failed - database connectivity issue:', err);
+    res.status(503).json({
+      status: 'error',
+      database: 'disconnected',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Error handling
@@ -68,10 +84,43 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start the server
-app.listen(port, () => {
+const server = app.listen(port, () => {
   logger.info(
     `Server running on port ${port} in ${config.server.env} mode`
   );
 });
+
+// Graceful shutdown handler
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`${signal} received, starting graceful shutdown`);
+
+  // Stop accepting new connections
+  server.close(async () => {
+    logger.info('HTTP server closed');
+
+    try {
+      // Close database pool
+      await pool.end();
+      logger.info('Database pool closed');
+
+      // Exit cleanly
+      logger.info('Graceful shutdown completed');
+      process.exit(0);
+    } catch (err) {
+      logger.error('Error during graceful shutdown:', err);
+      process.exit(1);
+    }
+  });
+
+  // Force shutdown after 30 seconds if graceful shutdown doesn't complete
+  setTimeout(() => {
+    logger.error('Forced shutdown after 30 second timeout');
+    process.exit(1);
+  }, 30000);
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

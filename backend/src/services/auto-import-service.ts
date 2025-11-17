@@ -385,11 +385,15 @@ export class AutoImportService {
       
       console.log(`Starting Magaya LiveTrack auto-import for company ${options.companyId}`);
 
-      // Launch browser with headless disabled for debugging
+      // Launch browser in headless mode for production/Docker environments
       browser = await chromium.launch({
-        headless: false, // Set to false for debugging
+        headless: process.env.NODE_ENV === 'production',
         timeout: 60000, // 60 second timeout for slow connections
-        slowMo: 500 // Slow down operations by 100ms for better visibility
+        args: [
+          '--no-sandbox', // Required for Docker containers
+          '--disable-setuid-sandbox', // Required for Docker containers
+          '--disable-dev-shm-usage', // Overcome limited resource problems in Docker
+        ]
       });
       
       // Create context with download path

@@ -23,4 +23,5 @@ RUN npm run build
 EXPOSE 3000
 
 # Start the application
-CMD ["npm", "start"]
+# Use node directly instead of npm to ensure proper signal handling (SIGTERM/SIGINT)
+CMD ["node", "dist/index.js"]

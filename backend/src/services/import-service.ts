@@ -5,6 +5,7 @@ import { UsersRepository } from '../repositories/users-repository';
 import { PackagesRepository } from '../repositories/packages-repository';
 import { AppError } from '../utils/app-error';
 import { packageStatusEnum } from '../db/schema/packages';
+import { db } from '../db';
 
 // Define the expected CSV structure with all possible fields from both formats
 export const csvPackageSchema = z.object({
@@ -212,10 +213,13 @@ export class ImportService {
       createdPackages: [],
     };
 
-    // Process each record
+    console.log(`[ImportService] Starting CSV import of ${records.length} records for company ${safeCompanyId}`);
+
+    // Process each record with better error handling and logging
     for (let i = 0; i < records.length; i++) {
       try {
         const record = records[i];
+        console.log(`[ImportService] Processing record ${i + 1}/${records.length}`);
         
         // Validate record
         const validation = csvPackageSchema.safeParse(record);
@@ -309,11 +313,13 @@ export class ImportService {
         }
 
         // Create the package
-        console.log(`Creating package with companyId: ${safeCompanyId}`);
+        console.log(`[ImportService] Creating package ${i + 1}/${records.length} with tracking: ${trackingNumber}`);
         const createdPackage = await this.packagesService.createPackage(packageData, safeCompanyId);
+        console.log(`[ImportService] Successfully created package ${i + 1}/${records.length}, ID: ${createdPackage.id}`);
         result.successCount++;
         result.createdPackages.push(createdPackage);
       } catch (error: any) {
+        console.error(`[ImportService] Failed to create package ${i + 1}/${records.length}:`, error.message);
         result.failedCount++;
         result.errors.push({
           row: i + 2, // +2 because row 1 is header and we are 0-indexed
@@ -321,6 +327,13 @@ export class ImportService {
         });
       }
     }
+
+    console.log(`[ImportService] CSV import completed: ${result.successCount} success, ${result.failedCount} failed, ${result.skippedCount} skipped out of ${result.totalRecords} total`);
+
+    // Add a small delay to ensure all async database operations complete
+    // This is critical in Docker/Render environments where process termination can be aggressive
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log(`[ImportService] Database flush delay completed`);
 
     return result;
   }
