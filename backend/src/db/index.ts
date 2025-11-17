@@ -19,15 +19,22 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // Necessary for Render's SSL
   },
+  // Improve connection reliability in Docker/Render environments
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 // Export the drizzle DB instance
 export const db = drizzle(pool);
 
-// Handle unexpected errors
+// Export pool for graceful shutdown
+export { pool };
+
+// Handle unexpected errors on idle clients
+// Don't exit the process - let the pool handle recovery and graceful shutdown handle cleanup
 pool.on('error', (err) => {
   logger.error(err, 'Unexpected error on idle client');
-  process.exit(-1);
+  // Removed process.exit(-1) to allow graceful recovery and proper shutdown
 });
 
 export default db; 

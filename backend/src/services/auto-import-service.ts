@@ -53,6 +53,7 @@ export class AutoImportService {
   private auditLogsService: AuditLogsService;
   private activeImports: Map<string, AutoImportStatus>;
   private activeCronJobs: Map<string, ScheduledTask>; // Track active cron jobs by companyId
+  private companyImportLocks: Map<string, boolean>; // Track active imports by companyId to prevent concurrent imports
   private downloadPath: string;
 
   constructor() {
@@ -61,13 +62,14 @@ export class AutoImportService {
     this.auditLogsService = new AuditLogsService();
     this.activeImports = new Map();
     this.activeCronJobs = new Map();
+    this.companyImportLocks = new Map();
     this.downloadPath = path.join(os.tmpdir(), 'sparrowx-magaya-imports');
-    
+
     // Ensure download directory exists
     if (!fs.existsSync(this.downloadPath)) {
       fs.mkdirSync(this.downloadPath, { recursive: true });
     }
-    
+
     // Setup any existing cron jobs
     this.setupCronJobs().catch(err => {
       console.error('Error setting up cron jobs:', err);
@@ -245,18 +247,27 @@ export class AutoImportService {
    * Start an auto-import process from Magaya
    */
   async startAutoImport(options: AutoImportOptions): Promise<{ id: string }> {
+    // Check if there's already an import in progress for this company
+    if (this.companyImportLocks.get(options.companyId)) {
+      console.log(`Import already in progress for company ${options.companyId}, skipping new import request`);
+      throw new Error('An import is already in progress for this company. Please wait for it to complete.');
+    }
+
     // Get company settings to retrieve Magaya credentials
     const settings = await this.companySettingsService.getCompanySettings(options.companyId) as CompanySettings;
     const magayaSettings = settings?.integrationSettings?.magayaIntegration;
-    
+
     if (!magayaSettings?.enabled) {
       throw new Error('Magaya integration is not enabled for this company');
     }
-    
+
     if (!magayaSettings.username || !magayaSettings.password) {
       throw new Error('Magaya credentials are not configured');
     }
-    
+
+    // Set the lock for this company
+    this.companyImportLocks.set(options.companyId, true);
+
     // Generate a unique ID for this import
     const importId = randomUUID();
     
@@ -293,7 +304,10 @@ export class AutoImportService {
       networkId: magayaSettings.networkId
     }).catch(error => {
       console.error('Error in auto import process:', error);
-      
+
+      // Release the company lock
+      this.companyImportLocks.delete(options.companyId);
+
       // Update status
       const status = this.activeImports.get(importId);
       if (status) {
@@ -302,7 +316,7 @@ export class AutoImportService {
         status.endTime = new Date();
         this.activeImports.set(importId, status);
       }
-      
+
       // Log failure
       this.auditLogsService.createLog({
         userId: options.initiatorUserId,
@@ -315,7 +329,7 @@ export class AutoImportService {
         }
       }).catch(e => console.error('Failed to log auto import failure:', e));
     });
-    
+
     return { id: importId };
   }
 
@@ -370,12 +384,16 @@ export class AutoImportService {
       }
       
       console.log(`Starting Magaya LiveTrack auto-import for company ${options.companyId}`);
-      
-      // Launch browser in headless mode for production
-      browser = await chromium.launch({ 
-        headless: true, // Set to false for debugging
+
+      // Launch browser in headless mode for production/Docker environments
+      browser = await chromium.launch({
+        headless: process.env.NODE_ENV === 'production',
         timeout: 60000, // 60 second timeout for slow connections
-        slowMo: 100 // Slow down operations by 100ms for better visibility
+        args: [
+          '--no-sandbox', // Required for Docker containers
+          '--disable-setuid-sandbox', // Required for Docker containers
+          '--disable-dev-shm-usage', // Overcome limited resource problems in Docker
+        ]
       });
       
       // Create context with download path
@@ -866,7 +884,11 @@ export class AutoImportService {
       status.result = result;
       status.endTime = new Date();
       this.activeImports.set(importId, status);
-      
+
+      // Release the company lock
+      this.companyImportLocks.delete(options.companyId);
+      console.log(`Released import lock for company ${options.companyId}`);
+
       // Log successful import completion
       const auditData: AuditLogData = {
         userId: options.initiatorUserId,
@@ -916,6 +938,10 @@ export class AutoImportService {
         console.error('Failed to clean up download files:', cleanupErr);
       }
     } catch (error: any) {
+      // Release the company lock
+      this.companyImportLocks.delete(options.companyId);
+      console.log(`Released import lock for company ${options.companyId} after error`);
+
       // Update status to failed
       const status = this.activeImports.get(importId);
       if (status) {
@@ -924,7 +950,7 @@ export class AutoImportService {
         status.endTime = new Date();
         this.activeImports.set(importId, status);
       }
-      
+
       // Log failure
       await this.auditLogsService.createLog({
         userId: options.initiatorUserId,
@@ -936,7 +962,7 @@ export class AutoImportService {
           error: error.message || 'Unknown error'
         }
       });
-      
+
       throw error; // Re-throw for outer catch
     } finally {
       // Close the browser

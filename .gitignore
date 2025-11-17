@@ -7,3 +7,4 @@ client/coverage/
 client/test-results/
 client/playwright-report/
 LiveTrack_Source/
+artifacts/
