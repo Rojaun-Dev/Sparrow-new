@@ -387,7 +387,7 @@ export class AutoImportService {
 
       // Launch browser in headless mode for production/Docker environments
       browser = await chromium.launch({
-        headless: process.env.NODE_ENV === 'production',
+        headless: false,
         timeout: 60000, // 60 second timeout for slow connections
         args: [
           '--no-sandbox', // Required for Docker containers
