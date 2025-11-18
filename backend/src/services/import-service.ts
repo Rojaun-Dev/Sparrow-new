@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import Papa from 'papaparse';
+import * as Papa from 'papaparse';
 import { PackagesService } from './packages-service';
 import { UsersRepository } from '../repositories/users-repository';
 import { PackagesRepository } from '../repositories/packages-repository';
@@ -77,15 +77,14 @@ export class ImportService {
       console.debug(`CSV first 50 chars: ${cleanContent.substring(0, 50)}`);
       console.debug(`CSV starts with BOM: ${csvContent.charCodeAt(0) === 0xFEFF}`);
 
-      const parseResult = Papa.parse(cleanContent, {
+      const parseResult = Papa.parse<CsvPackageRecord>(cleanContent, {
         header: true,              // First row is header
         skipEmptyLines: true,      // Skip empty lines
-        trimHeaders: true,         // Trim whitespace from headers
-        transformHeader: (header) => {
+        transformHeader: (header: string) => {
           // Trim whitespace and quotes from headers
           return header.trim().replace(/^["']|["']$/g, '');
         },
-        transform: (value) => {
+        transform: (value: string) => {
           // Trim whitespace from values
           return value.trim();
         },
@@ -96,7 +95,7 @@ export class ImportService {
         console.warn('CSV parsing warnings:', parseResult.errors);
       }
 
-      const records = parseResult.data as CsvPackageRecord[];
+      const records = parseResult.data;
 
       // Debug - output first record structure
       if (records.length > 0) {
