@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { parse } from 'csv-parse/sync';
+import Papa from 'papaparse';
 import { PackagesService } from './packages-service';
 import { UsersRepository } from '../repositories/users-repository';
 import { PackagesRepository } from '../repositories/packages-repository';
@@ -66,30 +66,50 @@ export class ImportService {
   }
 
   /**
-   * Parse CSV content
+   * Parse CSV content using PapaParse
    */
   parseCsv(csvContent: string): CsvPackageRecord[] {
     try {
       // Remove UTF-8 BOM if present (appears as "\uFEFF" at the start)
       const cleanContent = csvContent.replace(/^\uFEFF/, '');
-      
+
       // Debug - log first few characters for troubleshooting
       console.debug(`CSV first 50 chars: ${cleanContent.substring(0, 50)}`);
       console.debug(`CSV starts with BOM: ${csvContent.charCodeAt(0) === 0xFEFF}`);
-      
-      const records = parse(cleanContent, {
-        columns: true,
-        skip_empty_lines: true,
-        trim: true,
-        relaxColumnCount: true,  // Allow rows with inconsistent column counts
-        relaxQuotes: true,       // Be more forgiving of quotes
+
+      const parseResult = Papa.parse(cleanContent, {
+        header: true,              // First row is header
+        skipEmptyLines: true,      // Skip empty lines
+        trimHeaders: true,         // Trim whitespace from headers
+        transformHeader: (header) => {
+          // Trim whitespace and quotes from headers
+          return header.trim().replace(/^["']|["']$/g, '');
+        },
+        transform: (value) => {
+          // Trim whitespace from values
+          return value.trim();
+        },
       });
-      
+
+      // Check for parsing errors
+      if (parseResult.errors && parseResult.errors.length > 0) {
+        console.warn('CSV parsing warnings:', parseResult.errors);
+      }
+
+      const records = parseResult.data as CsvPackageRecord[];
+
       // Debug - output first record structure
       if (records.length > 0) {
+        console.debug(`CSV parsed ${records.length} records`);
         console.debug(`CSV first record keys: ${Object.keys(records[0])}`);
+      } else {
+        console.warn('CSV parsing returned 0 records', {
+          totalRows: cleanContent.split('\n').length,
+          firstLine: cleanContent.split('\n')[0],
+          parseResultMeta: parseResult.meta
+        });
       }
-      
+
       return records;
     } catch (error: any) {
       console.error(`CSV parsing error: ${error.message}`, {
