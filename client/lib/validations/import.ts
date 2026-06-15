@@ -21,6 +21,7 @@ export type ImportPackagesFormValues = z.infer<typeof importPackagesSchema>;
 
 // Schema for validating the structure of a package record from CSV
 export const packageCsvRecordSchema = z.object({
+  "External Tracking Number": z.string().optional(),
   "Tracking Number": z.string().optional(),
   "Number": z.string().optional(),
   "Status": z.string().optional(),
@@ -29,10 +30,6 @@ export const packageCsvRecordSchema = z.object({
   "Description": z.string().optional(),
   "Notes": z.string().optional(),
   // Add more fields as needed...
-}).refine(
-  (data) => data["Tracking Number"] || data["Number"],
-  {
-    message: "Either 'Tracking Number' or 'Number' must be provided",
-    path: ["Tracking Number"]
-  }
-); 
+});
+// Note: a tracking number is no longer required — records without an
+// "External Tracking Number" get a system-generated internal one on import. 
