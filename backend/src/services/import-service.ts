@@ -227,19 +227,22 @@ export class ImportService {
           );
         }
 
-        // Get tracking number from either format
-        const trackingNumber = record['Tracking Number'] || '';
-        
-        // Check if tracking number exists
-        if (!trackingNumber) {
-          throw new Error('Tracking number is required');
-        }
-        
-        // Check if package already exists in the database
-        const exists = await this.packageExists(trackingNumber, safeCompanyId);
-        if (exists) {
-          result.skippedCount++;
-          continue; // Skip this record and move to the next one
+        // Use the external (carrier) tracking number. Records without one get a
+        // system-generated internal tracking number marked with an INTERNAL- prefix.
+        const externalTracking = (record['External Tracking Number'] || '').trim();
+        let trackingNumber: string;
+
+        if (externalTracking) {
+          // Skip records whose external tracking number is already in the database
+          const exists = await this.packageExists(externalTracking, safeCompanyId);
+          if (exists) {
+            result.skippedCount++;
+            continue; // Skip this record and move to the next one
+          }
+          trackingNumber = externalTracking;
+        } else {
+          // No external tracking number — generate a unique internal one
+          trackingNumber = await generateTrackingId(safeCompanyId, { internal: true });
         }
         
         // Get description - either from Description field or Notes field
