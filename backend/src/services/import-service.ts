@@ -5,6 +5,7 @@ import { UsersRepository } from '../repositories/users-repository';
 import { PackagesRepository } from '../repositories/packages-repository';
 import { AppError } from '../utils/app-error';
 import { packageStatusEnum } from '../db/schema/packages';
+import { generateTrackingId } from '../utils/tracking-generator';
 
 // Define the expected CSV structure with all possible fields from both formats
 export const csvPackageSchema = z.object({
@@ -22,6 +23,7 @@ export const csvPackageSchema = z.object({
   'Invoice Number': z.string().optional(),
   Notes: z.string().optional(),
   'Tracking Number': z.string().optional(),
+  'External Tracking Number': z.string().optional(),
   
   // New format fields
   Description: z.string().optional(),
