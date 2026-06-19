@@ -9,8 +9,15 @@ import { eq } from 'drizzle-orm';
  * Generates a unique internal tracking ID for a package
  * Format: [Company Prefix]-[Year (2 digits)]-[Month (2 digits)]-[Unique Identifier (6 chars)]
  * Example: ABC-23-05-ABC123
+ *
+ * When `options.internal` is true, the id is prefixed with `INTERNAL-` to mark
+ * it as system-generated (e.g. for imported records with no external tracking
+ * number). Example: INTERNAL-ABC-23-05-ABC123
  */
-export async function generateTrackingId(companyId: string): Promise<string> {
+export async function generateTrackingId(
+  companyId: string,
+  options?: { internal?: boolean }
+): Promise<string> {
   // Get company prefix from settings, or fall back to company name
   const settingsResult = await db
     .select({ internalPrefix: companySettings.internalPrefix })
@@ -45,8 +52,10 @@ export async function generateTrackingId(companyId: string): Promise<string> {
   // Generate a unique identifier (6 characters)
   const uniqueId = generateUniqueIdentifier();
   
-  // Combine into tracking ID
-  const trackingId = `${prefix}-${year}-${month}-${uniqueId}`;
+  // Combine into tracking ID, marking system-generated ids as internal
+  const trackingId = options?.internal
+    ? `INTERNAL-${prefix}-${year}-${month}-${uniqueId}`
+    : `${prefix}-${year}-${month}-${uniqueId}`;
   
   // Check if this tracking ID already exists (very unlikely, but safety check)
   const existingPackage = await db
@@ -57,7 +66,7 @@ export async function generateTrackingId(companyId: string): Promise<string> {
   
   // If exists (very unlikely), generate a new one recursively
   if (existingPackage.length > 0) {
-    return generateTrackingId(companyId);
+    return generateTrackingId(companyId, options);
   }
   
   return trackingId;

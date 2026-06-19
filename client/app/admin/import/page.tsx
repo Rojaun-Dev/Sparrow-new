@@ -451,7 +451,8 @@ export default function ImportPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Important</AlertTitle>
                     <AlertDescription>
-                      The CSV file should contain columns for Tracking Number, Status, Weight, and Description.
+                      The CSV file should contain columns for External Tracking Number, Status, Weight, and Description.
+                      Records without an External Tracking Number will be assigned a system-generated internal tracking number.
                       Packages with existing tracking numbers will be skipped.
                     </AlertDescription>
                   </Alert>
