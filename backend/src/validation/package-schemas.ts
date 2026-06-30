@@ -21,6 +21,7 @@ export const createPackageSchema = z.object({
   notes: z.string().optional(),
   tags: z.array(z.string()).optional(),
   prefId: z.string().optional(),
+  warehouseReceipt: z.string().optional(),
 });
 
 // Schema for updating a package

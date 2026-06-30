@@ -127,8 +127,19 @@ export class ImportService {
    */
   async packageExists(trackingNumber: string, companyId: string): Promise<boolean> {
     if (!trackingNumber) return false;
-    
+
     const existingPackage = await this.packagesRepository.findByTrackingNumber(trackingNumber, companyId);
+    return !!existingPackage;
+  }
+
+  /**
+   * Check if a package with the given warehouse receipt (e.g. HLS-12559) already exists.
+   * This is the stable per-package identifier used to skip stale records on re-import.
+   */
+  async packageExistsByWarehouseReceipt(warehouseReceipt: string, companyId: string): Promise<boolean> {
+    if (!warehouseReceipt) return false;
+
+    const existingPackage = await this.packagesRepository.findByWarehouseReceipt(warehouseReceipt, companyId);
     return !!existingPackage;
   }
 
@@ -227,24 +238,42 @@ export class ImportService {
           );
         }
 
-        // Use the external (carrier) tracking number. Records without one get a
-        // system-generated internal tracking number marked with an INTERNAL- prefix.
+        // Warehouse receipt (e.g. HLS-12559) is the stable per-package identifier and
+        // the key we dedup on, so stale records are skipped even though the external
+        // tracking number changes between exports.
+        const warehouseReceipt = (record['Warehouse Receipt'] || record.Number || '').trim();
+
+        if (warehouseReceipt) {
+          // Skip records whose warehouse receipt is already in the database
+          const exists = await this.packageExistsByWarehouseReceipt(warehouseReceipt, safeCompanyId);
+          if (exists) {
+            result.skippedCount++;
+            continue; // Skip this stale record and move to the next one
+          }
+        }
+
+        // Use the external (carrier) tracking number as the stored tracking number.
+        // Records without one get a system-generated internal tracking number marked
+        // with an INTERNAL- prefix.
         const externalTracking = (record['External Tracking Number'] || '').trim();
         let trackingNumber: string;
 
         if (externalTracking) {
-          // Skip records whose external tracking number is already in the database
-          const exists = await this.packageExists(externalTracking, safeCompanyId);
-          if (exists) {
-            result.skippedCount++;
-            continue; // Skip this record and move to the next one
+          // Secondary guard (esp. for records with no warehouse receipt): skip if the
+          // external tracking number itself is already present.
+          if (!warehouseReceipt) {
+            const exists = await this.packageExists(externalTracking, safeCompanyId);
+            if (exists) {
+              result.skippedCount++;
+              continue; // Skip this record and move to the next one
+            }
           }
           trackingNumber = externalTracking;
         } else {
           // No external tracking number — generate a unique internal one
           trackingNumber = await generateTrackingId(safeCompanyId, { internal: true });
         }
-        
+
         // Get description - either from Description field or Notes field
         const description = record.Description || record.Notes || '';
         
@@ -269,9 +298,6 @@ export class ImportService {
           }
         }
         
-        // Get warehouse receipt from either format
-        const warehouseReceipt = record['Warehouse Receipt'] || record.Number || '';
-        
         // Get date - try different formats and fields
         const receivedDate = 
           this.parseDate(record['Entry Date']) || 
@@ -293,6 +319,7 @@ export class ImportService {
         // Map CSV fields to package schema
         const packageData: any = {
           trackingNumber,
+          warehouseReceipt: warehouseReceipt || undefined,
           status: this.mapStatus(record.Status),
           description,
           weight,

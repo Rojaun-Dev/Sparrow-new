@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, pgEnum, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb, pgEnum, decimal, index } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 import { users } from './users';
 
@@ -23,6 +23,7 @@ export const packages = pgTable('packages', {
   }),
   prefId: text('pref_id'),
   trackingNumber: text('tracking_number').notNull().unique(),
+  warehouseReceipt: text('warehouse_receipt'),
   status: packageStatusEnum('status').notNull().default('received'),
   description: text('description'),
   weight: decimal('weight', { precision: 10, scale: 2 }),
@@ -36,4 +37,9 @@ export const packages = pgTable('packages', {
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}); 
+}, (table) => ({
+  companyWarehouseReceiptIdx: index('packages_company_warehouse_receipt_idx').on(
+    table.companyId,
+    table.warehouseReceipt
+  ),
+})); 

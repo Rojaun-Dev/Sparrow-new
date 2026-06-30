@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "packages_company_warehouse_receipt_idx" ON "packages" ("company_id","warehouse_receipt");

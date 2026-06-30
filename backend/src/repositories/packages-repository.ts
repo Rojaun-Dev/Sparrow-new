@@ -48,6 +48,24 @@ export class PackagesRepository extends BaseRepository<typeof packages> {
   }
 
   /**
+   * Find a package by warehouse receipt (e.g. HLS-12559) within a company
+   */
+  async findByWarehouseReceipt(warehouseReceipt: string, companyId: string) {
+    const result = await this.db
+      .select()
+      .from(this.table)
+      .where(
+        and(
+          eq(this.table.warehouseReceipt, warehouseReceipt),
+          eq(this.table.companyId, companyId)
+        )
+      )
+      .limit(1);
+
+    return result.length > 0 ? result[0] : null;
+  }
+
+  /**
    * Find packages by user ID within a company with filtering options
    */
   async findByUserId(
