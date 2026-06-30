@@ -1,118 +1,87 @@
 -- ============================================================================
--- One-off cleanup: remove duplicate packages created by the bad Cargo Detail
--- import (the one that re-added stale records under a new External Tracking
--- Number / INTERNAL- key).
+-- One-off cleanup: remove the OLD duplicate packages left behind by the bad
+-- Cargo Detail import, for company f64eec57-424a-4efe-afc8-4b9580acb518.
 --
--- Strategy: match by the Warehouse Receipt (HLS-xxxxx) extracted from `notes`,
--- scoped to the 30 HLS values in the bad CSV. Only HLS values that have MORE
--- THAN ONE package are touched; for those we KEEP the oldest record (the
--- pre-existing original) and DELETE the newer bad-import duplicate(s).
--- Genuinely-new packages (HLS present only once) are left alone.
+-- Background: every affected package now exists twice in the DB --
+--   * the original, keyed by the old internal tracking number (9010-...)
+--   * a bad-import copy, keyed by the External Tracking Number (GFUS.../TBA.../1Z...)
+-- Both copies share the same warehouse receipt (HLS-...), which uniquely
+-- identifies the physical package.
+--
+-- Rule: DELETE the NEW external/INTERNAL copy (tracking_number NOT LIKE '9010-%')
+-- only when another record with the SAME warehouse_receipt and an old 9010-...
+-- tracking number exists. Keeps the original 9010-... record (already linked to
+-- invoices etc.), removes the bad-import duplicate, and never deletes a package
+-- that has no surviving 9010-... sibling.
+--
+-- PREREQUISITE: run the Part A migration first
+--   (cd backend && npm run db:migrate)
+-- so packages.warehouse_receipt is backfilled. Without it, B1-B3 match nothing.
 --
 -- HOW TO RUN:
---   1. Set :company_id to the affected tenant's UUID.
---   2. Run STEP 1 (and the sanity check) and eyeball the rows.
---   3. Only if STEP 1 looks correct, run STEP 2 inside the transaction.
+--   1. Run STEP 1 (overview) and STEP 2 (dry run); eyeball the rows.
+--   2. Only if STEP 2 looks correct, run STEP 3 inside the transaction.
 --
 -- FK behavior (deletes are NOT blocked): duty_fees.package_id is ON DELETE
 -- CASCADE; invoice_items.package_id and pre_alerts.package_id are ON DELETE
--- SET NULL. Bad-import duplicates are brand new, so they typically have no such
--- children, but be aware any attached duty_fees would cascade-delete.
+-- SET NULL. Per the "delete old as-is" decision the surviving external/INTERNAL
+-- records are treated as holding the correct customer/billing data.
 -- ============================================================================
 
--- Provide the affected tenant id, e.g. in psql:
---   \set company_id '00000000-0000-0000-0000-000000000000'
--- or replace :company_id below with a literal '...'::uuid.
-
--- Reusable list of the warehouse receipts from the bad import CSV.
--- (Defined inline in each query below as a VALUES CTE.)
-
 -- ----------------------------------------------------------------------------
--- STEP 1 — DRY RUN: rows that WILL be deleted (newer duplicates; oldest kept)
+-- STEP 1 -- OVERVIEW: warehouse receipts with more than one package (the
+--          duplicate groups that will be collapsed).
 -- ----------------------------------------------------------------------------
-WITH bad_hls(hls) AS (VALUES
-  ('HLS-12650'),('HLS-12651'),('HLS-12649'),('HLS-12648'),('HLS-12559'),
-  ('HLS-12558'),('HLS-12556'),('HLS-12557'),('HLS-12552'),('HLS-12469'),
-  ('HLS-12468'),('HLS-12464'),('HLS-12463'),('HLS-12461'),('HLS-12462'),
-  ('HLS-12387'),('HLS-12388'),('HLS-12348'),('HLS-12347'),('HLS-12346'),
-  ('HLS-12326'),('HLS-12327'),('HLS-12328'),('HLS-12282'),('HLS-12199'),
-  ('HLS-12198'),('HLS-12200'),('HLS-12166'),('HLS-12165'),('HLS-12167')
-),
-ranked AS (
-  SELECT p.id, p.tracking_number, p.created_at,
-         substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)') AS hls,
-         row_number() OVER (
-           PARTITION BY substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)')
-           ORDER BY p.created_at ASC
-         ) AS rn,
-         count(*) OVER (
-           PARTITION BY substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)')
-         ) AS cnt
-  FROM packages p
-  WHERE p.company_id = :company_id
-    AND substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)') IN (SELECT hls FROM bad_hls)
-)
-SELECT id, hls, tracking_number, created_at, cnt AS total_for_hls
-FROM ranked
-WHERE cnt > 1 AND rn > 1          -- duplicates to delete (rn = 1, the oldest, is kept)
-ORDER BY hls, created_at;
+SELECT warehouse_receipt,
+       count(*) AS total,
+       array_agg(tracking_number ORDER BY created_at) AS tracking_numbers
+FROM packages
+WHERE company_id = 'f64eec57-424a-4efe-afc8-4b9580acb518'
+  AND warehouse_receipt IS NOT NULL
+GROUP BY warehouse_receipt
+HAVING count(*) > 1
+ORDER BY warehouse_receipt;
 
 -- ----------------------------------------------------------------------------
--- SANITY CHECK — bad-CSV HLS that are singletons (genuinely-new; NOT deleted)
+-- STEP 2 -- DRY RUN: the exact NEW external/INTERNAL rows that WILL be deleted
+--          (an old 9010-... sibling with the same warehouse receipt exists).
 -- ----------------------------------------------------------------------------
-WITH bad_hls(hls) AS (VALUES
-  ('HLS-12650'),('HLS-12651'),('HLS-12649'),('HLS-12648'),('HLS-12559'),
-  ('HLS-12558'),('HLS-12556'),('HLS-12557'),('HLS-12552'),('HLS-12469'),
-  ('HLS-12468'),('HLS-12464'),('HLS-12463'),('HLS-12461'),('HLS-12462'),
-  ('HLS-12387'),('HLS-12388'),('HLS-12348'),('HLS-12347'),('HLS-12346'),
-  ('HLS-12326'),('HLS-12327'),('HLS-12328'),('HLS-12282'),('HLS-12199'),
-  ('HLS-12198'),('HLS-12200'),('HLS-12166'),('HLS-12165'),('HLS-12167')
-),
-ranked AS (
-  SELECT substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)') AS hls,
-         count(*) OVER (
-           PARTITION BY substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)')
-         ) AS cnt,
-         p.id
-  FROM packages p
-  WHERE p.company_id = :company_id
-    AND substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)') IN (SELECT hls FROM bad_hls)
-)
-SELECT DISTINCT hls, cnt AS total_for_hls
-FROM ranked
-WHERE cnt = 1
-ORDER BY hls;
+SELECT p.id,
+       p.tracking_number,
+       p.warehouse_receipt,
+       p.user_id,
+       p.created_at
+FROM packages p
+WHERE p.company_id = 'f64eec57-424a-4efe-afc8-4b9580acb518'
+  AND p.tracking_number NOT LIKE '9010-%'
+  AND p.warehouse_receipt IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM packages e
+    WHERE e.company_id = p.company_id
+      AND e.warehouse_receipt = p.warehouse_receipt
+      AND e.id <> p.id
+      AND e.tracking_number LIKE '9010-%'
+  )
+ORDER BY p.warehouse_receipt;
 
 -- ----------------------------------------------------------------------------
--- STEP 2 — DELETE (run only after STEP 1 looks correct).
+-- STEP 3 -- DELETE (run only after STEP 2 looks correct).
 -- Wrapped in a transaction so you can verify the row count before COMMIT.
 -- ----------------------------------------------------------------------------
 BEGIN;
 
-WITH bad_hls(hls) AS (VALUES
-  ('HLS-12650'),('HLS-12651'),('HLS-12649'),('HLS-12648'),('HLS-12559'),
-  ('HLS-12558'),('HLS-12556'),('HLS-12557'),('HLS-12552'),('HLS-12469'),
-  ('HLS-12468'),('HLS-12464'),('HLS-12463'),('HLS-12461'),('HLS-12462'),
-  ('HLS-12387'),('HLS-12388'),('HLS-12348'),('HLS-12347'),('HLS-12346'),
-  ('HLS-12326'),('HLS-12327'),('HLS-12328'),('HLS-12282'),('HLS-12199'),
-  ('HLS-12198'),('HLS-12200'),('HLS-12166'),('HLS-12165'),('HLS-12167')
-),
-ranked AS (
-  SELECT p.id,
-         row_number() OVER (
-           PARTITION BY substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)')
-           ORDER BY p.created_at ASC
-         ) AS rn,
-         count(*) OVER (
-           PARTITION BY substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)')
-         ) AS cnt
-  FROM packages p
-  WHERE p.company_id = :company_id
-    AND substring(p.notes from 'Warehouse Receipt:\s*(HLS-[0-9]+)') IN (SELECT hls FROM bad_hls)
-)
-DELETE FROM packages
-WHERE id IN (SELECT id FROM ranked WHERE cnt > 1 AND rn > 1);
+DELETE FROM packages p
+WHERE p.company_id = 'f64eec57-424a-4efe-afc8-4b9580acb518'
+  AND p.tracking_number NOT LIKE '9010-%'
+  AND p.warehouse_receipt IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM packages e
+    WHERE e.company_id = p.company_id
+      AND e.warehouse_receipt = p.warehouse_receipt
+      AND e.id <> p.id
+      AND e.tracking_number LIKE '9010-%'
+  );
 
--- Verify the deleted count matches STEP 1, then:
---   COMMIT;   -- to apply
---   ROLLBACK; -- to undo if anything looks off
+-- Verify the deleted count matches STEP 2, then run one of:
+COMMIT;     -- apply the deletion
+-- ROLLBACK; -- undo if anything looks off
