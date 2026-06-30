@@ -190,6 +190,20 @@
       "when": 1753205802445,
       "tag": "0026_elite_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1782751477120,
+      "tag": "0027_good_vengeance",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1782751516972,
+      "tag": "0028_empty_lockheed",
+      "breakpoints": true
     }
   ]
 }
